@@ -114,5 +114,5 @@ export const BRAND_STRATEGY_FIELDS: { key: keyof BrandProfileData; label: string
 export const BRAND_ICP_FIELDS: { key: keyof BrandProfileData; label: string }[] = [
   { key: "icpMetaAds", label: "ICP - Meta Ads" },
   { key: "icpNewsletter", label: "ICP - Newsletter" },
-  { key: "icpOutreach", label: "ICP - Outreach" },
+  { key: "icpOutreach", label: "ICP - Cold Email" },
 ];

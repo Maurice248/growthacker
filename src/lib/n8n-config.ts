@@ -24,10 +24,10 @@ export const N8N_WEBHOOK_FIELDS: N8nWebhookField[] = [
   { key: 'NEXT_PUBLIC_N8N_REGENERATE_WEBHOOK_URL', label: 'Regenerate newsletter', group: 'Newsletter' },
   { key: 'NEXT_PUBLIC_N8N_HTML_WEBHOOK_URL', label: 'Newsletter HTML', group: 'Newsletter' },
   { key: 'NEXT_PUBLIC_N8N_CAMPAIGN_WEBHOOK_URL', label: 'Newsletter campaign', group: 'Newsletter' },
-  { key: 'N8N_CAMPAIGN_WEBHOOK_URL', label: 'Outreach campaign', group: 'Outreach' },
-  { key: 'N8N_SCRAPER_WEBHOOK_URL', label: 'Lead scraper', group: 'Outreach' },
-  { key: 'N8N_CLEANUP_WEBHOOK_URL', label: 'Lead cleanup', group: 'Outreach' },
-  { key: 'N8N_APPROVAL_WEBHOOK_URL', label: 'Campaign approval', group: 'Outreach' },
+  { key: 'N8N_CAMPAIGN_WEBHOOK_URL', label: 'Cold Email campaign', group: 'Cold Email' },
+  { key: 'N8N_SCRAPER_WEBHOOK_URL', label: 'Lead scraper', group: 'Cold Email' },
+  { key: 'N8N_CLEANUP_WEBHOOK_URL', label: 'Lead cleanup', group: 'Cold Email' },
+  { key: 'N8N_APPROVAL_WEBHOOK_URL', label: 'Campaign approval', group: 'Cold Email' },
   { key: 'N8N_BLOG_AUTOMATION_WEBHOOK_URL', label: 'Blog automation', group: 'Blog' },
 ];
 

@@ -47,7 +47,7 @@ const dashboardNav: NavItem[] = [
 const outreachNav: NavItem[] = [
   { href: '/outreach', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/outreach/campaigns', label: 'Email Messages', icon: Mail },
-  { href: '/outreach/analytics', label: 'Outreach Analytics', icon: BarChart3 },
+  { href: '/outreach/analytics', label: 'Cold Email Analytics', icon: BarChart3 },
   { href: '/outreach/scraper', label: 'Lead Scraper', icon: Search },
   { href: '/outreach/scraper/history', label: 'Scraper History', icon: History },
   { href: '/outreach/cleanup', label: 'Reset Lead Status', icon: Trash2 },
@@ -77,8 +77,8 @@ export const SECTION_CONFIG: Record<AppSection, SectionConfig> = {
     labels: {
       campaignsTitle: 'Email Messages',
       campaignsDescription: 'Manage AI-generated email messages with in-dashboard approval',
-      analyticsTitle: 'Outreach Analytics',
-      analyticsDescription: 'Performance metrics for outreach workflows',
+      analyticsTitle: 'Cold Email Analytics',
+      analyticsDescription: 'Performance metrics for cold email workflows',
       totalCampaignsTitle: 'Total Email Templates Generated',
       successRateTitle: 'Workflows Success Rate',
       leadsByChartTitle: 'Leads by Table',

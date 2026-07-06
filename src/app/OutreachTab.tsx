@@ -25,7 +25,7 @@ export default function OutreachTab({ activeTab }: { activeTab: string }) {
       <iframe
         key={src}
         src={src}
-        title="Outreach"
+        title="Cold Email"
         style={{
           width: '100%',
           height: '100%',

@@ -149,8 +149,8 @@ export function ClientDashboardShell({
         />
       </div>
 
-      <div className="shrink-0 border-t border-[var(--border-light)] pt-4">
-        <div className="flex flex-col gap-2.5">
+      <div className="shrink-0 border-t border-[var(--border-light)] pt-3">
+        <div className="flex flex-col gap-2">
           <button
             type="button"
             onClick={openProfile}
@@ -185,11 +185,11 @@ export function ClientDashboardShell({
           </button>
           <p
             className={cn(
-              'text-center font-medium text-[var(--text-muted)]',
+              '-mt-0.5 mb-0 text-center font-medium leading-tight text-[var(--text-muted)]',
               collapsed ? 'text-[9px]' : 'text-[10px]'
             )}
           >
-            {collapsed ? 'v2.0' : 'version 2.0'}
+            {collapsed ? 'v0.2' : 'version 0.2'}
           </p>
         </div>
       </div>

@@ -22,7 +22,7 @@ export default function BlogTab({ activeTab }: { activeTab: string }) {
       <iframe
         key={src}
         src={src}
-        title="Blog management"
+        title="Blog"
         style={{
           width: '100%',
           height: '100%',

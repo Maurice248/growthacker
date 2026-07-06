@@ -1,10 +1,25 @@
 'use client';
 
-import { clientTabEmbedSrc, clientTabLabel } from '@/lib/client-dashboard-nav';
+import {
+  clientTabEmbedSrc,
+  clientTabLabel,
+  CLIENT_OUTREACH_FUTURE_IDS,
+} from '@/lib/client-dashboard-nav';
 
 export function ClientTabView({ tabId }: { tabId: string }) {
   const src = clientTabEmbedSrc(tabId);
   const title = clientTabLabel(tabId);
+
+  if (CLIENT_OUTREACH_FUTURE_IDS.has(tabId)) {
+    return (
+      <div className="flex h-[calc(100dvh)] min-h-[560px] w-full flex-1 items-center justify-center bg-[var(--bg)]">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white px-12 py-16 text-center">
+          <div className="text-4xl">🚧</div>
+          <h2 className="mt-4 text-lg font-semibold text-slate-900">Future Development</h2>
+        </div>
+      </div>
+    );
+  }
 
   if (!src) {
     return (

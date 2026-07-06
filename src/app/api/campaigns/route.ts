@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     const campaignWebhookUrl = getN8nWebhook(n8n, 'N8N_CAMPAIGN_WEBHOOK_URL');
     if (!campaignWebhookUrl) {
       return NextResponse.json(
-        { error: 'Outreach campaign webhook is not configured in API key management.' },
+        { error: 'Cold Email campaign webhook is not configured in API key management.' },
         { status: 503 }
       );
     }

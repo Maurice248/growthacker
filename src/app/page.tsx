@@ -45,6 +45,8 @@ import {
   Trash2,
   FileText,
   Sparkles,
+  Phone,
+  Smartphone,
 } from "lucide-react";
 import OutreachTab from "./OutreachTab";
 import NewsletterTab from "./NewsletterTab";
@@ -113,14 +115,23 @@ const NEWSLETTER_TAB_IDS = new Set(NEWSLETTER_TABS.map((t) => t.id));
 
 const META_ADS_IDS = new Set(["overview", "create", "approval", "campaigns", "live_campaigns", "ad_performance", "reports"]);
 
+const OUTREACH_FUTURE_TABS = [
+  { id: "cold-dm", label: "Cold DM", icon: MessageSquare },
+  { id: "cold-call", label: "Cold Call", icon: Phone },
+  { id: "cold-sms", label: "Cold SMS", icon: Smartphone },
+];
+
 const OUTREACH_TABS = [
   { id: "outreach-dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "outreach-campaigns", label: "Email Messages", icon: Mail },
-  { id: "outreach-analytics", label: "Outreach Analytics", icon: BarChart3 },
+  { id: "outreach-analytics", label: "Cold Email Analytics", icon: BarChart3 },
   { id: "outreach-scraper", label: "Lead Scraper", icon: Search },
   { id: "outreach-scraper-history", label: "Scraper History", icon: History },
   { id: "outreach-cleanup", label: "Reset Lead Status", icon: Trash2 },
+  ...OUTREACH_FUTURE_TABS,
 ];
+
+const OUTREACH_FUTURE_IDS = new Set(OUTREACH_FUTURE_TABS.map((t) => t.id));
 
 const OUTREACH_IDS = new Set(OUTREACH_TABS.map((t) => t.id));
 
@@ -3232,7 +3243,7 @@ export default function Dashboard() {
                 {/* Outreach group */}
                 <div style={{ position: "relative" }} className="sidebar-nav-item">
                   <button
-                    title={sidebarCollapsed ? "Outreach" : ""}
+                    title={sidebarCollapsed ? "Cold Email" : ""}
                     style={{
                       width: "100%",
                       display: "flex",
@@ -3260,7 +3271,7 @@ export default function Dashboard() {
                     <Send size={15} style={{ flexShrink: 0 }} />
                     {!sidebarCollapsed && (
                       <>
-                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Outreach</span>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Cold Email</span>
                         <span style={{
                           fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
                           transform: showOutreachChildren ? "rotate(180deg)" : "rotate(0deg)",
@@ -3281,7 +3292,7 @@ export default function Dashboard() {
                       opacity: 0, transition: "opacity 0.15s",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
                     }}>
-                      Outreach
+                      Cold Email
                     </span>
                   )}
 
@@ -3298,10 +3309,10 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* Blog management group */}
+                {/* Blog group */}
                 <div style={{ position: "relative" }} className="sidebar-nav-item">
                   <button
-                    title={sidebarCollapsed ? "Blog management" : ""}
+                    title={sidebarCollapsed ? "Blog" : ""}
                     style={{
                       width: "100%",
                       display: "flex",
@@ -3329,7 +3340,7 @@ export default function Dashboard() {
                     <FileText size={15} style={{ flexShrink: 0 }} />
                     {!sidebarCollapsed && (
                       <>
-                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Blog management</span>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Blog</span>
                         <span style={{
                           fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
                           transform: showBlogChildren ? "rotate(180deg)" : "rotate(0deg)",
@@ -3350,7 +3361,7 @@ export default function Dashboard() {
                       opacity: 0, transition: "opacity 0.15s",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
                     }}>
-                      Blog management
+                      Blog
                     </span>
                   )}
 
@@ -6671,7 +6682,12 @@ export default function Dashboard() {
       {/* ═══════════════════════════════════════════════════════
           OUTREACH — Inline embed (no page navigation)
       ═══════════════════════════════════════════════════════ */}
-      {OUTREACH_IDS.has(tab) && (
+      {OUTREACH_FUTURE_IDS.has(tab) && (
+        <div className="animate-fade-in">
+          <EmptyState title="Future Development" sub="" icon="🚧" />
+        </div>
+      )}
+      {OUTREACH_IDS.has(tab) && !OUTREACH_FUTURE_IDS.has(tab) && (
         <OutreachTab activeTab={tab} />
       )}
 
@@ -6804,7 +6820,7 @@ export default function Dashboard() {
             {[
               { key: "icpMetaAds", label: "ICP - Meta Ads", iconEl: <LayoutGrid size={16} color="#059669" />, iconBg: "#ECFDF5" },
               { key: "icpNewsletter", label: "ICP - Newsletter", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
-              { key: "icpOutreach", label: "ICP - Outreach", iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
+              { key: "icpOutreach", label: "ICP - Cold Email", iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
             ].map((f, i, arr) => (
               <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>

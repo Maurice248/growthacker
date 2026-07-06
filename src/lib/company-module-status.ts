@@ -63,7 +63,7 @@ export function getModuleStatuses(creds: IntegrationCredentials): ModuleStatus[]
     },
     {
       id: 'outreach',
-      label: 'Outreach',
+      label: 'Cold Email',
       keys: ['N8N_CAMPAIGN_WEBHOOK_URL', 'N8N_SCRAPER_WEBHOOK_URL'],
       ok: outreachConfigured(creds),
     },

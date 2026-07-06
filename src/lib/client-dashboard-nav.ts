@@ -19,6 +19,9 @@ import {
   TrendingUp,
   User,
   WandSparkles,
+  MessageSquare,
+  Phone,
+  Smartphone,
 } from 'lucide-react';
 
 export type ClientNavItem = {
@@ -58,14 +61,23 @@ export const CLIENT_NEWSLETTER_TABS: ClientNavItem[] = [
   { id: 'newsletter-services', label: 'Manage Services', icon: Settings2 },
 ];
 
+export const CLIENT_OUTREACH_FUTURE_TABS: ClientNavItem[] = [
+  { id: 'cold-dm', label: 'Cold DM', icon: MessageSquare },
+  { id: 'cold-call', label: 'Cold Call', icon: Phone },
+  { id: 'cold-sms', label: 'Cold SMS', icon: Smartphone },
+];
+
 export const CLIENT_OUTREACH_TABS: ClientNavItem[] = [
   { id: 'outreach-dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'outreach-campaigns', label: 'Email Messages', icon: Mail },
-  { id: 'outreach-analytics', label: 'Outreach Analytics', icon: BarChart3 },
+  { id: 'outreach-analytics', label: 'Cold Email Analytics', icon: BarChart3 },
   { id: 'outreach-scraper', label: 'Lead Scraper', icon: Search },
   { id: 'outreach-scraper-history', label: 'Scraper History', icon: History },
   { id: 'outreach-cleanup', label: 'Reset Lead Status', icon: Trash2 },
+  ...CLIENT_OUTREACH_FUTURE_TABS,
 ];
+
+export const CLIENT_OUTREACH_FUTURE_IDS = new Set(CLIENT_OUTREACH_FUTURE_TABS.map((t) => t.id));
 
 export const CLIENT_BLOG_TABS: ClientNavItem[] = [
   { id: 'blog-post', label: 'Blog Posts', icon: FileText },

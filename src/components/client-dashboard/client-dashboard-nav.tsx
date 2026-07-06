@@ -283,7 +283,7 @@ export function ClientDashboardNav({
       </NavGroup>
 
       <NavGroup
-        label="Outreach"
+        label="Cold Email"
         icon={Send}
         open={outreachOpen}
         onToggle={() => setOutreachOpen((o) => !o)}
@@ -309,7 +309,7 @@ export function ClientDashboardNav({
       </NavGroup>
 
       <NavGroup
-        label="Blog management"
+        label="Blog"
         icon={FileText}
         open={blogOpen}
         onToggle={() => setBlogOpen((o) => !o)}

@@ -37,7 +37,7 @@ export default async function OutreachDashboardPage() {
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <div>
-              <p className="font-medium">Outreach database not set up yet</p>
+              <p className="font-medium">Cold Email database not set up yet</p>
               <p className="mt-1 text-amber-800">
                 Run <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs">npx prisma db execute --file prisma/migrations/add_outreach_tables.sql</code> to
                 create the outreach tables, then refresh.
