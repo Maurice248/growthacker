@@ -394,12 +394,12 @@ function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
  */
 function useLocalStorage(key, defaultValue, onRestore = null) {
   const [value, setValue] = useState(defaultValue);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Load from localStorage on client-side mount
   useEffect(() => {
+    setIsHydrated(false);
     const timer = setTimeout(() => {
-      setIsMounted(true);
       try {
         const stored = window.localStorage.getItem(key);
         if (stored !== null) {
@@ -408,6 +408,8 @@ function useLocalStorage(key, defaultValue, onRestore = null) {
         }
       } catch (e) {
         console.warn(`LocalStorage read error for key "${key}":`, e);
+      } finally {
+        setIsHydrated(true);
       }
     }, 0);
     return () => clearTimeout(timer);
@@ -415,15 +417,15 @@ function useLocalStorage(key, defaultValue, onRestore = null) {
 
   // Persist updates to localStorage
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isHydrated) return;
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
       console.warn(`LocalStorage write error for key "${key}":`, e);
     }
-  }, [key, value, isMounted]);
+  }, [key, value, isHydrated]);
 
-  return [value, setValue];
+  return [value, setValue, isHydrated];
 }
 
 function readEmbedTabFromUrl() {
@@ -507,6 +509,7 @@ export default function Dashboard() {
   const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("app_pending_analysis_topic", null);
   const pendingTopicRef = useRef<string | null>(null); // ref so realtime callback always sees latest value
   const companySlugRef = useRef<string | null>(null);
+  const analysisInFlightRef = useRef(false);
   useEffect(() => { pendingTopicRef.current = pendingAnalysisTopic; }, [pendingAnalysisTopic]);
 
   // Custom keywords research form states
@@ -621,7 +624,7 @@ export default function Dashboard() {
   const [loadingBrandSnapshots, setLoadingBrandSnapshots] = useState(false);
   const [brandSnapshotsLoaded, setBrandSnapshotsLoaded] = useState(false);
   const [expandedBrandSnapshotId, setExpandedBrandSnapshotId] = useState<string | null>(null);
-  const [activeBrandSnapshot, setActiveBrandSnapshot] = useLocalStorage(
+  const [activeBrandSnapshot, setActiveBrandSnapshot, activeBrandSnapshotHydrated] = useLocalStorage(
     tenantStorageKey(companyId, "app_active_brand_snapshot"),
     null
   );
@@ -1025,33 +1028,65 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (brandSnapshotsModalOpen || tab === "profile") fetchBrandSnapshots();
-  }, [brandSnapshotsModalOpen, tab, fetchBrandSnapshots]);
+    if (companyId) fetchBrandSnapshots();
+  }, [companyId, fetchBrandSnapshots]);
 
   // Restore full template data when only id/label persisted in localStorage;
   // clear stale references from another company or deleted templates.
+  // When nothing is selected (new session), default to the latest saved template.
   useEffect(() => {
-    if (!activeBrandSnapshot?.id || activeBrandSnapshot.id === "current") return;
-    if (loadingBrandSnapshots || !brandSnapshotsLoaded) return;
+    if (!companyId || loadingBrandSnapshots || !brandSnapshotsLoaded) return;
 
-    const snapshot = brandSnapshots.find((s: any) => s.id === activeBrandSnapshot.id);
-    if (!snapshot) {
-      setActiveBrandSnapshot(null);
+    if (activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current") {
+      const snapshot = brandSnapshots.find((s: any) => s.id === activeBrandSnapshot.id);
+      if (!snapshot) {
+        setActiveBrandSnapshot(null);
+        return;
+      }
+
+      if (activeBrandSnapshot.data) return;
+
+      setActiveBrandSnapshot({
+        ...activeBrandSnapshot,
+        label: snapshot.label || activeBrandSnapshot.label,
+        created_at: snapshot.created_at,
+        data: snapshotToProfile(snapshot),
+      });
       return;
     }
 
-    if (activeBrandSnapshot.data) return;
-
-    setActiveBrandSnapshot({
-      ...activeBrandSnapshot,
-      label: snapshot.label || activeBrandSnapshot.label,
-      created_at: snapshot.created_at,
-      data: snapshotToProfile(snapshot),
-    });
-  }, [activeBrandSnapshot, brandSnapshots, brandSnapshotsLoaded, loadingBrandSnapshots, setActiveBrandSnapshot]);
+    if (brandSnapshots.length > 0) {
+      const latest = brandSnapshots[0];
+      setActiveBrandSnapshot({
+        id: latest.id,
+        label: latest.label || "Saved template",
+        created_at: latest.created_at,
+        data: snapshotToProfile(latest),
+      });
+    }
+  }, [activeBrandSnapshot, brandSnapshots, brandSnapshotsLoaded, loadingBrandSnapshots, companyId, setActiveBrandSnapshot]);
 
   const isActiveSavedTemplate =
     Boolean(activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current" && activeBrandSnapshot.data);
+
+  const activeBrandContextLabel = useMemo(() => {
+    if (!activeBrandSnapshotHydrated) return null;
+    if (activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current") {
+      return activeBrandSnapshot.label || "Saved template";
+    }
+    if (!brandSnapshotsLoaded || loadingBrandSnapshots) return null;
+    if (brandSnapshots.length > 0) {
+      return brandSnapshots[0].label || "Saved template";
+    }
+    return "Current brand (live)";
+  }, [
+    activeBrandSnapshotHydrated,
+    activeBrandSnapshot?.id,
+    activeBrandSnapshot?.label,
+    brandSnapshotsLoaded,
+    loadingBrandSnapshots,
+    brandSnapshots,
+  ]);
 
   const displayProfileData = useMemo(() => {
     if (isEditingProfile) return profileData;
@@ -1480,8 +1515,19 @@ export default function Dashboard() {
 
   // On mount: if analysisStatus is "generating" but no sessionStorage flag,
   // it means the page was refreshed mid-analysis — reset to idle so user can re-trigger
+  // unless another tab still has a recent in-flight run (shared via localStorage).
   useEffect(() => {
     const isActiveSession = sessionStorage.getItem("app_analysis_active");
+    const startRaw = window.localStorage.getItem("app_analysis_start");
+    const startTime = startRaw ? Number(startRaw) : null;
+    const isRecentRun = Boolean(startTime && Date.now() - startTime < 360_000);
+
+    if (!isActiveSession && isRecentRun) {
+      setAnalysisStatus("generating");
+      sessionStorage.setItem("app_analysis_active", "1");
+      return;
+    }
+
     if (!isActiveSession) {
       // No active fetch in this session — clear any stale generating state
       setAnalysisStatus("idle");
@@ -2661,6 +2707,15 @@ export default function Dashboard() {
 
   // ── Action 1: Competitor Analysis ──
   async function runCompetitorAnalysis() {
+    const startRaw = window.localStorage.getItem("app_analysis_start");
+    const startTime = startRaw ? Number(startRaw) : null;
+    const isRecentRun = Boolean(startTime && Date.now() - startTime < 360_000);
+
+    if (analysisInFlightRef.current || analysisStatus === "generating" || isRecentRun) {
+      addSbToast("An analysis is already running. Wait for it to finish before starting another.", "error");
+      return;
+    }
+
     // Read keywords directly from localStorage to avoid stale closure after async delay
     let kwSnapshot: string[] = researchKeywords;
     try {
@@ -2678,6 +2733,7 @@ export default function Dashboard() {
       return;
     }
 
+    analysisInFlightRef.current = true;
     setAnalysisData(null);
     setAnalysisError("");
     setAnalysisProgress(0);
@@ -2753,6 +2809,8 @@ export default function Dashboard() {
       sessionStorage.removeItem("app_analysis_active");
       setAnalysisError(err.message || "Unexpected error");
       addSbToast(`Analysis error: ${err.message || "Unknown"}`, "error");
+    } finally {
+      analysisInFlightRef.current = false;
     }
   }
 
@@ -3687,9 +3745,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div style={{ padding: "8px 14px", borderRadius: 10, background: "#DBEAFE", border: "1.5px solid #93C5FD", fontSize: 13, fontWeight: 600, color: "#1E40AF", whiteSpace: "nowrap", maxWidth: "min(320px, 50vw)", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current"
-                  ? (activeBrandSnapshot.label || "Saved template")
-                  : "Current brand (live)"}
+                {activeBrandContextLabel ?? "Loading brand context…"}
               </div>
             </div>
 
@@ -6891,9 +6947,7 @@ export default function Dashboard() {
               <div style={{ fontSize: 12, color: "#64748B" }}>
                 Active for Ads Analysis:{" "}
                 <span style={{ fontWeight: 700, color: "#1E293B" }}>
-                  {activeBrandSnapshot?.id && activeBrandSnapshot.id !== "current"
-                    ? (activeBrandSnapshot.label || "Saved template")
-                    : "Current brand (live)"}
+                  {activeBrandContextLabel ?? "Loading brand context…"}
                 </span>
               </div>
             </div>
