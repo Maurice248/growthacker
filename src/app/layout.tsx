@@ -11,13 +11,13 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "Tenant Report AI - Tenant Ads manager",
+  title: "Growth Hackers",
   description:
     "Professional AI-powered advertising and marketing automation for property management. Managed campaigns, competitor analysis, and tenant growth automation.",
   icons: {
-    icon: "/tenant-report-logo.png",
-    shortcut: "/tenant-report-logo.png",
-    apple: "/apple-touch-icon.png",
+    icon: "/growth-hackers-logo.png",
+    shortcut: "/growth-hackers-logo.png",
+    apple: "/growth-hackers-logo.png",
   },
 };
 
