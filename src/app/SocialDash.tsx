@@ -203,6 +203,7 @@ export default function SocialDash() {
 
   // ── Social Image Workspace States ──
   const [showImageWorkspace, setShowImageWorkspace] = useState<boolean>(true);
+  const [creatorStudioView, setCreatorStudioView] = useState<'video' | 'image'>('video');
   const [isImageGenerating, setIsImageGenerating] = useState<boolean>(false);
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [generatedSocialImage, setGeneratedSocialImage] = useState<string | null>(null);
@@ -1717,15 +1718,50 @@ export default function SocialDash() {
         </div>
         <div className="sd-badge-row">
           <Badge text="v2.0 Connected" color={medicalBlue} bg="var(--primary-light)" />
-          <Badge text={status} color={status === "video created successfully" ? "var(--green)" : "var(--amber)"} bg={status === "video created successfully" ? "var(--green-light)" : "var(--amber-light)"} />
         </div>
       </header>
 
+      {/* Creator Studio sub-tabs */}
+      <div style={{ display: 'flex', gap: 8, padding: '4px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, width: 'fit-content', marginBottom: 8 }}>
+        {([
+          { id: 'video' as const, label: 'Video' },
+          { id: 'image' as const, label: 'Image' },
+        ]).map((viewTab) => {
+          const isActive = creatorStudioView === viewTab.id;
+          return (
+            <button
+              key={viewTab.id}
+              type="button"
+              onClick={() => setCreatorStudioView(viewTab.id)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                fontWeight: isActive ? 700 : 500,
+                cursor: 'pointer',
+                background: isActive ? 'var(--primary-light)' : 'transparent',
+                color: isActive ? 'var(--primary-dark)' : 'var(--text-muted)',
+                boxShadow: isActive ? '0 1px 3px rgba(37,99,235,0.12)' : 'none',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              {viewTab.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* ---- Main Layout: 2 rows ---- */}
+
+      {/* ---- Main Layout ---- */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', width: '100%', paddingBottom: '40px' }}>
 
-        {/* ROW 1: Video input (left) | Video preview (right) */}
+        {creatorStudioView === 'video' && (
+        /* ROW 1: Video input (left) | Video preview (right) */
         <div className="sd-grid">
 
           {/* LEFT: video action cards */}
@@ -2530,8 +2566,10 @@ export default function SocialDash() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* ROW 2: Social Images (left inputs, right preview) */}
+        {creatorStudioView === 'image' && (
+        /* ROW 2: Social Images (left inputs, right preview) */
         <div className="sd-grid">
 
           {/* LEFT: Social Image Creator */}
@@ -2971,6 +3009,7 @@ export default function SocialDash() {
             )}
           </div>
         </div>
+        )}
 
       </div>
 

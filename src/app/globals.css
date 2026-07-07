@@ -450,14 +450,16 @@ pre {
 
 /* ---- Root wrapper ---- */
 .sd-root {
-  max-width: 1280px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 8px 0 40px;
+  padding: 8px 24px 40px;
   display: flex;
   flex-direction: column;
   gap: 24px;
   color: #475569;
   animation: sdFadeIn 0.3s ease-out forwards;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @keyframes sdFadeIn {
@@ -576,18 +578,14 @@ pre {
   flex-shrink: 0;
 }
 
-/* ---- Two-column grid ---- */
+/* ---- Stacked column layout (config above preview) ---- */
 .sd-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 20px;
-}
-
-@media (min-width: 1024px) {
-  .sd-grid {
-    grid-template-columns: 7fr 5fr;
-    align-items: stretch;
-  }
+  gap: 24px;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
 }
 
 /* ---- Left column ---- */
@@ -595,6 +593,7 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
 }
 
 /* ---- Action cards ---- */
@@ -737,6 +736,7 @@ pre {
 .sd-right {
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 .sd-preview-panel {

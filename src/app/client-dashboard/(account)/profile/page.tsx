@@ -91,7 +91,7 @@ export default async function ClientProfilePage() {
                 <p className="text-xs text-[var(--text-muted)]">Member since {formatDate(user.createdAt)}</p>
               </div>
               <Button asChild variant="outline" size="sm" className="shrink-0">
-                <Link href="/client-dashboard/security">Change email</Link>
+                <Link href="/client-dashboard/security">Change Credentials</Link>
               </Button>
             </div>
           </div>

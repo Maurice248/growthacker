@@ -175,71 +175,9 @@ export default function SocialOverview() {
         />
       </div>
 
-      <div
-        className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-4"
-        style={{ alignItems: "start" }}
-      >
-        <Card style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <SectionTitle style={{ margin: 0 }}>Automation Workflows</SectionTitle>
-            <Badge
-              text={`${configuredCount} working`}
-              color={configuredCount > 0 ? "var(--green)" : "var(--amber)"}
-              bg={configuredCount > 0 ? "var(--green-light)" : "var(--amber-light)"}
-            />
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {workflows.map((workflow) => (
-              <div
-                key={workflow.key}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  padding: "14px 16px",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-light)",
-                  background: workflow.configured ? "#f8fafc" : "#fff",
-                }}
-              >
-                <div style={{ marginTop: 2, flexShrink: 0 }}>
-                  {workflow.configured ? (
-                    <CheckCircle2 size={18} color="var(--green)" />
-                  ) : (
-                    <XCircle size={18} color="var(--amber)" />
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
-                      {workflow.label}
-                    </div>
-                    <Badge
-                      text={workflow.configured ? "Ready" : "Not configured"}
-                      color={workflow.configured ? "var(--green)" : "var(--amber)"}
-                      bg={workflow.configured ? "var(--green-light)" : "var(--amber-light)"}
-                    />
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                    {workflow.description}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
+      <div className="flex flex-col items-center gap-4">
         <Card
+          className="w-full lg:w-[55%]"
           style={{
             padding: "20px 24px",
             background: "linear-gradient(135deg, #f8fafc, #eff6ff)",
@@ -300,6 +238,66 @@ export default function SocialOverview() {
               before they can run.
             </div>
           )}
+        </Card>
+
+        <Card className="w-full lg:w-[55%]" style={{ padding: "20px 24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <SectionTitle style={{ margin: 0 }}>Automation Workflows</SectionTitle>
+            <Badge
+              text={`${configuredCount} working`}
+              color={configuredCount > 0 ? "var(--green)" : "var(--amber)"}
+              bg={configuredCount > 0 ? "var(--green-light)" : "var(--amber-light)"}
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {workflows.map((workflow) => (
+              <div
+                key={workflow.key}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  padding: "14px 16px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-light)",
+                  background: workflow.configured ? "#f8fafc" : "#fff",
+                }}
+              >
+                <div style={{ marginTop: 2, flexShrink: 0 }}>
+                  {workflow.configured ? (
+                    <CheckCircle2 size={18} color="var(--green)" />
+                  ) : (
+                    <XCircle size={18} color="var(--amber)" />
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
+                      {workflow.label}
+                    </div>
+                    <Badge
+                      text={workflow.configured ? "Ready" : "Not configured"}
+                      color={workflow.configured ? "var(--green)" : "var(--amber)"}
+                      bg={workflow.configured ? "var(--green-light)" : "var(--amber-light)"}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                    {workflow.description}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
 

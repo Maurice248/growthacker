@@ -374,6 +374,30 @@ const EXPANDED_ANALYSIS_SECTIONS: Record<AnalysisResultSection, boolean> = {
   raw: true,
 };
 
+function topicsMatch(a, b) {
+  if (!a || !b) return false;
+  return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+}
+
+function parseSbReport(row) {
+  let rd = row.report_data;
+  try {
+    if (typeof rd === "string") rd = JSON.parse(rd);
+    if (Array.isArray(rd)) rd = rd[0] || {};
+    return rd || {};
+  } catch { return {}; }
+}
+
+function findMatchingAnalysisReport(rows, pendingTopic, startTime) {
+  if (!pendingTopic || !Array.isArray(rows)) return null;
+  return rows.find((row) => {
+    const report = parseSbReport(row);
+    if (!topicsMatch(report.topic, pendingTopic)) return false;
+    if (!startTime || !row.created_at) return true;
+    return new Date(row.created_at).getTime() >= startTime - 120_000;
+  }) || null;
+}
+
 function AnalysisResultToggle({
   expanded,
   darkText = false,
@@ -643,11 +667,17 @@ export default function Dashboard() {
   const pendingTopicRef = useRef<string | null>(null); // ref so realtime callback always sees latest value
   const companySlugRef = useRef<string | null>(null);
   const analysisInFlightRef = useRef(false);
+  const prevTabRef = useRef<string | null>(null);
   useEffect(() => { pendingTopicRef.current = pendingAnalysisTopic; }, [pendingAnalysisTopic]);
 
   const expandAllAnalysisSections = useCallback(() => {
     setTopicAnalysisExpanded(true);
     setAnalysisCardsExpanded({ ...EXPANDED_ANALYSIS_SECTIONS });
+  }, []);
+
+  const expandTopicCollapseResults = useCallback(() => {
+    setTopicAnalysisExpanded(true);
+    setAnalysisCardsExpanded({ ...COLLAPSED_ANALYSIS_SECTIONS });
   }, []);
 
   const collapseAllAnalysisSections = useCallback(() => {
@@ -692,30 +722,23 @@ export default function Dashboard() {
     }
   }, [allAnalysisSectionsExpanded, collapseAllAnalysisSections, expandAllAnalysisSections]);
 
-  const scrollToPastRuns = useCallback(() => {
-    setShowPreviousRuns(true);
-    requestAnimationFrame(() => {
-      pastRunsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }, []);
-
   useEffect(() => {
     if (analysisStatus !== "done" || !analysisData) return;
 
     const dataId = analysisData.id ?? analysisData.topic ?? "current";
 
     if (freshAnalysisResultRef.current) {
-      expandAllAnalysisSections();
+      expandTopicCollapseResults();
       freshAnalysisResultRef.current = false;
       prevAnalysisDataIdRef.current = dataId;
       return;
     }
 
     if (prevAnalysisDataIdRef.current !== dataId) {
-      collapseAllAnalysisSections();
+      expandTopicCollapseResults();
       prevAnalysisDataIdRef.current = dataId;
     }
-  }, [analysisStatus, analysisData, expandAllAnalysisSections, collapseAllAnalysisSections]);
+  }, [analysisStatus, analysisData, expandTopicCollapseResults]);
 
   // Custom keywords research form states
   const [researchKeywords, setResearchKeywords] = useLocalStorage(
@@ -813,10 +836,21 @@ export default function Dashboard() {
 
   // ── Supabase reports state ──
   const [sbRows, setSbRows] = useState([]);
-  const [showPreviousRuns, setShowPreviousRuns] = useState(false);
+  const [adsLabView, setAdsLabView] = useState<"analysis" | "pastRuns">("analysis");
   const [hoveredInputs, setHoveredInputs] = useState<any>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pastRunsRef = useRef<HTMLDivElement | null>(null);
+
+  const positionPastRunHoverPopup = useCallback((clientX: number, clientY: number, data: any) => {
+    const popupWidth = 360;
+    const popupHeight = 420;
+    const gap = 12;
+    const isLeftHalf = clientX < window.innerWidth / 2;
+    let x = isLeftHalf ? clientX + gap : clientX - popupWidth - gap;
+    x = Math.max(gap, Math.min(x, window.innerWidth - popupWidth - gap));
+    let y = clientY - 24;
+    y = Math.max(gap, Math.min(y, window.innerHeight - popupHeight - gap));
+    setHoveredInputs({ data, x, y });
+  }, []);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
@@ -1078,6 +1112,20 @@ export default function Dashboard() {
     setSbToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => setSbToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
   }, []);
+
+  const applyAnalysisReportFromRow = useCallback((row, { toast = true, switchToAnalysisView = true } = {}) => {
+    const parsed = parseSbReport(row);
+    freshAnalysisResultRef.current = true;
+    expandTopicCollapseResults();
+    setAnalysisData({ ...parsed, id: row.id });
+    setAnalysisStatus("done");
+    setAnalysisProgress(100);
+    window.localStorage.removeItem("app_analysis_start");
+    sessionStorage.removeItem("app_analysis_active");
+    setPendingAnalysisTopic(null);
+    if (switchToAnalysisView) setAdsLabView("analysis");
+    if (toast) addSbToast("Analysis complete!", "success");
+  }, [expandTopicCollapseResults, addSbToast]);
 
   const fetchReports = useCallback(async () => {
     if (!companyId) {
@@ -1762,17 +1810,9 @@ export default function Dashboard() {
             addSbToast("New report received!");
 
             const newReport = parseSbReport(payload.new);
-            const currentTopic = pendingTopicRef.current;
-            if (currentTopic && newReport.topic === currentTopic) {
-              freshAnalysisResultRef.current = true;
-              expandAllAnalysisSections();
-              setAnalysisData({ ...newReport, id: payload.new.id });
-              setAnalysisStatus("done");
-              setAnalysisProgress(100);
-              window.localStorage.removeItem("app_analysis_start");
-              sessionStorage.removeItem("app_analysis_active");
-              setPendingAnalysisTopic(null);
-              addSbToast("Analysis completed and loaded!", "success");
+            const pendingTopic = pendingTopicRef.current;
+            if (pendingTopic && topicsMatch(newReport.topic, pendingTopic)) {
+              applyAnalysisReportFromRow(payload.new);
             }
           }
 
@@ -1784,7 +1824,7 @@ export default function Dashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [companyId, fetchReports, fetchAdTableLinks, addSbToast]);
+  }, [companyId, fetchReports, fetchAdTableLinks, addSbToast, applyAnalysisReportFromRow]);
 
   // ── Resume progress bar if page was refreshed mid-generation ──
   useEffect(() => {
@@ -1935,15 +1975,58 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, [analysisStatus]);
 
-  function parseSbReport(row) {
-    let rd = row.report_data;
-    try {
-      if (typeof rd === "string") rd = JSON.parse(rd);
-      // Handle array-wrapped format: [{...}] → {...}
-      if (Array.isArray(rd)) rd = rd[0] || {};
-      return rd || {};
-    } catch { return {}; }
-  }
+  // Poll for analysis completion while generating — works even when user is on another tab
+  useEffect(() => {
+    if (analysisStatus !== "generating") return;
+
+    const poll = setInterval(async () => {
+      const pendingTopic = pendingTopicRef.current || pendingAnalysisTopic;
+      if (!pendingTopic) return;
+
+      const startRaw = window.localStorage.getItem("app_analysis_start");
+      const startTime = startRaw ? Number(startRaw) : null;
+
+      let match = findMatchingAnalysisReport(sbRows, pendingTopic, startTime);
+      if (!match) {
+        try {
+          const res = await fetch("/api/reports");
+          if (!res.ok) return;
+          const { rows } = await res.json();
+          match = findMatchingAnalysisReport(Array.isArray(rows) ? rows : [], pendingTopic, startTime);
+        } catch {}
+      }
+
+      if (match) applyAnalysisReportFromRow(match);
+    }, 5000);
+
+    const stopTimer = setTimeout(() => clearInterval(poll), 600_000);
+    return () => {
+      clearInterval(poll);
+      clearTimeout(stopTimer);
+    };
+  }, [analysisStatus, pendingAnalysisTopic, sbRows, applyAnalysisReportFromRow]);
+
+  // When returning to Ads Lab, sync any completed report and reset section layout
+  useEffect(() => {
+    if (tab !== "analysis") return;
+
+    if (analysisStatus !== "generating") {
+      if (analysisStatus === "done" && analysisData && prevTabRef.current !== "analysis") {
+        expandTopicCollapseResults();
+      }
+      prevTabRef.current = tab;
+      return;
+    }
+
+    const pendingTopic = pendingTopicRef.current || pendingAnalysisTopic;
+    const startRaw = window.localStorage.getItem("app_analysis_start");
+    const startTime = startRaw ? Number(startRaw) : null;
+    const match = findMatchingAnalysisReport(sbRows, pendingTopic, startTime);
+    if (match) {
+      applyAnalysisReportFromRow(match, { toast: false });
+    }
+    prevTabRef.current = tab;
+  }, [tab, analysisStatus, analysisData, sbRows, pendingAnalysisTopic, expandTopicCollapseResults, applyAnalysisReportFromRow]);
 
   const sbReports = sbRows.map((row) => ({ row, report: parseSbReport(row) }));
   const sbTotalReports = sbRows.length;
@@ -2945,17 +3028,19 @@ export default function Dashboard() {
     setAnalysisData(null);
     setAnalysisError("");
     setAnalysisProgress(0);
+    const analysisTopic = kwSnapshot[0] || selectedTopic || "Tenant Screening";
     window.localStorage.setItem("app_analysis_start", String(Date.now()));
     sessionStorage.setItem("app_analysis_active", "1"); // marks this session as the one that fired
     setAnalysisStatus("generating");
-    setPendingAnalysisTopic(selectedTopic);
+    setPendingAnalysisTopic(analysisTopic);
+    pendingTopicRef.current = analysisTopic;
     await new Promise((r) => setTimeout(r, 100));
 
     try {
       const brandConfig = getBrandConfigForAnalysis();
       const result = await callWebhook({
         action: "competitor_analysis",
-        topic: kwSnapshot[0] || selectedTopic || "Tenant Screening",
+        topic: analysisTopic,
         keywords: kwSnapshot,
         countries: researchCountries,
         max_ads: Number(researchMaxAds) || 100,
@@ -2968,7 +3053,7 @@ export default function Dashboard() {
 
       if (result && !result.error) {
         freshAnalysisResultRef.current = true;
-        expandAllAnalysisSections();
+        expandTopicCollapseResults();
         setAnalysisData(result);
         setAnalysisStatus("done");
         setAnalysisProgress(100);
@@ -2983,35 +3068,9 @@ export default function Dashboard() {
         sessionStorage.removeItem("app_analysis_active");
         setAnalysisError(result.error);
         addSbToast(`Analysis failed: ${result.error}`, "error");
-      }
-      // null or isTimeout → n8n still running; start Supabase polling as mobile fallback
-      if (!result || result?.isTimeout) {
-        const topic = kwSnapshot[0] || selectedTopic || "";
-        const pollInterval = setInterval(async () => {
-          try {
-            const res = await fetch("/api/reports");
-            if (!res.ok) return;
-            const { rows } = await res.json();
-            const match = (Array.isArray(rows) ? rows : []).find((row: any) => {
-              const r = parseSbReport(row);
-              return r.topic === topic;
-            });
-            if (match) {
-              clearInterval(pollInterval);
-              const parsed = parseSbReport(match);
-              freshAnalysisResultRef.current = true;
-              expandAllAnalysisSections();
-              setAnalysisData({ ...parsed, id: match.id });
-              setAnalysisStatus("done");
-              setAnalysisProgress(100);
-              window.localStorage.removeItem("app_analysis_start");
-              sessionStorage.removeItem("app_analysis_active");
-              setPendingAnalysisTopic(null);
-              addSbToast("Analysis complete!", "success");
-            }
-          } catch {}
-        }, 5000);
-        setTimeout(() => clearInterval(pollInterval), 600_000); // stop after 10 min
+      } else {
+        // Webhook timed out or returned no data — keep generating and let polling/realtime finish
+        setAnalysisStatus("generating");
       }
     } catch (err: any) {
       console.error("[Analysis] Unexpected error:", err);
@@ -3972,7 +4031,7 @@ export default function Dashboard() {
           ADS ANALYSIS
       ═══════════════════════════════════════════════════════ */}
       {tab === "analysis" && (
-        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 1200, margin: "0 auto", width: "100%", boxSizing: "border-box", padding: "0 24px" }}>
 
           {/* ── Page Header ── */}
           <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 20, padding: "20px 28px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
@@ -3988,31 +4047,55 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* ── Sidebar + Content Row ── */}
-          <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-          {/* Main Content Area */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <button
-                type="button"
-                className="past-runs-jump-btn"
-                onClick={scrollToPastRuns}
-                title="Jump to past runs"
-                style={{
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "5px 10px",
-                  borderRadius: 8,
-                  background: "#F1F5F9",
-                  border: "1px solid #E2E8F0",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", letterSpacing: "0.04em" }}>
-                  Past Runs
-                </span>
-              </button>
+          {/* ── Ads Lab Sub-tabs ── */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, padding: "4px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, width: "fit-content" }}>
+              {([
+                { id: "analysis" as const, label: "Analysis" },
+                { id: "pastRuns" as const, label: "Past Runs", count: sbRows.length },
+              ]).map((viewTab) => {
+                const isActive = adsLabView === viewTab.id;
+                return (
+                  <button
+                    key={viewTab.id}
+                    type="button"
+                    onClick={() => setAdsLabView(viewTab.id)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "8px 16px",
+                      borderRadius: 8,
+                      border: "none",
+                      fontFamily: "inherit",
+                      fontSize: 13,
+                      fontWeight: isActive ? 700 : 500,
+                      cursor: "pointer",
+                      background: isActive ? "var(--primary-light)" : "transparent",
+                      color: isActive ? "var(--primary-dark)" : "var(--text-muted)",
+                      boxShadow: isActive ? "0 1px 3px rgba(37,99,235,0.12)" : "none",
+                      transition: "all 0.18s ease",
+                    }}
+                  >
+                    {viewTab.label}
+                    {viewTab.count != null && viewTab.count > 0 && (
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "2px 7px",
+                        borderRadius: 20,
+                        background: isActive ? "var(--primary-mid)" : "#E2E8F0",
+                        color: isActive ? "var(--primary-dark)" : "#64748B",
+                      }}>
+                        {viewTab.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {adsLabView === "analysis" && (
               <button
                 type="button"
                 onClick={toggleAllAnalysisSections}
@@ -4027,7 +4110,6 @@ export default function Dashboard() {
                   border: "1px solid #E2E8F0",
                   cursor: "pointer",
                   fontFamily: "inherit",
-                  marginLeft: "auto",
                 }}
               >
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", letterSpacing: "0.04em" }}>
@@ -4035,8 +4117,11 @@ export default function Dashboard() {
                 </span>
                 <AnalysisResultToggle expanded={allAnalysisSectionsExpanded} darkText />
               </button>
-            </div>
+            )}
+          </div>
 
+          {adsLabView === "analysis" && (
+          <div>
             <Card style={{ marginBottom: 14 }}>
               <style dangerouslySetInnerHTML={{ __html: `
                 @keyframes radar-sweep {
@@ -4898,22 +4983,18 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+          )}
 
-          {/* History Sidebar */}
+          {adsLabView === "pastRuns" && (
           <div
-            ref={pastRunsRef}
             id="past-runs-section"
-            className="w-full lg:w-[290px] lg:flex-shrink-0 lg:sticky lg:top-5"
             style={{
-            background: "#fff", border: "1px solid #E2E8F0",
-            borderRadius: 20, overflow: "hidden",
-            height: "fit-content", boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
-          }}>
-            {/* Sidebar Header — on mobile acts as toggle */}
-            <div
-              onClick={() => setShowPreviousRuns(o => !o)}
-              style={{ padding: "14px 20px", background: "#F8FAFC", borderBottom: showPreviousRuns ? "1px solid #E2E8F0" : "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
-            >
+              background: "#fff", border: "1px solid #E2E8F0",
+              borderRadius: 20, overflow: "hidden",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
+            }}
+          >
+            <div style={{ padding: "14px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <span style={{ fontSize: 16 }}>🕐</span>
               </div>
@@ -4921,12 +5002,9 @@ export default function Dashboard() {
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Past Runs</div>
                 <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{sbRows.length} saved {sbRows.length === 1 ? "result" : "results"}</div>
               </div>
-              {/* Toggle chevron — visible on mobile, hidden on desktop */}
-              <span className="prev-runs-chevron" style={{ fontSize: 13, color: "#64748b", fontWeight: 700, transition: "transform 0.2s", display: "inline-block", transform: showPreviousRuns ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
             </div>
 
-            {/* Run Cards — toggled on mobile, always shown on desktop via CSS */}
-            <div className="prev-runs-list" style={{ display: showPreviousRuns ? "flex" : "none", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0, maxHeight: "70vh", overflowY: "auto" }}>
               {[...sbRows].map((row: any, idx: number) => {
                 const report = parseSbReport(row);
                 const inputsObj = typeof row.inputs === 'string' ? JSON.parse(row.inputs || "{}") : (row.inputs || {});
@@ -4939,22 +5017,7 @@ export default function Dashboard() {
                     borderBottom: "1px solid #F1F5F9",
                     transition: "background 0.15s",
                     cursor: "default"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#F8FAFC";
-                    if (row.inputs) {
-                      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      let y = rect.top;
-                      if (y + 420 > window.innerHeight) y = Math.max(10, window.innerHeight - 440);
-                      setHoveredInputs({ data: inputsObj, x: rect.left - 372, y });
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    hoverTimeoutRef.current = setTimeout(() => setHoveredInputs(null), 200);
                   }}>
-                    {/* Run number + title */}
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
                       <div style={{ width: 22, height: 22, borderRadius: 6, background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
                         {sbRows.length - idx}
@@ -4963,19 +5026,20 @@ export default function Dashboard() {
                         {displayTitle}
                       </div>
                     </div>
-                    {/* Date */}
                     <div style={{ fontSize: 11, color: "#94A3B8", marginBottom: 10, display: "flex", alignItems: "center", gap: 5, paddingLeft: 32 }}>
                       <span>📅</span> {formatSbDate(row.created_at)}
                     </div>
-                    {/* Use Result button */}
                     <div style={{ paddingLeft: 32 }}>
                       <button
                         onClick={() => {
+                          if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                          setHoveredInputs(null);
                           freshAnalysisResultRef.current = false;
-                          collapseAllAnalysisSections();
+                          expandTopicCollapseResults();
                           setAnalysisData({ ...report, id: row.id });
                           setAnalysisStatus("done");
                           setSelectedTopic(report.topic || TOPICS[1]);
+                          setAdsLabView("analysis");
                           addSbToast("Loaded history: " + report.topic);
                         }}
                         style={{
@@ -4983,8 +5047,23 @@ export default function Dashboard() {
                           background: "#2563EB", color: "#fff",
                           fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s"
                         }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "#1D4ED8"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "#2563EB"; }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#1D4ED8";
+                          if (row.inputs) {
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                            positionPastRunHoverPopup(e.clientX, e.clientY, inputsObj);
+                          }
+                        }}
+                        onMouseMove={(e) => {
+                          if (row.inputs) {
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                            positionPastRunHoverPopup(e.clientX, e.clientY, inputsObj);
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "#2563EB";
+                          hoverTimeoutRef.current = setTimeout(() => setHoveredInputs(null), 200);
+                        }}
                       >
                         Use Result →
                       </button>
@@ -5001,7 +5080,7 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -7336,9 +7415,14 @@ export default function Dashboard() {
                         <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
                           <button
                             onClick={() => applyBrandSnapshotForAnalysis(snapshot)}
-                            style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: isActive ? "#1D4ED8" : "#2563EB", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                            style={{
+                              padding: "8px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+                              ...(isActive
+                                ? { border: "none", background: "#1D4ED8", color: "#fff" }
+                                : { border: "1px solid var(--primary-mid)", background: "var(--primary-mid)", color: "var(--primary-dark)" }),
+                            }}
                           >
-                            {isActive ? "✓ Active" : "Use for Ads Lab"}
+                            {isActive ? "✓ Active" : "Make Active"}
                           </button>
                           <button
                             onClick={() => setExpandedBrandSnapshotId(isExpanded ? null : snapshot.id)}
