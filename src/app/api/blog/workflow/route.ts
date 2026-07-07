@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { buildBlogAutomationEditorSections } from '@/lib/blog-automation-editor';
@@ -15,10 +16,17 @@ import {
   updateBlogWorkflowNodes,
 } from '@/lib/n8n-workflows';
 
+function jsonResponse(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store, max-age=0' },
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     if (!(await isN8nWorkflowApiConfigured())) {
-      return NextResponse.json({
+      return jsonResponse({
         configured: false,
         workflowId: await getBlogWorkflowId(),
         expectedWorkflowName: await getBlogWorkflowName(),
@@ -34,7 +42,7 @@ export async function GET(request: NextRequest) {
     const editorSections = buildBlogAutomationEditorSections(workflow.nodes, workflow.settings);
     const workflowTimezone = extractWorkflowTimezone(workflow.settings);
 
-    return NextResponse.json({
+    return jsonResponse({
       configured: true,
       workflowId: workflow.id,
       resolvedWorkflowId,
@@ -55,12 +63,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[API blog/workflow GET]', error);
-    return NextResponse.json(
+    return jsonResponse(
       {
         configured: await isN8nWorkflowApiConfigured(),
         error: error instanceof Error ? error.message : 'Failed to load workflow',
       },
-      { status: 502 }
+      502
     );
   }
 }

@@ -4,6 +4,24 @@ import { getRequestN8nConfig, getN8nWebhook } from '@/lib/company-integrations';
 
 const DEFAULT_BLOG_WORKFLOW_ID = 'Kgt5aL2eaVYIyNMo';
 const DEFAULT_BLOG_WORKFLOW_NAME = 'Tenant Report Blog Automation';
+/** Live n8n instance workflow name (export JSON "Blogs"). */
+const BLOGS_WORKFLOW_NAME = 'Blogs';
+
+const N8N_FETCH_TIMEOUT_MS = 25_000;
+
+async function fetchN8n(url: string, apiKey: string, init: RequestInit = {}): Promise<Response> {
+  const signal = init.signal ?? AbortSignal.timeout(N8N_FETCH_TIMEOUT_MS);
+  return fetch(url, {
+    ...init,
+    signal,
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      'X-N8N-API-KEY': apiKey,
+      ...(init.headers as Record<string, string> | undefined),
+    },
+  });
+}
 
 export interface N8nWorkflowNode {
   id: string;
@@ -97,10 +115,9 @@ export interface BlogWorkflowUpdateResult {
 
 async function getN8nApiConfig() {
   const cfg = await getRequestN8nConfig();
-  return {
-    baseUrl: cfg.apiBaseUrl,
-    apiKey: cfg.apiKey?.trim() ?? null,
-  };
+  const apiKey = cfg.apiKey?.trim() ?? null;
+  const baseUrl = cfg.apiBaseUrl?.trim() ?? '';
+  return { baseUrl, apiKey };
 }
 
 export async function getBlogWorkflowId(): Promise<string> {
@@ -212,23 +229,42 @@ function setWebhookPathOnNodes(
 }
 
 async function findBlogWorkflowMatchesByWebhookPath(
-  webhookPath: string
+  webhookPath: string,
+  options?: { stopAfterFirstActive?: boolean }
 ): Promise<BlogWebhookWorkflowMatch[]> {
   const summaries = await listN8nWorkflows();
   const matches: BlogWebhookWorkflowMatch[] = [];
+  const CONCURRENCY = 8;
 
-  for (const summary of summaries) {
-    const workflow = await fetchBlogWorkflowById(summary.id);
-    if (!workflowHasWebhookPath(workflow, webhookPath)) continue;
+  for (let i = 0; i < summaries.length; i += CONCURRENCY) {
+    const batch = summaries.slice(i, i + CONCURRENCY);
+    const workflows = await Promise.all(
+      batch.map(async (summary) => {
+        try {
+          return await fetchBlogWorkflowById(summary.id);
+        } catch {
+          return null;
+        }
+      })
+    );
 
-    const paths = getWorkflowWebhookPaths(workflow);
-    matches.push({
-      id: workflow.id,
-      name: workflow.name,
-      active: workflow.active,
-      updatedAt: workflow.updatedAt ?? summary.updatedAt,
-      webhookPath: paths.find((p) => p === webhookPath) ?? webhookPath,
-    });
+    for (let j = 0; j < batch.length; j++) {
+      const workflow = workflows[j];
+      if (!workflow || !workflowHasWebhookPath(workflow, webhookPath)) continue;
+
+      const paths = getWorkflowWebhookPaths(workflow);
+      matches.push({
+        id: workflow.id,
+        name: workflow.name,
+        active: workflow.active,
+        updatedAt: workflow.updatedAt ?? batch[j]!.updatedAt,
+        webhookPath: paths.find((p) => p === webhookPath) ?? webhookPath,
+      });
+
+      if (options?.stopAfterFirstActive && workflow.active) {
+        return matches;
+      }
+    }
   }
 
   return matches.sort((a, b) => {
@@ -238,11 +274,15 @@ async function findBlogWorkflowMatchesByWebhookPath(
 }
 
 async function findBlogWorkflowIdByWebhookPath(webhookPath: string): Promise<string | null> {
-  const matches = await findBlogWorkflowMatchesByWebhookPath(webhookPath);
+  const matches = await findBlogWorkflowMatchesByWebhookPath(webhookPath, {
+    stopAfterFirstActive: true,
+  });
   if (matches[0]?.id) return matches[0].id;
 
   const fallbackPath = `${webhookPath}-${DEFAULT_BLOG_WORKFLOW_ID.slice(0, 8).toLowerCase()}`;
-  const fallbackMatches = await findBlogWorkflowMatchesByWebhookPath(fallbackPath);
+  const fallbackMatches = await findBlogWorkflowMatchesByWebhookPath(fallbackPath, {
+    stopAfterFirstActive: true,
+  });
   return fallbackMatches[0]?.id ?? null;
 }
 
@@ -253,9 +293,19 @@ export async function getBlogWorkflowConnectionInfo(
   const cfg = await getRequestN8nConfig();
   const webhookPath = await parseBlogWebhookPath();
   const webhookUrl = getN8nWebhook(cfg, 'N8N_BLOG_AUTOMATION_WEBHOOK_URL');
-  const webhookMatches = webhookPath
-    ? await findBlogWorkflowMatchesByWebhookPath(webhookPath)
-    : [];
+  const paths = getWorkflowWebhookPaths(resolvedWorkflow);
+  const webhookMatches: BlogWebhookWorkflowMatch[] =
+    webhookPath && workflowHasWebhookPath(resolvedWorkflow, webhookPath)
+      ? [
+          {
+            id: resolvedWorkflow.id,
+            name: resolvedWorkflow.name,
+            active: resolvedWorkflow.active,
+            updatedAt: resolvedWorkflow.updatedAt,
+            webhookPath: paths.find((p) => p === webhookPath) ?? webhookPath,
+          },
+        ]
+      : [];
 
   return {
     webhookPath,
@@ -814,14 +864,11 @@ export async function listN8nWorkflows(): Promise<N8nWorkflowSummary[]> {
   if (!apiKey) {
     throw new Error('N8N_API_KEY is not configured.');
   }
+  if (!baseUrl) {
+    throw new Error('N8N_API_BASE_URL is not configured.');
+  }
 
-  const response = await fetch(`${baseUrl}/api/v1/workflows?limit=250`, {
-    headers: {
-      Accept: 'application/json',
-      'X-N8N-API-KEY': apiKey,
-    },
-    cache: 'no-store',
-  });
+  const response = await fetchN8n(`${baseUrl}/api/v1/workflows?limit=250`, apiKey);
 
   const bodyText = await response.text();
   if (!response.ok) {
@@ -832,13 +879,29 @@ export async function listN8nWorkflows(): Promise<N8nWorkflowSummary[]> {
   return data.data ?? [];
 }
 
-/** Prefer the workflow that owns N8N_BLOG_AUTOMATION_WEBHOOK_URL (newest active match), then env/name fallbacks. */
+/** Resolve blog workflow id — prefer configured/default ids (single fetch) before slow webhook scans. */
 export async function resolveBlogWorkflowId(explicitId?: string): Promise<string> {
   const cfg = await getRequestN8nConfig();
-  const envId = cfg.blogWorkflowId;
+  const configuredId = cfg.blogWorkflowId?.trim() || null;
   const preferredName = await getBlogWorkflowName();
 
   if (explicitId?.trim()) return explicitId.trim();
+
+  if (configuredId) {
+    const configured = await tryFetchBlogWorkflowById(configuredId);
+    if (configured) return configured.id;
+  }
+
+  const defaultWorkflow = await tryFetchBlogWorkflowById(DEFAULT_BLOG_WORKFLOW_ID);
+  if (defaultWorkflow) return defaultWorkflow.id;
+
+  try {
+    const summaries = filterBlogWorkflowSummaries(await listN8nWorkflows());
+    const fromName = pickBlogWorkflowIdFromSummaries(summaries, preferredName);
+    if (fromName) return fromName;
+  } catch (error) {
+    console.warn('[n8n-workflows] Could not list workflows for ID resolution:', error);
+  }
 
   const webhookPath = await parseBlogWebhookPath();
   if (webhookPath) {
@@ -850,31 +913,7 @@ export async function resolveBlogWorkflowId(explicitId?: string): Promise<string
     }
   }
 
-  if (envId) return envId;
-
-  try {
-    const workflows = await listN8nWorkflows();
-    if (workflows.some((w) => w.id === DEFAULT_BLOG_WORKFLOW_ID)) {
-      return DEFAULT_BLOG_WORKFLOW_ID;
-    }
-
-    const exact = workflows.find((w) => w.name === preferredName);
-    if (exact) return exact.id;
-
-    const tenantBlog = workflows.find(
-      (w) => /tenant\s*report/i.test(w.name) && /blog/i.test(w.name)
-    );
-    if (tenantBlog) return tenantBlog.id;
-
-    const blogOnly = workflows.filter((w) => /blog/i.test(w.name));
-    if (blogOnly.length === 1) return blogOnly[0].id;
-
-    if (envId && workflows.some((w) => w.id === envId)) return envId;
-  } catch (error) {
-    console.warn('[n8n-workflows] Could not list workflows for ID resolution:', error);
-  }
-
-  return envId || DEFAULT_BLOG_WORKFLOW_ID;
+  return configuredId || DEFAULT_BLOG_WORKFLOW_ID;
 }
 
 function filterBlogWorkflowSummaries(workflows: N8nWorkflowSummary[]): N8nWorkflowSummary[] {
@@ -888,14 +927,11 @@ export async function fetchBlogWorkflowById(workflowId: string): Promise<N8nWork
   if (!apiKey) {
     throw new Error('N8N_API_KEY is not configured for workflow editing.');
   }
+  if (!baseUrl) {
+    throw new Error('N8N_API_BASE_URL is not configured for workflow editing.');
+  }
 
-  const response = await fetch(`${baseUrl}/api/v1/workflows/${workflowId}`, {
-    headers: {
-      Accept: 'application/json',
-      'X-N8N-API-KEY': apiKey,
-    },
-    cache: 'no-store',
-  });
+  const response = await fetchN8n(`${baseUrl}/api/v1/workflows/${workflowId}`, apiKey);
 
   const bodyText = await response.text();
   if (!response.ok) {
@@ -905,16 +941,46 @@ export async function fetchBlogWorkflowById(workflowId: string): Promise<N8nWork
   return JSON.parse(bodyText) as N8nWorkflow;
 }
 
+async function tryFetchBlogWorkflowById(workflowId: string): Promise<N8nWorkflow | null> {
+  try {
+    return await fetchBlogWorkflowById(workflowId);
+  } catch {
+    return null;
+  }
+}
+
+function pickBlogWorkflowIdFromSummaries(
+  workflows: N8nWorkflowSummary[],
+  preferredName: string
+): string | null {
+  if (workflows.some((w) => w.id === DEFAULT_BLOG_WORKFLOW_ID)) {
+    return DEFAULT_BLOG_WORKFLOW_ID;
+  }
+
+  const blogs = workflows.find((w) => w.name === BLOGS_WORKFLOW_NAME);
+  if (blogs) return blogs.id;
+
+  const exact = workflows.find((w) => w.name === preferredName);
+  if (exact) return exact.id;
+
+  const tenantBlog = workflows.find(
+    (w) => /tenant\s*report/i.test(w.name) && /blog/i.test(w.name)
+  );
+  if (tenantBlog) return tenantBlog.id;
+
+  const blogOnly = workflows.filter((w) => /blog/i.test(w.name));
+  if (blogOnly.length === 1) return blogOnly[0]!.id;
+
+  return null;
+}
+
 export async function loadBlogWorkflow(workflowId?: string): Promise<BlogWorkflowLoadResult> {
   const resolvedWorkflowId = await resolveBlogWorkflowId(workflowId);
   const workflow = await fetchBlogWorkflowById(resolvedWorkflowId);
 
-  let availableWorkflows: N8nWorkflowSummary[] = [];
-  try {
-    availableWorkflows = filterBlogWorkflowSummaries(await listN8nWorkflows());
-  } catch {
-    availableWorkflows = [{ id: workflow.id, name: workflow.name, active: workflow.active }];
-  }
+  const availableWorkflows: N8nWorkflowSummary[] = [
+    { id: workflow.id, name: workflow.name, active: workflow.active, updatedAt: workflow.updatedAt },
+  ];
 
   const legacyBrandNodes = scanLegacyBrandInEditableNodes(workflow.nodes);
   const connection = await getBlogWorkflowConnectionInfo(resolvedWorkflowId, workflow);
@@ -1368,4 +1434,252 @@ export async function restoreTenantReportWorkflowPrompts(workflowId?: string): P
 
   const { workflow } = await updateBlogWorkflowNodes(updates, resolvedId);
   return workflow;
+}
+
+export const DEFAULT_SOCIAL_WEBHOOK_KEY = 'NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL';
+
+export type SocialWorkflowConnectionInfo = BlogWorkflowConnectionInfo;
+
+export interface SocialWorkflowLoadResult {
+  workflow: N8nWorkflow;
+  resolvedWorkflowId: string;
+  availableWorkflows: N8nWorkflowSummary[];
+  connection: SocialWorkflowConnectionInfo;
+  legacyBrandNodes: string[];
+}
+
+export interface SocialWorkflowUpdateResult {
+  workflow: N8nWorkflow;
+  republished: boolean;
+  archivedConflictingWorkflows?: string[];
+  deletedDuplicateWorkflows?: string[];
+  activationError?: string;
+  webhookPathUsed?: string;
+}
+
+/** Path segment from a configured social webhook URL. */
+export async function parseSocialWebhookPath(webhookKey: string): Promise<string | null> {
+  const cfg = await getRequestN8nConfig();
+  const raw = getN8nWebhook(cfg, webhookKey);
+  if (!raw) return null;
+
+  try {
+    const parsed = new URL(raw);
+    return parsed.pathname
+      .replace(/^\/webhook-test\//, '')
+      .replace(/^\/webhook\//, '')
+      .replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+}
+
+function filterSocialWorkflowSummaries(workflows: N8nWorkflowSummary[]): N8nWorkflowSummary[] {
+  return workflows
+    .filter((w) => /social|creator|tenant\s*report/i.test(w.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function getSocialWorkflowConnectionInfo(
+  webhookKey: string,
+  resolvedWorkflowId: string,
+  resolvedWorkflow: N8nWorkflow
+): Promise<SocialWorkflowConnectionInfo> {
+  const cfg = await getRequestN8nConfig();
+  const webhookPath =
+    (await parseSocialWebhookPath(webhookKey)) ??
+    getBlogWebhookPathFromNodes(resolvedWorkflow.nodes);
+  const webhookUrl = getN8nWebhook(cfg, webhookKey);
+
+  const webhookMatches: BlogWebhookWorkflowMatch[] = [];
+  if (webhookPath && workflowHasWebhookPath(resolvedWorkflow, webhookPath)) {
+    webhookMatches.push({
+      id: resolvedWorkflow.id,
+      name: resolvedWorkflow.name,
+      active: resolvedWorkflow.active,
+      updatedAt: resolvedWorkflow.updatedAt,
+      webhookPath,
+    });
+  }
+
+  return {
+    webhookPath,
+    webhookUrl,
+    resolvedWorkflowId,
+    resolvedWorkflowName: resolvedWorkflow.name,
+    resolvedWorkflowActive: resolvedWorkflow.active,
+    resolvedWorkflowUpdatedAt: resolvedWorkflow.updatedAt,
+    webhookMatches,
+  };
+}
+
+/** Resolve the n8n workflow that owns a social webhook URL. */
+export async function resolveSocialWorkflowId(
+  webhookKey: string,
+  explicitId?: string
+): Promise<string> {
+  if (explicitId?.trim()) return explicitId.trim();
+
+  const envSocialId = process.env.N8N_SOCIAL_WORKFLOW_ID?.trim();
+  if (envSocialId) return envSocialId;
+
+  const webhookPath = await parseSocialWebhookPath(webhookKey);
+  if (webhookPath) {
+    try {
+      const fromWebhook = await findBlogWorkflowIdByWebhookPath(webhookPath);
+      if (fromWebhook) return fromWebhook;
+    } catch (error) {
+      console.warn('[n8n-workflows] Could not resolve social workflow from webhook URL:', error);
+    }
+  }
+
+  try {
+    const workflows = filterSocialWorkflowSummaries(await listN8nWorkflows());
+    if (workflows.length === 1) return workflows[0]!.id;
+    const active = workflows.find((w) => w.active);
+    if (active) return active.id;
+  } catch (error) {
+    console.warn('[n8n-workflows] Could not list workflows for social ID resolution:', error);
+  }
+
+  throw new Error(
+    `Could not resolve n8n workflow for ${webhookKey}. Add its webhook URL in Settings, or set N8N_SOCIAL_WORKFLOW_ID in .env.`
+  );
+}
+
+export async function loadSocialWorkflow(
+  webhookKey: string,
+  workflowId?: string
+): Promise<SocialWorkflowLoadResult> {
+  const resolvedWorkflowId = await resolveSocialWorkflowId(webhookKey, workflowId);
+  const workflow = await fetchBlogWorkflowById(resolvedWorkflowId);
+
+  let availableWorkflows: N8nWorkflowSummary[] = [];
+  try {
+    availableWorkflows = filterSocialWorkflowSummaries(await listN8nWorkflows());
+  } catch {
+    availableWorkflows = [{ id: workflow.id, name: workflow.name, active: workflow.active }];
+  }
+
+  const legacyBrandNodes = scanLegacyBrandInEditableNodes(workflow.nodes);
+  const connection = await getSocialWorkflowConnectionInfo(
+    webhookKey,
+    resolvedWorkflowId,
+    workflow
+  );
+
+  return {
+    workflow,
+    resolvedWorkflowId,
+    availableWorkflows,
+    connection,
+    legacyBrandNodes,
+  };
+}
+
+export async function updateSocialWorkflowNodes(
+  webhookKey: string,
+  updates: NodeFieldUpdate[],
+  workflowId?: string,
+  settingsPatch?: Record<string, unknown>
+): Promise<SocialWorkflowUpdateResult> {
+  const { apiKey } = await getN8nApiConfig();
+  if (!apiKey) {
+    throw new Error('n8n API key is not configured for workflow editing.');
+  }
+
+  const resolvedId = await resolveSocialWorkflowId(webhookKey, workflowId);
+  const workflow = await fetchBlogWorkflowById(resolvedId);
+  let updatedNodes = applyNodeUpdates(workflow.nodes, updates);
+  updatedNodes = normalizeScheduleFilterNodes(updatedNodes);
+  const payload = buildWorkflowUpdatePayload(workflow, updatedNodes, settingsPatch);
+  const webhookPath = await parseSocialWebhookPath(webhookKey);
+
+  let archivedConflictingWorkflows: string[] = [];
+  let deletedDuplicateWorkflows: string[] = [];
+  if (webhookPath) {
+    deletedDuplicateWorkflows = await deleteInactiveWebhookDuplicateWorkflows(resolvedId, webhookPath);
+    archivedConflictingWorkflows = await archiveConflictingInactiveWebhooks(resolvedId, webhookPath);
+  }
+
+  const wasActive = workflow.active;
+  if (wasActive) {
+    await deactivateBlogWorkflow(resolvedId);
+  }
+
+  let updatedWorkflow: N8nWorkflow;
+  try {
+    updatedWorkflow = await putN8nWorkflow(resolvedId, payload);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (webhookPath && isWebhookConflictError(detail)) {
+      deletedDuplicateWorkflows = [
+        ...deletedDuplicateWorkflows,
+        ...(await deleteInactiveWebhookDuplicateWorkflows(resolvedId, webhookPath)),
+      ];
+      archivedConflictingWorkflows = [
+        ...archivedConflictingWorkflows,
+        ...(await archiveConflictingInactiveWebhooks(resolvedId, webhookPath)),
+      ];
+      if (!wasActive) {
+        await deactivateBlogWorkflow(resolvedId);
+      }
+      updatedWorkflow = await putN8nWorkflow(resolvedId, payload);
+    } else {
+      if (wasActive) {
+        try {
+          await publishBlogWorkflow(resolvedId);
+        } catch {
+          // best effort restore
+        }
+      }
+      throw error;
+    }
+  }
+
+  let republished = false;
+  let activationError: string | undefined;
+  let webhookPathUsed: string | undefined;
+
+  if (webhookPath) {
+    try {
+      const publishResult = await publishBlogWorkflowAfterSave(
+        resolvedId,
+        webhookPath,
+        updatedWorkflow.versionId
+      );
+      updatedWorkflow = publishResult.workflow;
+      deletedDuplicateWorkflows = [
+        ...deletedDuplicateWorkflows,
+        ...publishResult.deletedDuplicateWorkflows,
+      ];
+      webhookPathUsed = publishResult.webhookPathUsed;
+      republished = true;
+      if (webhookPathUsed && webhookPathUsed !== webhookPath) {
+        activationError =
+          `Workflow activated on /${webhookPathUsed} because /${webhookPath} has a stale n8n registration. ` +
+          `Update ${webhookKey} to use /${webhookPathUsed}.`;
+      }
+    } catch (error) {
+      activationError =
+        error instanceof Error ? error.message : 'Failed to activate workflow in n8n';
+    }
+  } else if (wasActive) {
+    try {
+      updatedWorkflow = await publishBlogWorkflow(resolvedId, updatedWorkflow.versionId);
+      republished = true;
+    } catch (error) {
+      activationError =
+        error instanceof Error ? error.message : 'Failed to re-activate workflow in n8n';
+    }
+  }
+
+  return {
+    workflow: updatedWorkflow,
+    republished,
+    archivedConflictingWorkflows,
+    deletedDuplicateWorkflows: deletedDuplicateWorkflows.length ? deletedDuplicateWorkflows : undefined,
+    activationError,
+    webhookPathUsed,
+  };
 }

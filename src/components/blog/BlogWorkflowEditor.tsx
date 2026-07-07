@@ -197,8 +197,16 @@ export function BlogWorkflowEditor() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['blog-workflow'],
     queryFn: async () => {
-      const res = await fetch('/api/blog/workflow');
-      const json = (await res.json()) as WorkflowResponse;
+      const res = await fetch('/api/blog/workflow', { cache: 'no-store' });
+      const text = await res.text();
+      let json: WorkflowResponse;
+      try {
+        json = JSON.parse(text) as WorkflowResponse;
+      } catch {
+        throw new Error(
+          text.trim().slice(0, 200) || `Server returned ${res.status} (not JSON)`
+        );
+      }
       if (!res.ok && json.error) throw new Error(json.error);
       return json;
     },
@@ -349,7 +357,7 @@ export function BlogWorkflowEditor() {
             Updated {formatUpdatedAt(data.connection.resolvedWorkflowUpdatedAt)}
           </p>
           <p className="mt-2 text-xs text-gray-600">
-            Settings and Run Automation both use this workflow — the one that owns your{' '}
+            Settings use this workflow — the one that owns your{' '}
             <code className="rounded bg-white px-1 py-0.5">N8N_BLOG_AUTOMATION_WEBHOOK_URL</code> path in n8n.
           </p>
         </div>
