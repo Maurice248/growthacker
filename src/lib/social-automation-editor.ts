@@ -30,6 +30,38 @@ function findNode(nodes: N8nWorkflowNode[], name: string): N8nWorkflowNode | und
   return nodes.find((n) => n.name === name);
 }
 
+function isAiPromptNode(node: EditableWorkflowNode): boolean {
+  return node.type.includes('agent') || node.type.includes('chainLlm');
+}
+
+function pickPromptFields(node: EditableWorkflowNode): SocialAutomationEditorField[] {
+  const fields: SocialAutomationEditorField[] = [];
+
+  for (const field of node.fields) {
+    if (field.key === 'systemMessage') {
+      fields.push({
+        nodeId: node.id,
+        key: field.key,
+        label: 'System prompt',
+        description: 'Instructions that define tone, format, and rules for the AI.',
+        type: field.type,
+        value: field.value,
+      });
+    } else if (field.key === 'text') {
+      fields.push({
+        nodeId: node.id,
+        key: field.key,
+        label: 'User prompt template',
+        description: 'The main prompt sent to the AI, including variables from earlier workflow steps.',
+        type: field.type,
+        value: field.value,
+      });
+    }
+  }
+
+  return fields;
+}
+
 function extractScheduleFields(
   scheduleNode: N8nWorkflowNode,
   allNodes: N8nWorkflowNode[],
@@ -67,7 +99,7 @@ function extractScheduleFields(
   ];
 }
 
-/** Build editor sections from editable n8n nodes (one section per node, plus schedule when present). */
+/** Build editor sections — schedule settings plus AI Agent / LLM Chain prompt fields. */
 export function buildSocialAutomationEditorSections(
   nodes: N8nWorkflowNode[],
   editableNodes: EditableWorkflowNode[],
@@ -86,25 +118,16 @@ export function buildSocialAutomationEditorSections(
   }
 
   for (const node of editableNodes) {
-    if (scheduleNode && node.id === scheduleNode.id) continue;
+    if (!isAiPromptNode(node)) continue;
+
+    const fields = pickPromptFields(node);
+    if (fields.length === 0) continue;
 
     sections.push({
       id: node.id,
       title: node.name,
-      description: `${node.typeLabel} — edit prompts and parameters for this workflow step.`,
-      fields: node.fields.map((field) => ({
-        nodeId: node.id,
-        key: field.key,
-        label: field.label,
-        description:
-          field.key === 'systemMessage'
-            ? 'Instructions that define tone, format, and rules for the AI.'
-            : field.key === 'text'
-              ? 'The main prompt sent to the AI, including variables from earlier workflow steps.'
-              : undefined,
-        type: field.type,
-        value: field.value,
-      })),
+      description: `${node.typeLabel} — edit the AI prompts for this workflow step.`,
+      fields,
     });
   }
 

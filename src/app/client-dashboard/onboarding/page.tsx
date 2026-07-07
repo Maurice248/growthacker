@@ -7,7 +7,15 @@ import { OnboardingWizard } from '@/components/client-dashboard/onboarding-wizar
 
 export default async function ClientOnboardingPage() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.companyId) {
+  if (!session?.user?.id) {
+    redirect('/client-login');
+  }
+
+  if (session.user.isAppAdmin) {
+    redirect('/client-dashboard/workspace/overview');
+  }
+
+  if (!session.user.companyId) {
     redirect('/client-login');
   }
 

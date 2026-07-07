@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { companyHasIntegrationsConfigured } from '@/lib/company-integration-status';
+import { getCompanyIntegrationStatus } from '@/lib/company-integration-status';
 import {
   CLIENT_ALL_TAB_IDS,
   CLIENT_BRAND_CONTEXT_TAB_ID,
 } from '@/lib/client-dashboard-nav';
+import { moduleForTab } from '@/lib/company-module-status';
 import { ClientTabView } from '@/components/client-dashboard/client-tab-view';
 
 export default async function ClientWorkspaceTabPage({
@@ -20,14 +21,28 @@ export default async function ClientWorkspaceTabPage({
   }
 
   const session = await getServerSession(authOptions);
-  if (!session?.user?.companyId) {
+  if (!session?.user?.id) {
     redirect('/client-login');
   }
 
-  const integrationsConfigured = await companyHasIntegrationsConfigured(session.user.companyId);
+  if (session.user.isAppAdmin) {
+    return <ClientTabView tabId={tabId} />;
+  }
 
-  if (!integrationsConfigured && tabId !== CLIENT_BRAND_CONTEXT_TAB_ID) {
-    redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);
+  if (!session.user.companyId) {
+    redirect('/client-login');
+  }
+
+  if (tabId !== CLIENT_BRAND_CONTEXT_TAB_ID) {
+    const { modules } = await getCompanyIntegrationStatus(session.user.companyId);
+    const moduleId = moduleForTab(tabId);
+    const allowed = moduleId
+      ? modules.find((m) => m.id === moduleId)?.configured === true
+      : modules.some((m) => m.configured);
+
+    if (!allowed) {
+      redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);
+    }
   }
 
   return <ClientTabView tabId={tabId} />;

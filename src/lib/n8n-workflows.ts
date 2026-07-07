@@ -1480,6 +1480,35 @@ function filterSocialWorkflowSummaries(workflows: N8nWorkflowSummary[]): N8nWork
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function sortSocialWorkflowCandidates(workflows: N8nWorkflowSummary[]): N8nWorkflowSummary[] {
+  return [...workflows].sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '');
+  });
+}
+
+/** Prefer social-named workflows before scanning every workflow on n8n. */
+async function findSocialWorkflowIdByWebhookPath(webhookPath: string): Promise<string | null> {
+  let summaries: N8nWorkflowSummary[];
+  try {
+    summaries = await listN8nWorkflows();
+  } catch {
+    return null;
+  }
+
+  const socialCandidates = sortSocialWorkflowCandidates(filterSocialWorkflowSummaries(summaries));
+  for (const summary of socialCandidates) {
+    try {
+      const workflow = await fetchBlogWorkflowById(summary.id);
+      if (workflowHasWebhookPath(workflow, webhookPath)) return workflow.id;
+    } catch {
+      continue;
+    }
+  }
+
+  return findBlogWorkflowIdByWebhookPath(webhookPath);
+}
+
 export async function getSocialWorkflowConnectionInfo(
   webhookKey: string,
   resolvedWorkflowId: string,
@@ -1521,12 +1550,20 @@ export async function resolveSocialWorkflowId(
   if (explicitId?.trim()) return explicitId.trim();
 
   const envSocialId = process.env.N8N_SOCIAL_WORKFLOW_ID?.trim();
-  if (envSocialId) return envSocialId;
+  if (envSocialId) {
+    const configured = await tryFetchBlogWorkflowById(envSocialId);
+    if (configured) {
+      const webhookPath = await parseSocialWebhookPath(webhookKey);
+      if (!webhookPath || workflowHasWebhookPath(configured, webhookPath)) {
+        return configured.id;
+      }
+    }
+  }
 
   const webhookPath = await parseSocialWebhookPath(webhookKey);
   if (webhookPath) {
     try {
-      const fromWebhook = await findBlogWorkflowIdByWebhookPath(webhookPath);
+      const fromWebhook = await findSocialWorkflowIdByWebhookPath(webhookPath);
       if (fromWebhook) return fromWebhook;
     } catch (error) {
       console.warn('[n8n-workflows] Could not resolve social workflow from webhook URL:', error);
@@ -1542,6 +1579,8 @@ export async function resolveSocialWorkflowId(
     console.warn('[n8n-workflows] Could not list workflows for social ID resolution:', error);
   }
 
+  if (envSocialId) return envSocialId;
+
   throw new Error(
     `Could not resolve n8n workflow for ${webhookKey}. Add its webhook URL in Settings, or set N8N_SOCIAL_WORKFLOW_ID in .env.`
   );
@@ -1554,12 +1593,9 @@ export async function loadSocialWorkflow(
   const resolvedWorkflowId = await resolveSocialWorkflowId(webhookKey, workflowId);
   const workflow = await fetchBlogWorkflowById(resolvedWorkflowId);
 
-  let availableWorkflows: N8nWorkflowSummary[] = [];
-  try {
-    availableWorkflows = filterSocialWorkflowSummaries(await listN8nWorkflows());
-  } catch {
-    availableWorkflows = [{ id: workflow.id, name: workflow.name, active: workflow.active }];
-  }
+  const availableWorkflows: N8nWorkflowSummary[] = [
+    { id: workflow.id, name: workflow.name, active: workflow.active, updatedAt: workflow.updatedAt },
+  ];
 
   const legacyBrandNodes = scanLegacyBrandInEditableNodes(workflow.nodes);
   const connection = await getSocialWorkflowConnectionInfo(

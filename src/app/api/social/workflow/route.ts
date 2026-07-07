@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { buildSocialAutomationEditorSections } from '@/lib/social-automation-editor';
@@ -22,16 +23,23 @@ function isValidSocialWebhookKey(key: string): boolean {
   return SOCIAL_N8N_WEBHOOK_FIELDS.some((field) => field.key === key);
 }
 
+function jsonResponse(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store, max-age=0' },
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const webhookKey = resolveWebhookKey(request.nextUrl.searchParams.get('webhookKey'));
 
     if (!isValidSocialWebhookKey(webhookKey)) {
-      return NextResponse.json({ error: 'Invalid webhookKey' }, { status: 400 });
+      return jsonResponse({ error: 'Invalid webhookKey' }, 400);
     }
 
     if (!(await isN8nWorkflowApiConfigured())) {
-      return NextResponse.json({
+      return jsonResponse({
         configured: false,
         webhookKey,
         error: 'n8n API key is not configured. Add it in API key management to edit workflow nodes.',
@@ -51,7 +59,7 @@ export async function GET(request: NextRequest) {
     const workflowTimezone = extractWorkflowTimezone(workflow.settings);
     const webhookMeta = SOCIAL_N8N_WEBHOOK_FIELDS.find((field) => field.key === webhookKey);
 
-    return NextResponse.json({
+    return jsonResponse({
       configured: true,
       webhookKey,
       webhookLabel: webhookMeta?.label ?? webhookKey,
@@ -72,12 +80,12 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[API social/workflow GET]', error);
-    return NextResponse.json(
+    return jsonResponse(
       {
         configured: await isN8nWorkflowApiConfigured(),
         error: error instanceof Error ? error.message : 'Failed to load workflow',
       },
-      { status: 502 }
+      502
     );
   }
 }

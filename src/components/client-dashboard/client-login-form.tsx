@@ -61,6 +61,11 @@ export function ClientLoginForm() {
         return;
       }
 
+      if (session.user.isAppAdmin) {
+        window.location.assign('/admin');
+        return;
+      }
+
       if (!session.user.companyId) {
         setError(
           'This account is not linked to a company yet. Run database seed on production or register a new workspace.'

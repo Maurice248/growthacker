@@ -1,5 +1,5 @@
 import type { IntegrationCredentials } from '@/lib/company-integrations';
-import { credentialsToN8nConfig, getN8nWebhook } from '@/lib/company-integrations';
+import { rowToCredentials } from '@/lib/company-integrations';
 
 export type ModuleId = 'meta' | 'social' | 'newsletter' | 'outreach' | 'blog';
 
@@ -16,8 +16,7 @@ function metaConfigured(creds: IntegrationCredentials): boolean {
 }
 
 function n8nWebhooksConfigured(creds: IntegrationCredentials, keys: string[]): boolean {
-  const config = credentialsToN8nConfig(creds);
-  return keys.every((key) => Boolean(getN8nWebhook(config, key)));
+  return keys.every((key) => Boolean(creds.n8nWebhooks[key]?.trim()));
 }
 
 function outreachConfigured(creds: IntegrationCredentials): boolean {
@@ -90,6 +89,15 @@ export function isAnyModuleConfigured(creds: IntegrationCredentials): boolean {
 
 export function isModuleConfigured(creds: IntegrationCredentials, moduleId: ModuleId): boolean {
   return getModuleStatuses(creds).find((m) => m.id === moduleId)?.configured ?? false;
+}
+
+/** All modules marked configured — used for APP_ADMIN client dashboard access. */
+export function getUnlockedModuleStatusesForAdmin(): ModuleStatus[] {
+  return getModuleStatuses(rowToCredentials(null)).map((m) => ({
+    ...m,
+    configured: true,
+    missingKeys: [],
+  }));
 }
 
 export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {

@@ -26,7 +26,15 @@ function initials(name: string) {
 export default async function ClientProfilePage() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.id || !session.user.companyId) {
+  if (!session?.user?.id) {
+    redirect('/client-login');
+  }
+
+  if (session.user.isAppAdmin && !session.user.companyId) {
+    redirect('/admin');
+  }
+
+  if (!session.user.companyId) {
     redirect('/client-login');
   }
 

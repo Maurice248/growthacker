@@ -16,7 +16,7 @@ export async function getRequestUserEmail(): Promise<string | null> {
   return session?.user?.email ?? null;
 }
 
-/** Session company id; null when unauthenticated or user has no company. */
+/** Session company id (effective — includes admin impersonation); null when unauthenticated or no company. */
 export async function getRequestCompanyId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   return session?.user?.companyId ?? null;
@@ -40,12 +40,17 @@ export async function getRequestUser(): Promise<RequestUser | null> {
   };
 }
 
+export const APP_ADMIN_ROLE = 'APP_ADMIN';
 export const COMPANY_ADMIN_ROLE = 'COMPANY_ADMIN';
 export const COMPANY_MEMBER_ROLE = 'COMPANY_MEMBER';
 /** @deprecated Legacy member role — normalized to COMPANY_MEMBER */
 export const LEGACY_CLIENT_ROLE = 'CLIENT';
 /** Legacy platform seed role — treated as company admin for backward compatibility. */
 export const LEGACY_ADMIN_ROLE = 'ADMIN';
+
+export function isAppAdminRole(role: string | undefined | null): boolean {
+  return role === APP_ADMIN_ROLE;
+}
 
 export function isCompanyAdminRole(role: string | undefined | null): boolean {
   return role === COMPANY_ADMIN_ROLE || role === LEGACY_ADMIN_ROLE;
@@ -59,6 +64,27 @@ export function normalizeMemberRole(role: string): string {
   return role === LEGACY_CLIENT_ROLE ? COMPANY_MEMBER_ROLE : role;
 }
 
+export const ASSIGNABLE_ROLES = [
+  APP_ADMIN_ROLE,
+  COMPANY_ADMIN_ROLE,
+  COMPANY_MEMBER_ROLE,
+] as const;
+
+export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+
+export function isAssignableRole(role: string): role is AssignableRole {
+  return (ASSIGNABLE_ROLES as readonly string[]).includes(role);
+}
+
+/** Returns the request user if they are a platform admin, otherwise null. */
+export async function requireAppAdmin(): Promise<RequestUser | null> {
+  const user = await getRequestUser();
+  if (!user || !isAppAdminRole(user.role)) {
+    return null;
+  }
+  return user;
+}
+
 /** Returns the request user if they are a company admin, otherwise null. */
 export async function requireCompanyAdmin(): Promise<RequestUser | null> {
   const user = await getRequestUser();
@@ -66,6 +92,31 @@ export async function requireCompanyAdmin(): Promise<RequestUser | null> {
     return null;
   }
   return user;
+}
+
+export async function countAppAdmins(): Promise<number> {
+  return prisma.user.count({ where: { role: APP_ADMIN_ROLE } });
+}
+
+export async function isLastAppAdmin(userId: string): Promise<boolean> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, role: APP_ADMIN_ROLE },
+    select: { id: true },
+  });
+  if (!user) return false;
+  const count = await countAppAdmins();
+  return count <= 1;
+}
+
+function effectiveCompanyId(
+  role: string,
+  realCompanyId: string | null,
+  impersonatedCompanyId: string | null
+): string | null {
+  if (isAppAdminRole(role) && impersonatedCompanyId) {
+    return impersonatedCompanyId;
+  }
+  return realCompanyId;
 }
 
 export const authOptions: NextAuthOptions = {
@@ -110,11 +161,12 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
-        token.companyId = (user as { companyId?: string | null }).companyId ?? null;
+        token.realCompanyId = (user as { companyId?: string | null }).companyId ?? null;
+        token.impersonatedCompanyId = null;
       } else if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
@@ -122,16 +174,40 @@ export const authOptions: NextAuthOptions = {
         });
         if (dbUser) {
           token.role = dbUser.role;
-          token.companyId = dbUser.companyId;
+          token.realCompanyId = dbUser.companyId;
+          if (!isAppAdminRole(dbUser.role)) {
+            token.impersonatedCompanyId = null;
+          }
         }
       }
+
+      if (trigger === 'update' && session && isAppAdminRole(token.role as string)) {
+        const impersonate = (session as { impersonate?: string | null }).impersonate;
+        if (impersonate === null || impersonate === undefined) {
+          token.impersonatedCompanyId = null;
+        } else if (typeof impersonate === 'string') {
+          token.impersonatedCompanyId = impersonate;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
+      const role = token.role as string;
+      const isAppAdmin = isAppAdminRole(role);
+      const realCompanyId =
+        (token.realCompanyId as string | null | undefined) ??
+        ((token as { companyId?: string | null }).companyId ?? null);
+      const impersonatedCompanyId = isAppAdmin
+        ? ((token.impersonatedCompanyId as string | null | undefined) ?? null)
+        : null;
+
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.companyId = (token.companyId as string | null | undefined) ?? null;
+        session.user.role = role;
+        session.user.companyId = effectiveCompanyId(role, realCompanyId, impersonatedCompanyId);
+        session.user.isAppAdmin = isAppAdmin;
+        session.user.isImpersonating = Boolean(isAppAdmin && impersonatedCompanyId);
       }
       return session;
     },
@@ -146,6 +222,8 @@ declare module 'next-auth' {
       name?: string | null;
       role: string;
       companyId?: string | null;
+      isAppAdmin?: boolean;
+      isImpersonating?: boolean;
     };
   }
 }
@@ -154,6 +232,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id?: string;
     role?: string;
-    companyId?: string | null;
+    realCompanyId?: string | null;
+    impersonatedCompanyId?: string | null;
   }
 }

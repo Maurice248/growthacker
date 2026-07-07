@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'COMPANY_MEMBER' | 'COMPANY_ADMIN' | 'VIEWER';
+export type Role = 'APP_ADMIN' | 'ADMIN' | 'COMPANY_MEMBER' | 'COMPANY_ADMIN' | 'VIEWER';
 export type WorkflowType = 'CAMPAIGN' | 'SCRAPER' | 'CLEANUP';
 export type ExecutionStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
 

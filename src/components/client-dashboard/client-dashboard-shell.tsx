@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronRight, LogOut, User } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { ChevronRight, LogOut, Shield, User, X } from 'lucide-react';
+import { signOut, useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import type { ModuleStatus } from '@/lib/company-module-status';
 import { ClientDashboardNav } from '@/components/client-dashboard/client-dashboard-nav';
+import { stopImpersonating } from '@/lib/admin-impersonate';
 
 type ClientDashboardShellProps = {
   companyName: string;
@@ -16,6 +18,8 @@ type ClientDashboardShellProps = {
   userEmail: string;
   integrationsConfigured: boolean;
   moduleStatuses: ModuleStatus[];
+  isAppAdmin?: boolean;
+  isImpersonating?: boolean;
   children: React.ReactNode;
 };
 
@@ -60,6 +64,57 @@ function SidebarBrand({
   );
 }
 
+function AdminBanner({
+  companyName,
+  isImpersonating,
+  onExitImpersonation,
+}: {
+  companyName: string;
+  isImpersonating: boolean;
+  onExitImpersonation: () => void;
+}) {
+  if (isImpersonating) {
+    return (
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-violet-200 bg-violet-50 px-4 py-2 text-sm text-violet-900">
+        <span>
+          Viewing as <strong>{companyName}</strong> — platform admin mode
+        </span>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin"
+            className="rounded-md px-2 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+          >
+            Admin portal
+          </Link>
+          <button
+            type="button"
+            onClick={onExitImpersonation}
+            className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700"
+          >
+            <X className="h-3 w-3" />
+            Exit view-as
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+      <span>
+        Platform admin — no company selected. Tabs are unlocked with placeholder data.
+      </span>
+      <Link
+        href="/admin"
+        className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-700"
+      >
+        <Shield className="h-3 w-3" />
+        Admin portal
+      </Link>
+    </div>
+  );
+}
+
 export function ClientDashboardShell({
   companyName,
   logoUrl,
@@ -67,10 +122,13 @@ export function ClientDashboardShell({
   userEmail,
   integrationsConfigured,
   moduleStatuses,
+  isAppAdmin = false,
+  isImpersonating = false,
   children,
 }: ClientDashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { update } = useSession();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const profileActive =
@@ -104,6 +162,11 @@ export function ClientDashboardShell({
   const openProfile = () => {
     setMobileOpen(false);
     router.push('/client-dashboard/profile');
+  };
+
+  const handleExitImpersonation = async () => {
+    await stopImpersonating(update);
+    router.push('/admin');
   };
 
   const sidebarContent = (
@@ -151,6 +214,15 @@ export function ClientDashboardShell({
 
       <div className="shrink-0 border-t border-[var(--border-light)] pt-3">
         <div className="flex flex-col gap-2">
+          {isAppAdmin && !collapsed && (
+            <Link
+              href="/admin"
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] border border-violet-200 bg-violet-50 px-2 py-2 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-100"
+            >
+              <Shield size={13} />
+              Admin portal
+            </Link>
+          )}
           <button
             type="button"
             onClick={openProfile}
@@ -248,6 +320,15 @@ export function ClientDashboardShell({
           {brandMark}
           <span className="truncate text-sm font-bold text-[var(--text)]">{companyName}</span>
         </header>
+
+        {isAppAdmin && (
+          <AdminBanner
+            companyName={companyName}
+            isImpersonating={isImpersonating}
+            onExitImpersonation={handleExitImpersonation}
+          />
+        )}
+
         <main
           className={cn(
             'flex min-h-0 flex-1 flex-col overflow-auto',

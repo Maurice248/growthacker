@@ -6,10 +6,10 @@ import {
   AlertCircle,
   Calendar,
   ChevronDown,
-  FileText,
   Loader2,
   RefreshCw,
   Save,
+  Sparkles,
   Workflow,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -203,24 +203,24 @@ export function SocialWorkflowEditor() {
   const [openSectionId, setOpenSectionId] = useState<string>('');
   const [draftFields, setDraftFields] = useState<Record<string, Record<string, string>>>({});
 
-  const { data, isPending, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['social-workflow', webhookKey],
     queryFn: async () => {
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 45_000);
+      const res = await fetch(
+        `/api/social/workflow?webhookKey=${encodeURIComponent(webhookKey)}`,
+        { cache: 'no-store' }
+      );
+      const text = await res.text();
+      let json: WorkflowResponse;
       try {
-        const res = await fetch(
-          `/api/social/workflow?webhookKey=${encodeURIComponent(webhookKey)}`,
-          { signal: controller.signal }
+        json = JSON.parse(text) as WorkflowResponse;
+      } catch {
+        throw new Error(
+          text.trim().slice(0, 200) || `Server returned ${res.status} (not JSON)`
         );
-        const json = (await res.json()) as WorkflowResponse;
-        if (!res.ok) {
-          throw new Error(json.error ?? `Failed to load workflow (${res.status})`);
-        }
-        return json;
-      } finally {
-        window.clearTimeout(timeout);
       }
+      if (!res.ok && json.error) throw new Error(json.error);
+      return json;
     },
   });
 
@@ -311,7 +311,7 @@ export function SocialWorkflowEditor() {
       <div className="rounded-xl border border-gray-200 bg-white px-4 py-4">
         <Label className="text-sm font-medium text-gray-800">Automation workflow</Label>
         <p className="mt-1 text-xs text-gray-500">
-          Each Creator Studio action maps to an n8n webhook. Pick one to edit its workflow nodes.
+          Each Creator Studio action maps to an n8n webhook. Pick one to edit its schedule and AI agent prompts.
         </p>
         <Select value={webhookKey} onValueChange={setWebhookKey}>
           <SelectTrigger className="mt-3 max-w-full bg-white sm:max-w-[480px]">
@@ -330,7 +330,7 @@ export function SocialWorkflowEditor() {
         )}
       </div>
 
-      {isPending && !data ? (
+      {isLoading ? (
         <div className="space-y-3 rounded-xl border border-gray-200 bg-white px-4 py-6">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Loader2 className="h-4 w-4 animate-spin text-[#0077b6]" />
@@ -346,11 +346,7 @@ export function SocialWorkflowEditor() {
           <div>
             <p className="font-medium">Could not load workflow settings</p>
             <p className="mt-1">
-              {error instanceof Error
-                ? error.name === 'AbortError'
-                  ? 'Timed out connecting to n8n. Check N8N_API_KEY, N8N_API_BASE_URL, and your webhook URL in Settings.'
-                  : error.message
-                : 'Unknown error'}
+              {error instanceof Error ? error.message : 'Unknown error'}
             </p>
             <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
               <RefreshCw className="mr-2 h-3.5 w-3.5" />
@@ -372,7 +368,7 @@ export function SocialWorkflowEditor() {
         </div>
       ) : sections.length === 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No editable nodes found in this workflow. Configure the webhook URL for{' '}
+          No editable schedule or AI agent prompts found in this workflow. Configure the webhook URL for{' '}
           <strong>{selectedWebhook?.label ?? webhookKey}</strong> in Settings, then refresh.
         </div>
       ) : (
@@ -426,7 +422,7 @@ export function SocialWorkflowEditor() {
           </div>
 
           <p className="text-sm text-gray-500">
-            Edit n8n node prompts and parameters below. Changes are saved directly to your live workflow.
+            Edit schedule settings and AI agent prompts below. Changes are saved directly to your live workflow.
             {dirtySectionCount > 0 && (
               <span className="ml-1 font-medium text-amber-700">
                 {dirtySectionCount} unsaved section{dirtySectionCount === 1 ? '' : 's'}.
@@ -436,7 +432,7 @@ export function SocialWorkflowEditor() {
 
           <div className="space-y-3">
             {sections.map((section) => {
-              const Icon = section.id === 'schedule' ? Calendar : FileText;
+              const Icon = section.id === 'schedule' ? Calendar : Sparkles;
               const open = openSectionId === section.id;
               const dirty = isSectionDirty(section, draftFields);
               const saving = saveMutation.isPending && saveMutation.variables?.id === section.id;

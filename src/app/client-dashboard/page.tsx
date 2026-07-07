@@ -8,7 +8,15 @@ import { CLIENT_BRAND_CONTEXT_TAB_ID } from '@/lib/client-dashboard-nav';
 export default async function ClientDashboardPage() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.companyId) {
+  if (!session?.user?.id) {
+    redirect('/client-login');
+  }
+
+  if (session.user.isAppAdmin) {
+    redirect('/client-dashboard/workspace/overview');
+  }
+
+  if (!session.user.companyId) {
     redirect('/client-login');
   }
 

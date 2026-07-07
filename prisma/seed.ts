@@ -10,6 +10,9 @@ const prisma = new PrismaClient();
 const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@tenantreport.ai').toLowerCase();
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'pass@123';
 const ADMIN_NAME = process.env.ADMIN_NAME || 'Tenant Report Admin';
+const APP_ADMIN_EMAIL = (process.env.APP_ADMIN_EMAIL || 'platform-admin@tenantreport.ai').toLowerCase();
+const APP_ADMIN_PASSWORD = process.env.APP_ADMIN_PASSWORD || 'Admin@123!';
+const APP_ADMIN_NAME = process.env.APP_ADMIN_NAME || 'Platform Admin';
 const PLATFORM_COMPANY_NAME = process.env.PLATFORM_COMPANY_NAME || 'Tenant Report';
 const PLATFORM_COMPANY_SLUG = process.env.PLATFORM_COMPANY_SLUG || 'tenant-report';
 const PLATFORM_COMPANY_LOGO = '/tenant-report-logo.png';
@@ -272,16 +275,44 @@ async function seedTenantReportBrandConfig(companyId: string) {
   console.log('[Prisma] Tenant Report brand config ready');
 }
 
+async function seedAppAdmin() {
+  const passwordHash = await bcrypt.hash(APP_ADMIN_PASSWORD, 10);
+
+  const appAdmin = await prisma.user.upsert({
+    where: { email: APP_ADMIN_EMAIL },
+    update: {
+      password: passwordHash,
+      role: 'APP_ADMIN',
+      name: APP_ADMIN_NAME,
+      companyId: null,
+    },
+    create: {
+      email: APP_ADMIN_EMAIL,
+      name: APP_ADMIN_NAME,
+      password: passwordHash,
+      role: 'APP_ADMIN',
+      companyId: null,
+    },
+  });
+
+  console.log('[Prisma] Platform admin ready (APP_ADMIN):', appAdmin.email, `(id: ${appAdmin.id})`);
+  return appAdmin;
+}
+
 async function main() {
   await ensureIntegrationsTable();
   const company = await ensurePlatformCompany();
   await seedPrismaAdmin(company.id);
+  await seedAppAdmin();
   await seedCompanyIntegrationsFromEnv(company.id);
   await seedTenantReportBrandConfig(company.id);
   await seedSupabaseAuthAdmin();
   console.log('\nLogin credentials (Client Dashboard at /client-login):');
   console.log(`  Email:    ${ADMIN_EMAIL}`);
   console.log(`  Password: ${ADMIN_PASSWORD}`);
+  console.log('\nPlatform admin (Admin Portal at /admin):');
+  console.log(`  Email:    ${APP_ADMIN_EMAIL}`);
+  console.log(`  Password: ${APP_ADMIN_PASSWORD}`);
 }
 
 main()

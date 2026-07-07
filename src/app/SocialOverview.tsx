@@ -143,7 +143,7 @@ export default function SocialOverview() {
             Social Channels Overview
           </h1>
           <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0 0" }}>
-            Monitor workflow status, edit n8n node prompts, and track the live Creator Studio pipeline.
+            Monitor workflow status, edit schedule and AI agent prompts, and track the live Creator Studio pipeline.
           </p>
         </div>
       </div>
