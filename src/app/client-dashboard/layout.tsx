@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getCompanyIntegrationStatus } from '@/lib/company-integration-status';
 import { ClientDashboardShell } from '@/components/client-dashboard/client-dashboard-shell';
+import { ClientDashboardSessionProvider } from '@/components/client-dashboard/client-dashboard-session-provider';
 
 export default async function ClientDashboardLayout({
   children,
@@ -29,15 +30,17 @@ export default async function ClientDashboardLayout({
   );
 
   return (
-    <ClientDashboardShell
-      companyName={company.name}
-      logoUrl={company.logoUrl}
-      userName={session.user.name ?? null}
-      userEmail={session.user.email ?? ''}
-      integrationsConfigured={integrationsConfigured}
-      moduleStatuses={modules}
-    >
-      {children}
-    </ClientDashboardShell>
+    <ClientDashboardSessionProvider session={session}>
+      <ClientDashboardShell
+        companyName={company.name}
+        logoUrl={company.logoUrl}
+        userName={session.user.name ?? null}
+        userEmail={session.user.email ?? ''}
+        integrationsConfigured={integrationsConfigured}
+        moduleStatuses={modules}
+      >
+        {children}
+      </ClientDashboardShell>
+    </ClientDashboardSessionProvider>
   );
 }

@@ -51,7 +51,7 @@ export function getModuleStatuses(creds: IntegrationCredentials): ModuleStatus[]
     },
     {
       id: 'social',
-      label: 'Social Dash',
+      label: 'Social Channels',
       keys: ['NEXT_PUBLIC_N8N_SOCIAL_POST_URL'],
       ok: socialConfigured(creds),
     },
@@ -103,7 +103,7 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
     'ad_performance',
     'reports',
   ]),
-  social: new Set(['social-dash']),
+  social: new Set(['social-overview', 'social-creator-studio', 'social-dash']),
   newsletter: new Set([
     'newsletter-dashboard',
     'newsletter-generate',

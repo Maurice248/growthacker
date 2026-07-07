@@ -177,12 +177,16 @@ export async function getRequestN8nConfig(): Promise<ResolvedN8nConfig> {
 }
 
 export function credentialsToN8nConfig(creds: IntegrationCredentials): ResolvedN8nConfig {
+  const envWebhooks = webhooksFromEnv();
   return {
-    apiKey: creds.n8nApiKey,
-    apiBaseUrl: creds.n8nApiBaseUrl?.replace(/\/$/, '') ?? '',
+    apiKey: creds.n8nApiKey?.trim() || process.env.N8N_API_KEY?.trim() || null,
+    apiBaseUrl:
+      creds.n8nApiBaseUrl?.replace(/\/$/, '') ||
+      process.env.N8N_API_BASE_URL?.replace(/\/$/, '') ||
+      '',
     blogWorkflowId: creds.n8nBlogWorkflowId?.trim() || DEFAULT_BLOG_WORKFLOW_ID,
     blogWorkflowName: creds.n8nBlogWorkflowName?.trim() || DEFAULT_BLOG_WORKFLOW_NAME,
-    webhooks: creds.n8nWebhooks,
+    webhooks: { ...envWebhooks, ...creds.n8nWebhooks },
   };
 }
 

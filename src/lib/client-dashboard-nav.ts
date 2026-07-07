@@ -34,7 +34,7 @@ export const CLIENT_BRAND_CONTEXT_TAB_ID = 'profile';
 
 export const CLIENT_TOP_TABS: ClientNavItem[] = [
   { id: CLIENT_BRAND_CONTEXT_TAB_ID, label: 'Brand Context', icon: User },
-  { id: 'analysis', label: 'Ads Analysis', icon: BarChart3 },
+  { id: 'analysis', label: 'Ads Lab', icon: BarChart3 },
 ];
 
 export const CLIENT_META_ADS_TABS: ClientNavItem[] = [
@@ -47,11 +47,10 @@ export const CLIENT_META_ADS_TABS: ClientNavItem[] = [
   { id: 'reports', label: 'Reports', icon: PieChart },
 ];
 
-export const CLIENT_SOCIAL_TAB: ClientNavItem = {
-  id: 'social-dash',
-  label: 'Social-Dash',
-  icon: Share2,
-};
+export const CLIENT_SOCIAL_TABS: ClientNavItem[] = [
+  { id: 'social-overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'social-creator-studio', label: 'Creator Studio', icon: Sparkles },
+];
 
 export const CLIENT_NEWSLETTER_TABS: ClientNavItem[] = [
   { id: 'newsletter-dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -85,6 +84,7 @@ export const CLIENT_BLOG_TABS: ClientNavItem[] = [
 ];
 
 export const CLIENT_META_ADS_IDS = new Set(CLIENT_META_ADS_TABS.map((t) => t.id));
+export const CLIENT_SOCIAL_IDS = new Set(CLIENT_SOCIAL_TABS.map((t) => t.id));
 export const CLIENT_NEWSLETTER_IDS = new Set(CLIENT_NEWSLETTER_TABS.map((t) => t.id));
 export const CLIENT_OUTREACH_IDS = new Set(CLIENT_OUTREACH_TABS.map((t) => t.id));
 export const CLIENT_BLOG_IDS = new Set(CLIENT_BLOG_TABS.map((t) => t.id));
@@ -92,7 +92,7 @@ export const CLIENT_BLOG_IDS = new Set(CLIENT_BLOG_TABS.map((t) => t.id));
 export const CLIENT_ALL_TAB_IDS = new Set([
   ...CLIENT_TOP_TABS.map((t) => t.id),
   ...CLIENT_META_ADS_TABS.map((t) => t.id),
-  CLIENT_SOCIAL_TAB.id,
+  ...CLIENT_SOCIAL_TABS.map((t) => t.id),
   ...CLIENT_NEWSLETTER_TABS.map((t) => t.id),
   ...CLIENT_OUTREACH_TABS.map((t) => t.id),
   ...CLIENT_BLOG_TABS.map((t) => t.id),
@@ -134,6 +134,8 @@ const MAIN_APP_TABS = new Set([
   'live_campaigns',
   'ad_performance',
   'reports',
+  'social-overview',
+  'social-creator-studio',
   'social-dash',
 ]);
 
@@ -149,7 +151,7 @@ export function clientTabLabel(tabId: string): string {
   const all = [
     ...CLIENT_TOP_TABS,
     ...CLIENT_META_ADS_TABS,
-    CLIENT_SOCIAL_TAB,
+    ...CLIENT_SOCIAL_TABS,
     ...CLIENT_NEWSLETTER_TABS,
     ...CLIENT_OUTREACH_TABS,
     ...CLIENT_BLOG_TABS,

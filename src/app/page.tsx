@@ -58,6 +58,7 @@ import { tenantStorageKey } from "@/lib/tenant-storage";
 import CampaignSetup from "./CampaignSetup";
 import AdPerformance from "./AdPerformance";
 import SocialDash from "./SocialDash";
+import SocialOverview from "./SocialOverview";
 import CustomSelect from "./CustomSelect";
 import VoiceExplorerModal from "./VoiceExplorerModal";
 import { HideNextDevIndicator } from "@/components/HideNextDevIndicator";
@@ -92,7 +93,7 @@ const DEFAULT_BRAND_CONFIG = {
 
 const TABS = [
   { id: "profile", label: "Brand Context", icon: User },
-  { id: "analysis", label: "Ads Analysis", icon: BarChart3 },
+  { id: "analysis", label: "Ads Lab", icon: BarChart3 },
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "create", label: "Create Ad", icon: WandSparkles },
   { id: "approval", label: "Approval", icon: ClipboardCheck },
@@ -100,8 +101,14 @@ const TABS = [
   { id: "live_campaigns", label: "Running Campaign", icon: TrendingUp },
   { id: "ad_performance", label: "Ad Performance", icon: Activity },
   { id: "reports", label: "Reports", icon: PieChart },
-  { id: "social-dash", label: "Social-Dash", icon: Share2 },
 ];
+
+const SOCIAL_TABS = [
+  { id: "social-overview", label: "Overview", icon: LayoutDashboard },
+  { id: "social-creator-studio", label: "Creator Studio", icon: Sparkles },
+];
+
+const SOCIAL_TAB_IDS = new Set(SOCIAL_TABS.map((t) => t.id));
 
 const NEWSLETTER_TABS = [
   { id: "newsletter-dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -144,6 +151,7 @@ const BLOG_IDS = new Set(BLOG_TABS.map((t) => t.id));
 
 const ALL_APP_TAB_IDS = new Set([
   ...TABS.map((t) => t.id),
+  ...SOCIAL_TABS.map((t) => t.id),
   ...OUTREACH_TABS.map((t) => t.id),
   ...NEWSLETTER_TABS.map((t) => t.id),
   ...BLOG_TABS.map((t) => t.id),
@@ -340,6 +348,125 @@ function inferAdTypeFromAnalysis(analysis) {
   return "video";
 }
 
+type AnalysisResultSection =
+  | "summary"
+  | "competitors"
+  | "hooks"
+  | "market_insights"
+  | "gaps"
+  | "raw";
+
+const COLLAPSED_ANALYSIS_SECTIONS: Record<AnalysisResultSection, boolean> = {
+  summary: false,
+  competitors: false,
+  hooks: false,
+  market_insights: false,
+  gaps: false,
+  raw: false,
+};
+
+const EXPANDED_ANALYSIS_SECTIONS: Record<AnalysisResultSection, boolean> = {
+  summary: true,
+  competitors: true,
+  hooks: true,
+  market_insights: true,
+  gaps: true,
+  raw: true,
+};
+
+function AnalysisResultToggle({
+  expanded,
+  darkText = false,
+}: {
+  expanded: boolean;
+  darkText?: boolean;
+}) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        background: darkText ? "#fff" : "var(--surface, #F8FAFC)",
+        border: "1px solid var(--border, #E2E8F0)",
+        fontSize: 20,
+        fontWeight: 700,
+        color: darkText ? "#0F172A" : "var(--text-muted, #64748B)",
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+    >
+      {expanded ? "▾" : "▸"}
+    </span>
+  );
+}
+
+function AnalysisCollapsiblePanel({
+  expanded,
+  onToggle,
+  icon,
+  title,
+  subtitle,
+  children,
+  marginBottom = 20,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  icon?: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  children: React.ReactNode;
+  marginBottom?: number;
+}) {
+  return (
+    <div
+      style={{
+        marginBottom,
+        background: "#fff",
+        borderRadius: 16,
+        border: "1px solid #E2E8F0",
+        overflow: "hidden",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        style={{
+          padding: "16px 20px",
+          background: "#F8FAFC",
+          borderBottom: expanded ? "1px solid #E2E8F0" : "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          cursor: "pointer",
+          userSelect: "none",
+        }}
+      >
+        {icon}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{title}</div>
+          {subtitle && (
+            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{subtitle}</div>
+          )}
+        </div>
+        <AnalysisResultToggle expanded={expanded} />
+      </div>
+      {expanded && children}
+    </div>
+  );
+}
+
 function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
   const scripts = analysis?.ready_ad_scripts || [];
   const adType = inferAdTypeFromAnalysis(analysis);
@@ -463,6 +590,7 @@ export default function Dashboard() {
   const [metaAdsOpen, setMetaAdsOpen] = useState(false);
   const [outreachOpen, setOutreachOpen] = useState(false);
   const [newsletterOpen, setNewsletterOpen] = useState(false);
+  const [socialOpen, setSocialOpen] = useState(false);
   const [blogOpen, setBlogOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPICS[1]);
   const [user, setUser] = useState(null);
@@ -485,9 +613,10 @@ export default function Dashboard() {
   // Auto-open Outreach group when navigating to one of its tabs
   useEffect(() => { if (OUTREACH_IDS.has(tab)) setOutreachOpen(true); }, [tab]);
 
-  // Auto-open Newsletter / Blog groups
+  // Auto-open Newsletter / Blog / Social groups
   useEffect(() => {
     if (NEWSLETTER_TABS.some((t) => t.id === tab)) setNewsletterOpen(true);
+    if (SOCIAL_TAB_IDS.has(tab)) setSocialOpen(true);
     if (BLOG_IDS.has(tab)) setBlogOpen(true);
   }, [tab]);
 
@@ -495,8 +624,8 @@ export default function Dashboard() {
   useEffect(() => { if (tab === "outreach") setTab("outreach-dashboard"); }, [tab, setTab]);
   useEffect(() => { if (tab === "newsletter") setTab("newsletter-generate"); }, [tab, setTab]);
   useEffect(() => { if (tab === "blog-management") setTab("blog-post"); }, [tab, setTab]);
-  useEffect(() => {
-  }, [tab, setTab]);
+  useEffect(() => { if (tab === "social-dash") setTab("social-creator-studio"); }, [tab, setTab]);
+  useEffect(() => { if (tab === "social-automation") setTab("social-overview"); }, [tab, setTab]);
 
 
   // Analysis state — status and data persist across refresh
@@ -506,11 +635,87 @@ export default function Dashboard() {
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
   const [analysisError, setAnalysisError] = useState("");
+  const [topicAnalysisExpanded, setTopicAnalysisExpanded] = useState(true);
+  const [analysisCardsExpanded, setAnalysisCardsExpanded] = useState(COLLAPSED_ANALYSIS_SECTIONS);
+  const freshAnalysisResultRef = useRef(false);
+  const prevAnalysisDataIdRef = useRef<string | null>(null);
   const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("app_pending_analysis_topic", null);
   const pendingTopicRef = useRef<string | null>(null); // ref so realtime callback always sees latest value
   const companySlugRef = useRef<string | null>(null);
   const analysisInFlightRef = useRef(false);
   useEffect(() => { pendingTopicRef.current = pendingAnalysisTopic; }, [pendingAnalysisTopic]);
+
+  const expandAllAnalysisSections = useCallback(() => {
+    setTopicAnalysisExpanded(true);
+    setAnalysisCardsExpanded({ ...EXPANDED_ANALYSIS_SECTIONS });
+  }, []);
+
+  const collapseAllAnalysisSections = useCallback(() => {
+    setTopicAnalysisExpanded(false);
+    setAnalysisCardsExpanded({ ...COLLAPSED_ANALYSIS_SECTIONS });
+  }, []);
+
+  const toggleAnalysisSection = useCallback((section: AnalysisResultSection) => {
+    setAnalysisCardsExpanded((prev) => ({ ...prev, [section]: !prev[section] }));
+  }, []);
+
+  const visibleAnalysisSections = useMemo((): AnalysisResultSection[] => {
+    if (!analysisData) return [];
+    const sections: AnalysisResultSection[] = [];
+    if (analysisData.executive_summary) sections.push("summary");
+    if (analysisData.competitors_table?.length > 0) sections.push("competitors");
+    if (analysisData.hooks_table?.length > 0) sections.push("hooks");
+    if (analysisData.market_insights_table?.length > 0) sections.push("market_insights");
+    if (analysisData.gaps_table?.length > 0) sections.push("gaps");
+    const hasTables = sections.length > 0;
+    if (
+      !hasTables &&
+      !analysisData.message?.toLowerCase().includes("workflow")
+    ) {
+      sections.push("raw");
+    }
+    return sections;
+  }, [analysisData]);
+
+  const allAnalysisSectionsExpanded = useMemo(() => {
+    const resultsExpanded =
+      visibleAnalysisSections.length === 0 ||
+      visibleAnalysisSections.every((section) => analysisCardsExpanded[section]);
+    return topicAnalysisExpanded && resultsExpanded;
+  }, [topicAnalysisExpanded, visibleAnalysisSections, analysisCardsExpanded]);
+
+  const toggleAllAnalysisSections = useCallback(() => {
+    if (allAnalysisSectionsExpanded) {
+      collapseAllAnalysisSections();
+    } else {
+      expandAllAnalysisSections();
+    }
+  }, [allAnalysisSectionsExpanded, collapseAllAnalysisSections, expandAllAnalysisSections]);
+
+  const scrollToPastRuns = useCallback(() => {
+    setShowPreviousRuns(true);
+    requestAnimationFrame(() => {
+      pastRunsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (analysisStatus !== "done" || !analysisData) return;
+
+    const dataId = analysisData.id ?? analysisData.topic ?? "current";
+
+    if (freshAnalysisResultRef.current) {
+      expandAllAnalysisSections();
+      freshAnalysisResultRef.current = false;
+      prevAnalysisDataIdRef.current = dataId;
+      return;
+    }
+
+    if (prevAnalysisDataIdRef.current !== dataId) {
+      collapseAllAnalysisSections();
+      prevAnalysisDataIdRef.current = dataId;
+    }
+  }, [analysisStatus, analysisData, expandAllAnalysisSections, collapseAllAnalysisSections]);
 
   // Custom keywords research form states
   const [researchKeywords, setResearchKeywords] = useLocalStorage(
@@ -611,6 +816,7 @@ export default function Dashboard() {
   const [showPreviousRuns, setShowPreviousRuns] = useState(false);
   const [hoveredInputs, setHoveredInputs] = useState<any>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pastRunsRef = useRef<HTMLDivElement | null>(null);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [errorNotificationTime, setErrorNotificationTime] = useState<string | null>(null);
 
@@ -963,7 +1169,7 @@ export default function Dashboard() {
       created_at: snapshot.created_at,
       data,
     });
-    addSbToast("Template selected for Ads Analysis", "success");
+    addSbToast("Template selected for Ads Lab", "success");
     closeBrandSnapshotsModalDelayed();
   }, [setActiveBrandSnapshot, addSbToast, closeBrandSnapshotsModalDelayed]);
 
@@ -1008,7 +1214,7 @@ export default function Dashboard() {
         setProfileData({ ...DEFAULT_BRAND_CONFIG, ...data });
         fetchBrandSnapshots();
         setIsEditingProfile(false);
-        addSbToast(`Template "${name}" saved and selected for Ads Analysis`, "success");
+        addSbToast(`Template "${name}" saved and selected for Ads Lab`, "success");
       }
 
       setTemplateNameModalOpen(false);
@@ -1558,6 +1764,8 @@ export default function Dashboard() {
             const newReport = parseSbReport(payload.new);
             const currentTopic = pendingTopicRef.current;
             if (currentTopic && newReport.topic === currentTopic) {
+              freshAnalysisResultRef.current = true;
+              expandAllAnalysisSections();
               setAnalysisData({ ...newReport, id: payload.new.id });
               setAnalysisStatus("done");
               setAnalysisProgress(100);
@@ -2030,7 +2238,7 @@ export default function Dashboard() {
 
   async function handleCreateTabTriggerAds() {
     if (!analysisData) {
-      addSbToast("No analysis data available. Run Ads Analysis first.", "error");
+      addSbToast("No analysis data available. Run Ads Lab first.", "error");
       return;
     }
     const config = createTabAdsConfig;
@@ -2759,6 +2967,8 @@ export default function Dashboard() {
       }, setAnalysisStatus);
 
       if (result && !result.error) {
+        freshAnalysisResultRef.current = true;
+        expandAllAnalysisSections();
         setAnalysisData(result);
         setAnalysisStatus("done");
         setAnalysisProgress(100);
@@ -2789,6 +2999,8 @@ export default function Dashboard() {
             if (match) {
               clearInterval(pollInterval);
               const parsed = parseSbReport(match);
+              freshAnalysisResultRef.current = true;
+              expandAllAnalysisSections();
               setAnalysisData({ ...parsed, id: match.id });
               setAnalysisStatus("done");
               setAnalysisProgress(100);
@@ -3105,6 +3317,8 @@ export default function Dashboard() {
             const showOutreachChildren = outreachOpen;
             const newsletterActive = NEWSLETTER_TABS.some((t) => t.id === tab);
             const showNewsletterChildren = newsletterOpen;
+            const socialActive = SOCIAL_TAB_IDS.has(tab);
+            const showSocialChildren = socialOpen;
             const blogActive = BLOG_IDS.has(tab);
             const showBlogChildren = blogOpen;
 
@@ -3169,7 +3383,7 @@ export default function Dashboard() {
                 {/* Brand (top) */}
                 {renderTabBtn(TABS.find(t => t.id === "profile")!)}
 
-                {/* Ads Analysis */}
+                {/* Ads Lab */}
                 {renderTabBtn(TABS.find(t => t.id === "analysis")!)}
 
                 {/* Meta Ads group */}
@@ -3242,8 +3456,70 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                {/* Social-Dash */}
-                {TABS.filter(t => t.id === "social-dash").map(t => renderTabBtn(t))}
+                {/* Social Channels group */}
+                <div style={{ position: "relative" }} className="sidebar-nav-item">
+                  <button
+                    title={sidebarCollapsed ? "Social Channels" : ""}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: sidebarCollapsed ? "center" : "flex-start",
+                      gap: sidebarCollapsed ? 0 : 10,
+                      padding: sidebarCollapsed ? "10px 0" : "9px 12px",
+                      borderRadius: showSocialChildren ? "var(--radius-md) var(--radius-md) 0 0" : "var(--radius-md)",
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: socialActive ? 700 : 500,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background: socialActive ? "var(--primary-light)" : showSocialChildren ? "var(--surface)" : "transparent",
+                      color: socialActive ? "var(--primary-dark)" : showSocialChildren ? "var(--text)" : "var(--text-muted)",
+                      transition: "all 0.18s ease",
+                      fontFamily: "inherit",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    onClick={() => setSocialOpen(o => !o)}
+                    onMouseEnter={e => { if (!socialActive) e.currentTarget.style.background = "var(--surface-hover)"; }}
+                    onMouseLeave={e => { if (!socialActive) e.currentTarget.style.background = showSocialChildren ? "var(--surface)" : "transparent"; }}
+                  >
+                    <Share2 size={15} style={{ flexShrink: 0 }} />
+                    {!sidebarCollapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Social Channels</span>
+                        <span style={{
+                          fontSize: 10, color: "var(--text-muted)", flexShrink: 0,
+                          transform: showSocialChildren ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s ease",
+                        }}>▼</span>
+                      </>
+                    )}
+                  </button>
+                  {sidebarCollapsed && (
+                    <span className="sidebar-tooltip" style={{
+                      position: "absolute", left: "calc(100% + 8px)", top: "50%", transform: "translateY(-50%)",
+                      background: "#1e293b", color: "#fff", fontSize: 11, fontWeight: 600,
+                      padding: "4px 10px", borderRadius: 6, whiteSpace: "nowrap",
+                      pointerEvents: "none", zIndex: 9999,
+                      opacity: 0, transition: "opacity 0.15s",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                    }}>
+                      Social Channels
+                    </span>
+                  )}
+                  {showSocialChildren && (
+                    <div style={{
+                      background: "var(--surface)",
+                      borderRadius: "0 0 var(--radius-md) var(--radius-md)",
+                      borderTop: "1px solid var(--border-light)",
+                      paddingBottom: 4,
+                      overflow: "hidden",
+                    }}>
+                      {SOCIAL_TABS.map(t => renderTabBtn(t, true))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Newsletter group */}
                 <div style={{ position: "relative" }} className="sidebar-nav-item">
@@ -3710,43 +3986,55 @@ export default function Dashboard() {
                 <div style={{ fontSize: 13, color: "#64748B", marginTop: 3 }}>Research competitor ads, find gaps, and get ready-to-use ad scripts powered by AI</div>
               </div>
             </div>
-            {/* Right: how-to steps */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {[
-                { num: "1", label: "Add keywords & configure", icon: "⌨️" },
-                { num: "2", label: "Run the analysis", icon: "▶️" },
-                { num: "3", label: "Review insights & scripts", icon: "📋" },
-              ].map((step, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 7, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 20, padding: "6px 12px 6px 8px" }}>
-                    <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#2563EB", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {step.num}
-                    </div>
-                    <span style={{ fontSize: 12, color: "#475569", fontWeight: 500, whiteSpace: "nowrap" }}>{step.label}</span>
-                  </div>
-                  {i < 2 && <span style={{ color: "#CBD5E1", fontSize: 16, margin: "0 4px" }}>→</span>}
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* ── Sidebar + Content Row ── */}
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
           {/* Main Content Area */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {/* Active brand template for analysis */}
-            <div style={{ marginBottom: 14, background: "#EFF6FF", border: "1.5px solid #BFDBFE", borderRadius: 16, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", boxShadow: "0 1px 4px rgba(37,99,235,0.08)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <ClipboardList size={18} color="#2563EB" />
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#2563EB", whiteSpace: "nowrap" }}>
-                  Active Brand Context for Analysis
-                </div>
-              </div>
-              <div style={{ padding: "8px 14px", borderRadius: 10, background: "#DBEAFE", border: "1.5px solid #93C5FD", fontSize: 13, fontWeight: 600, color: "#1E40AF", whiteSpace: "nowrap", maxWidth: "min(320px, 50vw)", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {activeBrandContextLabel ?? "Loading brand context…"}
-              </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <button
+                type="button"
+                className="past-runs-jump-btn"
+                onClick={scrollToPastRuns}
+                title="Jump to past runs"
+                style={{
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "5px 10px",
+                  borderRadius: 8,
+                  background: "#F1F5F9",
+                  border: "1px solid #E2E8F0",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", letterSpacing: "0.04em" }}>
+                  Past Runs
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleAllAnalysisSections}
+                title={allAnalysisSectionsExpanded ? "Collapse all sections" : "Expand all sections"}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "5px 10px",
+                  borderRadius: 8,
+                  background: "#F1F5F9",
+                  border: "1px solid #E2E8F0",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  marginLeft: "auto",
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", letterSpacing: "0.04em" }}>
+                  ALL
+                </span>
+                <AnalysisResultToggle expanded={allAnalysisSectionsExpanded} darkText />
+              </button>
             </div>
 
             <Card style={{ marginBottom: 14 }}>
@@ -3764,7 +4052,45 @@ export default function Dashboard() {
                   50% { transform: scale(1.3); opacity: 1; filter: drop-shadow(0 0 4px var(--primary)); }
                 }
               `}} />
-              <SectionTitle>Topic for analysis</SectionTitle>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setTopicAnalysisExpanded((v) => !v)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setTopicAnalysisExpanded((v) => !v);
+                  }
+                }}
+                style={{ cursor: "pointer", userSelect: "none" }}
+              >
+                <SectionTitle
+                  style={{ marginBottom: topicAnalysisExpanded ? 16 : 0 }}
+                  action={
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        fontSize: 20,
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {topicAnalysisExpanded ? "▾" : "▸"}
+                    </span>
+                  }
+                >
+                  Topic for analysis
+                </SectionTitle>
+              </div>
+              {topicAnalysisExpanded && (
               <div
                 style={{
                   display: "flex",
@@ -4249,9 +4575,10 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* IDLE / DONE / ERROR STATE: TRIGGER BUTTON */}
-              {(analysisStatus === "idle" || analysisStatus === "done" || analysisStatus === "error") && (
+              {topicAnalysisExpanded && (analysisStatus === "idle" || analysisStatus === "done" || analysisStatus === "error") && (
                 <div style={{ width: "100%" }}>
                   <button
                     onClick={runCompetitorAnalysis}
@@ -4347,24 +4674,27 @@ export default function Dashboard() {
 
                 {/* 1. Analysis Summary */}
                 {analysisData?.executive_summary && (
-                  <Card style={{ marginBottom: 14 }}>
-                    <SectionTitle>Analysis Summary</SectionTitle>
-                    <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text-body)" }}>
+                  <AnalysisCollapsiblePanel
+                    expanded={analysisCardsExpanded.summary}
+                    onToggle={() => toggleAnalysisSection("summary")}
+                    title="Analysis Summary"
+                    marginBottom={14}
+                  >
+                    <div style={{ padding: "16px 20px", fontSize: 13, lineHeight: 1.7, color: "var(--text-body)" }}>
                       {analysisData.executive_summary}
                     </div>
-                  </Card>
+                  </AnalysisCollapsiblePanel>
                 )}
 
                 {/* 2. Competitor Ads — Card List */}
                 {(analysisData?.competitors_table?.length > 0) && (
-                  <div style={{ marginBottom: 20, background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                    <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 18 }}>🏆</span>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Competitor Ads</div>
-                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{analysisData.competitors_table.length} competitors tracked</div>
-                      </div>
-                    </div>
+                  <AnalysisCollapsiblePanel
+                    expanded={analysisCardsExpanded.competitors}
+                    onToggle={() => toggleAnalysisSection("competitors")}
+                    icon={<span style={{ fontSize: 18 }}>🏆</span>}
+                    title="Competitor Ads"
+                    subtitle={`${analysisData.competitors_table.length} competitors tracked`}
+                  >
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       {analysisData.competitors_table.map((row: any, i: number) => {
                         const threat = row?.threat?.toLowerCase();
@@ -4401,19 +4731,18 @@ export default function Dashboard() {
                         );
                       })}
                     </div>
-                  </div>
+                  </AnalysisCollapsiblePanel>
                 )}
 
                 {/* 3. Top Hook Patterns — Cards */}
                 {(analysisData?.hooks_table?.length > 0) && (
-                  <div style={{ marginBottom: 20, background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                    <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 18 }}>🎣</span>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Top Hook Patterns</div>
-                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>Winning formulas from competitor ads</div>
-                      </div>
-                    </div>
+                  <AnalysisCollapsiblePanel
+                    expanded={analysisCardsExpanded.hooks}
+                    onToggle={() => toggleAnalysisSection("hooks")}
+                    icon={<span style={{ fontSize: 18 }}>🎣</span>}
+                    title="Top Hook Patterns"
+                    subtitle="Winning formulas from competitor ads"
+                  >
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       {analysisData.hooks_table.map((row: any, i: number) => (
                         <div key={i} style={{ display: "flex", gap: 16, padding: "16px 20px", borderBottom: i < analysisData.hooks_table.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
@@ -4436,62 +4765,58 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </AnalysisCollapsiblePanel>
                 )}
 
-                {/* 4 + 5. Market Insights & Gap Opportunities — side by side */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16, marginBottom: 20 }}>
-
-                  {/* 4. Market Insights — Info Cards */}
-                  {(analysisData?.market_insights_table?.length > 0) && (
-                    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                      <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 18 }}>📊</span>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Market Insights</div>
-                      </div>
-                      <div style={{ padding: "8px 0" }}>
-                        {analysisData.market_insights_table.map((row: any, i: number) => (
-                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 20px", borderBottom: i < analysisData.market_insights_table.length - 1 ? "1px solid #F8FAFC" : "none" }}>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", width: 90, flexShrink: 0, paddingTop: 2 }}>{row?.field}</div>
-                            <div style={{ fontSize: 13, color: "#1E293B", lineHeight: 1.6, flex: 1 }}>{row?.value}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 5. Gap Opportunities — Cards */}
-                  {(analysisData?.gaps_table?.length > 0) && (
-                    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E2E8F0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                      <div style={{ padding: "16px 20px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 18 }}>💡</span>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Gap Opportunities</div>
-                          <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{analysisData.gaps_table.length} opportunities identified</div>
+                {/* 4. Market Insights — full width row */}
+                {(analysisData?.market_insights_table?.length > 0) && (
+                  <AnalysisCollapsiblePanel
+                    expanded={analysisCardsExpanded.market_insights}
+                    onToggle={() => toggleAnalysisSection("market_insights")}
+                    icon={<span style={{ fontSize: 18 }}>📊</span>}
+                    title="Market Insights"
+                  >
+                    <div style={{ padding: "8px 0" }}>
+                      {analysisData.market_insights_table.map((row: any, i: number) => (
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 20px", borderBottom: i < analysisData.market_insights_table.length - 1 ? "1px solid #F8FAFC" : "none" }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.07em", width: 90, flexShrink: 0, paddingTop: 2 }}>{row?.field}</div>
+                          <div style={{ fontSize: 13, color: "#1E293B", lineHeight: 1.6, flex: 1 }}>{row?.value}</div>
                         </div>
-                      </div>
-                      <div style={{ padding: "8px 0" }}>
-                        {analysisData.gaps_table.map((row: any, i: number) => {
-                          const pri = row?.priority?.toLowerCase();
-                          const priStyle = pri === "high" ? { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" } : pri === "medium" ? { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" } : { bg: "#F0FDF4", color: "#16A34A", border: "#BBF7D0" };
-                          return (
-                            <div key={i} style={{ padding: "12px 20px", borderBottom: i < analysisData.gaps_table.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = "#F8FAFC"}
-                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                            >
-                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", lineHeight: 1.4 }}>{row?.gap}</div>
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: priStyle.bg, color: priStyle.color, border: `1px solid ${priStyle.border}`, flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{row?.priority}</span>
-                              </div>
-                              {row?.opportunity && <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6, marginBottom: row?.impact ? 4 : 0 }}>{row?.opportunity}</div>}
-                              {row?.impact && <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>💥 {row?.impact}</div>}
-                            </div>
-                          );
-                        })}
-                      </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </AnalysisCollapsiblePanel>
+                )}
+
+                {/* 5. Gap Opportunities — full width row below Market Insights */}
+                {(analysisData?.gaps_table?.length > 0) && (
+                  <AnalysisCollapsiblePanel
+                    expanded={analysisCardsExpanded.gaps}
+                    onToggle={() => toggleAnalysisSection("gaps")}
+                    icon={<span style={{ fontSize: 18 }}>💡</span>}
+                    title="Gap Opportunities"
+                    subtitle={`${analysisData.gaps_table.length} opportunities identified`}
+                  >
+                    <div style={{ padding: "8px 0" }}>
+                      {analysisData.gaps_table.map((row: any, i: number) => {
+                        const pri = row?.priority?.toLowerCase();
+                        const priStyle = pri === "high" ? { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" } : pri === "medium" ? { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" } : { bg: "#F0FDF4", color: "#16A34A", border: "#BBF7D0" };
+                        return (
+                          <div key={i} style={{ padding: "12px 20px", borderBottom: i < analysisData.gaps_table.length - 1 ? "1px solid #F1F5F9" : "none", transition: "background 0.15s" }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "#F8FAFC"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", lineHeight: 1.4 }}>{row?.gap}</div>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: priStyle.bg, color: priStyle.color, border: `1px solid ${priStyle.border}`, flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>{row?.priority}</span>
+                            </div>
+                            {row?.opportunity && <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.6, marginBottom: row?.impact ? 4 : 0 }}>{row?.opportunity}</div>}
+                            {row?.impact && <div style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>💥 {row?.impact}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </AnalysisCollapsiblePanel>
+                )}
 
                 {/* Raw response fallback — shown when none of the expected tables are present */}
                 {(!analysisData?.competitors_table?.length &&
@@ -4499,25 +4824,31 @@ export default function Dashboard() {
                   !analysisData?.market_insights_table?.length &&
                   !analysisData?.gaps_table?.length &&
                   !analysisData?.message?.toLowerCase().includes("workflow")) && (
-                    <Card style={{ marginBottom: 14 }}>
-                      <SectionTitle>n8n Raw Response</SectionTitle>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
-                        n8n responded but no table data was found. Raw output:
+                    <AnalysisCollapsiblePanel
+                      expanded={analysisCardsExpanded.raw}
+                      onToggle={() => toggleAnalysisSection("raw")}
+                      title="n8n Raw Response"
+                      marginBottom={14}
+                    >
+                      <div style={{ padding: "16px 20px" }}>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+                          n8n responded but no table data was found. Raw output:
+                        </div>
+                        <pre style={{
+                          fontSize: 11,
+                          background: "var(--surface)",
+                          borderRadius: "var(--radius-md)",
+                          padding: 12,
+                          overflow: "auto",
+                          maxHeight: 300,
+                          margin: 0,
+                          color: "var(--text)",
+                          lineHeight: 1.6,
+                        }}>
+                          {JSON.stringify(analysisData, null, 2)}
+                        </pre>
                       </div>
-                      <pre style={{
-                        fontSize: 11,
-                        background: "var(--surface)",
-                        borderRadius: "var(--radius-md)",
-                        padding: 12,
-                        overflow: "auto",
-                        maxHeight: 300,
-                        margin: 0,
-                        color: "var(--text)",
-                        lineHeight: 1.6,
-                      }}>
-                        {JSON.stringify(analysisData, null, 2)}
-                      </pre>
-                    </Card>
+                    </AnalysisCollapsiblePanel>
                   )}
 
                 {analysisData && (
@@ -4569,7 +4900,11 @@ export default function Dashboard() {
           </div>
 
           {/* History Sidebar */}
-          <div className="w-full lg:w-[290px] lg:flex-shrink-0 lg:sticky lg:top-5" style={{
+          <div
+            ref={pastRunsRef}
+            id="past-runs-section"
+            className="w-full lg:w-[290px] lg:flex-shrink-0 lg:sticky lg:top-5"
+            style={{
             background: "#fff", border: "1px solid #E2E8F0",
             borderRadius: 20, overflow: "hidden",
             height: "fit-content", boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
@@ -4583,7 +4918,7 @@ export default function Dashboard() {
                 <span style={{ fontSize: 16 }}>🕐</span>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Previous Runs</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>Past Runs</div>
                 <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 1 }}>{sbRows.length} saved {sbRows.length === 1 ? "result" : "results"}</div>
               </div>
               {/* Toggle chevron — visible on mobile, hidden on desktop */}
@@ -4636,6 +4971,8 @@ export default function Dashboard() {
                     <div style={{ paddingLeft: 32 }}>
                       <button
                         onClick={() => {
+                          freshAnalysisResultRef.current = false;
+                          collapseAllAnalysisSections();
                           setAnalysisData({ ...report, id: row.id });
                           setAnalysisStatus("done");
                           setSelectedTopic(report.topic || TOPICS[1]);
@@ -4737,7 +5074,7 @@ export default function Dashboard() {
                 <div style={{ width: 32, height: 32, borderRadius: 10, background: "var(--amber-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>💡</div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>No analysis loaded</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Run or load a competitor analysis from the Ads Analysis tab to power your ad creation.</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>Run or load a competitor analysis from the Ads Lab tab to power your ad creation.</div>
                 </div>
               </div>
             </Card>
@@ -6727,9 +7064,12 @@ export default function Dashboard() {
       })()}
 
       {/* ═══════════════════════════════════════════════════════
-          SOCIAL-DASH — Creator Studio Section
+          SOCIAL CHANNELS — Overview & Creator Studio
       ═══════════════════════════════════════════════════════ */}
-      {tab === "social-dash" && (
+      {tab === "social-overview" && (
+        <SocialOverview />
+      )}
+      {tab === "social-creator-studio" && (
         <div className="animate-fade-in sd-tab-wrapper">
           <SocialDash />
         </div>
@@ -6902,7 +7242,7 @@ export default function Dashboard() {
             <span style={{ fontSize: 12, color: "#64748B" }}>
               {isActiveSavedTemplate
                 ? <>Save updates the active template <strong>{activeBrandSnapshot.label || "Saved template"}</strong>. Use Save as new template to keep a separate copy.</>
-                : "Save updates your live brand. Use Save as new template to store a named version for Ads Analysis."}
+                : "Save updates your live brand. Use Save as new template to store a named version for Ads Lab."}
             </span>
           </div>
 
@@ -6933,7 +7273,7 @@ export default function Dashboard() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>Saved Brand Templates</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 }}>Stored prompts for Ads Analysis — select one as your analysis basis</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2 }}>Stored prompts for Ads Lab — select one as your analysis basis</div>
               </div>
               <button
                 onClick={() => setBrandSnapshotsModalOpen(false)}
@@ -6945,7 +7285,7 @@ export default function Dashboard() {
 
             <div style={{ padding: "14px 20px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
               <div style={{ fontSize: 12, color: "#64748B" }}>
-                Active for Ads Analysis:{" "}
+                Active Context:{" "}
                 <span style={{ fontWeight: 700, color: "#1E293B" }}>
                   {activeBrandContextLabel ?? "Loading brand context…"}
                 </span>
@@ -6998,7 +7338,7 @@ export default function Dashboard() {
                             onClick={() => applyBrandSnapshotForAnalysis(snapshot)}
                             style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: isActive ? "#1D4ED8" : "#2563EB", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                           >
-                            {isActive ? "✓ Active" : "Use for Ads Analysis"}
+                            {isActive ? "✓ Active" : "Use for Ads Lab"}
                           </button>
                           <button
                             onClick={() => setExpandedBrandSnapshotId(isExpanded ? null : snapshot.id)}
@@ -7065,7 +7405,7 @@ export default function Dashboard() {
             <div style={{ padding: "18px 22px", background: "linear-gradient(135deg, #2563EB, #1D4ED8)" }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>Save as new template</div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 4 }}>
-                Give this version a name — it will be stored as a separate template for Ads Analysis.
+                Give this version a name — it will be stored as a separate template for Ads Lab.
               </div>
             </div>
             <div style={{ padding: "20px 22px" }}>

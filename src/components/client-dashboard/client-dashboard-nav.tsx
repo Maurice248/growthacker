@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Megaphone, Newspaper, Send, FileText, Settings } from 'lucide-react';
+import { Megaphone, Newspaper, Send, FileText, Settings, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CLIENT_BLOG_TABS,
@@ -11,7 +11,7 @@ import {
   CLIENT_META_ADS_TABS,
   CLIENT_NEWSLETTER_TABS,
   CLIENT_OUTREACH_TABS,
-  CLIENT_SOCIAL_TAB,
+  CLIENT_SOCIAL_TABS,
   CLIENT_TOP_TABS,
   clientWorkspaceHref,
 } from '@/lib/client-dashboard-nav';
@@ -181,21 +181,24 @@ export function ClientDashboardNav({
   const disabledTitle = 'Configure required API keys in Settings first';
 
   const metaAdsActive = activeTab ? CLIENT_META_ADS_TABS.some((t) => t.id === activeTab) : false;
+  const socialActive = activeTab ? CLIENT_SOCIAL_TABS.some((t) => t.id === activeTab) : false;
   const newsletterActive = activeTab ? CLIENT_NEWSLETTER_TABS.some((t) => t.id === activeTab) : false;
   const outreachActive = activeTab ? CLIENT_OUTREACH_TABS.some((t) => t.id === activeTab) : false;
   const blogActive = activeTab ? CLIENT_BLOG_TABS.some((t) => t.id === activeTab) : false;
 
   const [metaAdsOpen, setMetaAdsOpen] = useState(metaAdsActive);
+  const [socialOpen, setSocialOpen] = useState(socialActive);
   const [newsletterOpen, setNewsletterOpen] = useState(newsletterActive);
   const [outreachOpen, setOutreachOpen] = useState(outreachActive);
   const [blogOpen, setBlogOpen] = useState(blogActive);
 
   useEffect(() => {
     if (metaAdsActive) setMetaAdsOpen(true);
+    if (socialActive) setSocialOpen(true);
     if (newsletterActive) setNewsletterOpen(true);
     if (outreachActive) setOutreachOpen(true);
     if (blogActive) setBlogOpen(true);
-  }, [metaAdsActive, newsletterActive, outreachActive, blogActive]);
+  }, [metaAdsActive, socialActive, newsletterActive, outreachActive, blogActive]);
 
   const metaLocked = !moduleConfigured('meta');
   const socialLocked = !moduleConfigured('social');
@@ -245,16 +248,31 @@ export function ClientDashboardNav({
         ))}
       </NavGroup>
 
-      <NavLink
-        href={clientWorkspaceHref(CLIENT_SOCIAL_TAB.id)}
-        label={CLIENT_SOCIAL_TAB.label}
-        icon={CLIENT_SOCIAL_TAB.icon}
-        active={activeTab === CLIENT_SOCIAL_TAB.id}
+      <NavGroup
+        label="Social Channels"
+        icon={Share2}
+        open={socialOpen}
+        onToggle={() => setSocialOpen((o) => !o)}
+        active={socialActive}
         collapsed={collapsed}
         disabled={socialLocked}
         disabledTitle={disabledTitle}
-        onNavigate={onNavigate}
-      />
+      >
+        {CLIENT_SOCIAL_TABS.map((item) => (
+          <NavLink
+            key={item.id}
+            href={clientWorkspaceHref(item.id)}
+            label={item.label}
+            icon={item.icon}
+            active={activeTab === item.id}
+            collapsed={false}
+            indent
+            disabled={isTabDisabled(item.id)}
+            disabledTitle={disabledTitle}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </NavGroup>
 
       <NavGroup
         label="Newsletter"

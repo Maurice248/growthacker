@@ -1379,6 +1379,17 @@ pre {
   }
 }
 
+/* Past Runs jump button — only when sidebar stacks below main content (< lg / 1024px) */
+.past-runs-jump-btn {
+  display: none !important;
+}
+
+@media (max-width: 1023px) {
+  .past-runs-jump-btn {
+    display: inline-flex !important;
+  }
+}
+
 /* ── Create Ads mobile layout ── */
 @media (max-width: 768px) {
   /* Config cards: single column on mobile */

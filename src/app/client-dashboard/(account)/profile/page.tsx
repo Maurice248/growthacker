@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions, isCompanyAdminRole } from '@/lib/auth';
@@ -5,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { CompanyProfileForm } from '@/components/client-dashboard/company-profile-form';
 
 function formatDate(date: Date) {
@@ -71,12 +73,19 @@ export default async function ClientProfilePage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 space-y-2">
-            <div className="flex items-center gap-2 text-sm text-[var(--text-body)]">
-              <Mail className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-              <span className="truncate">{user.email}</span>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 space-y-2">
+                <div className="flex items-center gap-2 text-sm text-[var(--text-body)]">
+                  <Mail className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+                  <span className="truncate">{user.email}</span>
+                </div>
+                <p className="text-xs text-[var(--text-muted)]">Member since {formatDate(user.createdAt)}</p>
+              </div>
+              <Button asChild variant="outline" size="sm" className="shrink-0">
+                <Link href="/client-dashboard/security">Change email</Link>
+              </Button>
             </div>
-            <p className="text-xs text-[var(--text-muted)]">Member since {formatDate(user.createdAt)}</p>
           </div>
         </CardContent>
       </Card>
