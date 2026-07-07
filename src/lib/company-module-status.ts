@@ -126,6 +126,9 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
     'outreach-scraper',
     'outreach-scraper-history',
     'outreach-cleanup',
+    'cold-dm',
+    'cold-call',
+    'cold-sms',
   ]),
   blog: new Set(['blog-post', 'blog-automation']),
 };

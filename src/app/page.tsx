@@ -135,12 +135,14 @@ const OUTREACH_TABS = [
   { id: "outreach-scraper", label: "Lead Scraper", icon: Search },
   { id: "outreach-scraper-history", label: "Scraper History", icon: History },
   { id: "outreach-cleanup", label: "Reset Lead Status", icon: Trash2 },
-  ...OUTREACH_FUTURE_TABS,
 ];
 
 const OUTREACH_FUTURE_IDS = new Set(OUTREACH_FUTURE_TABS.map((t) => t.id));
 
-const OUTREACH_IDS = new Set(OUTREACH_TABS.map((t) => t.id));
+const OUTREACH_IDS = new Set([
+  ...OUTREACH_TABS.map((t) => t.id),
+  ...OUTREACH_FUTURE_TABS.map((t) => t.id),
+]);
 
 const BLOG_TABS = [
   { id: "blog-post", label: "Blog Posts", icon: FileText },
@@ -153,6 +155,7 @@ const ALL_APP_TAB_IDS = new Set([
   ...TABS.map((t) => t.id),
   ...SOCIAL_TABS.map((t) => t.id),
   ...OUTREACH_TABS.map((t) => t.id),
+  ...OUTREACH_FUTURE_TABS.map((t) => t.id),
   ...NEWSLETTER_TABS.map((t) => t.id),
   ...BLOG_TABS.map((t) => t.id),
 ]);
@@ -635,7 +638,7 @@ export default function Dashboard() {
   useEffect(() => { if (META_ADS_IDS.has(tab)) setMetaAdsOpen(true); }, [tab]);
 
   // Auto-open Outreach group when navigating to one of its tabs
-  useEffect(() => { if (OUTREACH_IDS.has(tab)) setOutreachOpen(true); }, [tab]);
+  useEffect(() => { if (OUTREACH_TABS.some((t) => t.id === tab)) setOutreachOpen(true); }, [tab]);
 
   // Auto-open Newsletter / Blog / Social groups
   useEffect(() => {
@@ -3372,7 +3375,7 @@ export default function Dashboard() {
           {(() => {
             const metaAdsActive = META_ADS_IDS.has(tab);
             const showMetaAdsChildren = metaAdsOpen;
-            const outreachActive = OUTREACH_IDS.has(tab);
+            const outreachActive = OUTREACH_TABS.some((t) => t.id === tab);
             const showOutreachChildren = outreachOpen;
             const newsletterActive = NEWSLETTER_TABS.some((t) => t.id === tab);
             const showNewsletterChildren = newsletterOpen;
@@ -3701,6 +3704,8 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
+
+                {OUTREACH_FUTURE_TABS.map((t) => renderTabBtn(t))}
 
                 {/* Blog group */}
                 <div style={{ position: "relative" }} className="sidebar-nav-item">

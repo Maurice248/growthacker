@@ -73,7 +73,6 @@ export const CLIENT_OUTREACH_TABS: ClientNavItem[] = [
   { id: 'outreach-scraper', label: 'Lead Scraper', icon: Search },
   { id: 'outreach-scraper-history', label: 'Scraper History', icon: History },
   { id: 'outreach-cleanup', label: 'Reset Lead Status', icon: Trash2 },
-  ...CLIENT_OUTREACH_FUTURE_TABS,
 ];
 
 export const CLIENT_OUTREACH_FUTURE_IDS = new Set(CLIENT_OUTREACH_FUTURE_TABS.map((t) => t.id));
@@ -95,6 +94,7 @@ export const CLIENT_ALL_TAB_IDS = new Set([
   ...CLIENT_SOCIAL_TABS.map((t) => t.id),
   ...CLIENT_NEWSLETTER_TABS.map((t) => t.id),
   ...CLIENT_OUTREACH_TABS.map((t) => t.id),
+  ...CLIENT_OUTREACH_FUTURE_TABS.map((t) => t.id),
   ...CLIENT_BLOG_TABS.map((t) => t.id),
 ]);
 
@@ -137,6 +137,9 @@ const MAIN_APP_TABS = new Set([
   'social-overview',
   'social-creator-studio',
   'social-dash',
+  'cold-dm',
+  'cold-call',
+  'cold-sms',
 ]);
 
 export function clientTabEmbedSrc(tabId: string): string | null {
@@ -154,6 +157,7 @@ export function clientTabLabel(tabId: string): string {
     ...CLIENT_SOCIAL_TABS,
     ...CLIENT_NEWSLETTER_TABS,
     ...CLIENT_OUTREACH_TABS,
+    ...CLIENT_OUTREACH_FUTURE_TABS,
     ...CLIENT_BLOG_TABS,
   ];
   return all.find((t) => t.id === tabId)?.label ?? tabId;

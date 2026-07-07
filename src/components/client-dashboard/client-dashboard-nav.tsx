@@ -11,6 +11,7 @@ import {
   CLIENT_META_ADS_TABS,
   CLIENT_NEWSLETTER_TABS,
   CLIENT_OUTREACH_TABS,
+  CLIENT_OUTREACH_FUTURE_TABS,
   CLIENT_SOCIAL_TABS,
   CLIENT_TOP_TABS,
   clientWorkspaceHref,
@@ -325,6 +326,20 @@ export function ClientDashboardNav({
           />
         ))}
       </NavGroup>
+
+      {CLIENT_OUTREACH_FUTURE_TABS.map((item) => (
+        <NavLink
+          key={item.id}
+          href={clientWorkspaceHref(item.id)}
+          label={item.label}
+          icon={item.icon}
+          active={activeTab === item.id}
+          collapsed={collapsed}
+          disabled={isTabDisabled(item.id)}
+          disabledTitle={disabledTitle}
+          onNavigate={onNavigate}
+        />
+      ))}
 
       <NavGroup
         label="Blog"
