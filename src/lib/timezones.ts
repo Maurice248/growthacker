@@ -51,7 +51,7 @@ export function getTimezoneOptions(): string[] {
 }
 
 export function formatTimezoneLabel(timezone: string): string {
-  if (!timezone || timezone === INSTANCE_DEFAULT_TIMEZONE) return 'Instance default (n8n server)';
+  if (!timezone || timezone === INSTANCE_DEFAULT_TIMEZONE) return 'Instance default (server)';
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,

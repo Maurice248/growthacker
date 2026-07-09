@@ -12,6 +12,8 @@ import {
   Settings,
   Mail,
   ChevronRight,
+  Users,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NewsletterProviders } from '@/components/newsletter/Providers';
@@ -23,8 +25,10 @@ const NAV = [
     icon: Mail,
     children: [
       { label: 'Dashboard', href: '/newsletter/dashboard', icon: LayoutDashboard },
+      { label: 'Settings', href: '/newsletter/overview', icon: SlidersHorizontal },
       { label: 'Generate Newsletter', href: '/newsletter/generate', icon: PenLine },
       { label: 'Create Campaign', href: '/newsletter/campaign', icon: Megaphone },
+      { label: 'Subscribers', href: '/newsletter/subscribers', icon: Users },
       { label: 'History', href: '/newsletter/history', icon: History },
       { label: 'Manage Services', href: '/newsletter/services', icon: Settings },
     ],

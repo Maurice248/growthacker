@@ -1,9 +1,10 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUserId, getRequestCompanyId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { n8nClient } from '@/lib/n8n';
+import { runCleanup } from '@/lib/cold-email/cleanup';
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +13,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const companyId = await getRequestCompanyId();
+    if (!companyId) {
+      return NextResponse.json({ error: 'Company context required' }, { status: 403 });
+    }
 
     const body = await req.json();
     const forceCleanup = body.force_cleanup === true;
@@ -19,7 +23,7 @@ export async function POST(req: NextRequest) {
     const execution = await prisma.workflowExecution.create({
       data: {
         userId,
-        companyId: companyId ?? undefined,
+        companyId,
         workflowType: 'CLEANUP',
         workflowName: forceCleanup ? 'Manual Cleanup' : 'Scheduled Cleanup',
         status: 'RUNNING',
@@ -29,19 +33,41 @@ export async function POST(req: NextRequest) {
     });
 
     const startTime = Date.now();
-    const n8nResponse = await n8nClient.triggerCleanup({
-      force_cleanup: forceCleanup,
-      user_id: userId,
-    });
+    let cleanupResult;
+    try {
+      cleanupResult = await runCleanup(companyId, { force: forceCleanup });
+    } catch (err) {
+      const isConfig = err instanceof Error && err.message.includes('not configured');
+      const message = err instanceof Error ? err.message : 'Cleanup failed';
+      await prisma.workflowExecution.update({
+        where: { id: execution.id },
+        data: {
+          status: 'FAILED',
+          errorMessage: message,
+          completedAt: new Date(),
+          duration: Date.now() - startTime,
+        },
+      });
+      return NextResponse.json({ error: message }, { status: isConfig ? 503 : 500 });
+    }
 
-    const results = n8nResponse.results as Record<string, unknown> | undefined;
+    const result = {
+      status: cleanupResult.status === 'error' ? 'error' : 'success',
+      execution_id: execution.id,
+      workflow_type: 'cleanup',
+      results: {
+        total_contacts: cleanupResult.emails_processed,
+        deleted_count: cleanupResult.deleted_from_instantly,
+      },
+      message: cleanupResult.message,
+      timestamp: cleanupResult.cleanup_date,
+    };
+
     await prisma.workflowExecution.update({
       where: { id: execution.id },
       data: {
-        status: n8nResponse.status === 'success' ? 'SUCCESS' : 'FAILED',
-        n8nExecutionId: n8nResponse.execution_id !== 'error' ? n8nResponse.execution_id : null,
-        outputData: JSON.stringify(n8nResponse),
-        errorMessage: n8nResponse.error_message,
+        status: cleanupResult.instantly_success ? 'SUCCESS' : 'FAILED',
+        outputData: JSON.stringify(result),
         completedAt: new Date(),
         duration: Date.now() - startTime,
       },
@@ -50,13 +76,13 @@ export async function POST(req: NextRequest) {
     await prisma.cleanupLog.create({
       data: {
         executionId: execution.id,
-        totalContacts: Number(results?.total_contacts ?? 0),
-        deletedCount: Number(results?.deleted_count ?? 0),
+        totalContacts: cleanupResult.emails_processed,
+        deletedCount: cleanupResult.deleted_from_instantly,
         triggerType: forceCleanup ? 'manual' : 'scheduled',
       },
     });
 
-    return NextResponse.json({ success: true, n8nResponse });
+    return NextResponse.json({ success: true, result });
   } catch (error) {
     console.error('Cleanup trigger POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

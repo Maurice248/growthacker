@@ -1,23 +1,10 @@
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getN8nExecutionState } from '@/lib/n8n-executions';
+import { NextResponse } from 'next/server';
 
-type RouteContext = { params: Promise<{ id: string }> };
+const MIGRATED_MESSAGE =
+  'Execution polling retired. Use /api/blog/job?jobId=... for native blog job status.';
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  try {
-    const { id } = await params;
-    if (!id?.trim()) {
-      return NextResponse.json({ error: 'Execution ID is required' }, { status: 400 });
-    }
-
-    const execution = await getN8nExecutionState(id.trim());
-    return NextResponse.json({ execution });
-  } catch (error) {
-    console.error('[API blog/execution GET]', error);
-    const message = error instanceof Error ? error.message : 'Failed to load execution status';
-    const status = message.includes('N8N_API_KEY') ? 503 : 502;
-    return NextResponse.json({ error: message }, { status });
-  }
+export async function GET() {
+  return NextResponse.json({ error: MIGRATED_MESSAGE, migrated: true }, { status: 410 });
 }

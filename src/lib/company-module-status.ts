@@ -1,5 +1,6 @@
 import type { IntegrationCredentials } from '@/lib/company-integrations';
 import { rowToCredentials } from '@/lib/company-integrations';
+import type { ApiTokenSecretsMap } from '@/lib/api-token-secrets';
 
 export type ModuleId = 'meta' | 'social' | 'newsletter' | 'outreach' | 'blog';
 
@@ -15,32 +16,45 @@ function metaConfigured(creds: IntegrationCredentials): boolean {
   return Boolean(creds.metaAccessToken && creds.metaAdAccountId);
 }
 
-function n8nWebhooksConfigured(creds: IntegrationCredentials, keys: string[]): boolean {
-  return keys.every((key) => Boolean(creds.n8nWebhooks[key]?.trim()));
+
+function outreachConfigured(_creds: IntegrationCredentials, apiSecrets?: ApiTokenSecretsMap): boolean {
+  return Boolean(
+    apiSecrets?.openai?.trim() &&
+      apiSecrets?.instantlyAi?.trim() &&
+      apiSecrets?.apify?.trim() &&
+      apiSecrets?.millionVerifier?.trim()
+  );
 }
 
-function outreachConfigured(creds: IntegrationCredentials): boolean {
-  return n8nWebhooksConfigured(creds, ['N8N_CAMPAIGN_WEBHOOK_URL', 'N8N_SCRAPER_WEBHOOK_URL']);
+function newsletterConfigured(creds: IntegrationCredentials, apiSecrets?: ApiTokenSecretsMap): boolean {
+  void creds;
+  return Boolean(apiSecrets?.openai?.trim() && apiSecrets?.resend?.trim());
 }
 
-function newsletterConfigured(creds: IntegrationCredentials): boolean {
-  return n8nWebhooksConfigured(creds, ['NEXT_PUBLIC_N8N_GENERATE_WEBHOOK_URL']);
+function socialConfigured(
+  creds: IntegrationCredentials,
+  apiSecrets?: ApiTokenSecretsMap
+): boolean {
+  return Boolean(apiSecrets?.elevenLabs?.trim() || creds.elevenLabsApiKey);
 }
 
-function socialConfigured(creds: IntegrationCredentials): boolean {
-  return n8nWebhooksConfigured(creds, ['NEXT_PUBLIC_N8N_SOCIAL_POST_URL']);
-}
-
-function blogConfigured(creds: IntegrationCredentials): boolean {
+function blogConfigured(creds: IntegrationCredentials, apiSecrets?: ApiTokenSecretsMap): boolean {
+  const dataforseo =
+    apiSecrets?.dataforseo?.trim() || process.env.DATAFORSEO_CREDENTIAL?.trim();
   return Boolean(
     creds.wordpressSiteUrl &&
       creds.wordpressUsername &&
       creds.wordpressAppPassword &&
-      n8nWebhooksConfigured(creds, ['N8N_BLOG_AUTOMATION_WEBHOOK_URL'])
+      apiSecrets?.openai?.trim() &&
+      apiSecrets?.kie?.trim() &&
+      dataforseo
   );
 }
 
-export function getModuleStatuses(creds: IntegrationCredentials): ModuleStatus[] {
+export function getModuleStatuses(
+  creds: IntegrationCredentials,
+  apiSecrets?: ApiTokenSecretsMap
+): ModuleStatus[] {
   const modules: Array<{ id: ModuleId; label: string; keys: string[]; ok: boolean }> = [
     {
       id: 'meta',
@@ -51,26 +65,26 @@ export function getModuleStatuses(creds: IntegrationCredentials): ModuleStatus[]
     {
       id: 'social',
       label: 'Social Channels',
-      keys: ['NEXT_PUBLIC_N8N_SOCIAL_POST_URL'],
-      ok: socialConfigured(creds),
+      keys: ['ElevenLabs API key', 'OpenAI/KIE/Upload Post in API key management', 'Social settings in Overview'],
+      ok: socialConfigured(creds, apiSecrets),
     },
     {
       id: 'newsletter',
       label: 'Newsletter',
-      keys: ['NEXT_PUBLIC_N8N_GENERATE_WEBHOOK_URL'],
-      ok: newsletterConfigured(creds),
+      keys: ['OpenAI API key', 'Resend API key'],
+      ok: newsletterConfigured(creds, apiSecrets),
     },
     {
       id: 'outreach',
       label: 'Cold Email',
-      keys: ['N8N_CAMPAIGN_WEBHOOK_URL', 'N8N_SCRAPER_WEBHOOK_URL'],
-      ok: outreachConfigured(creds),
+      keys: ['OpenAI API key', 'Instantly.ai API key', 'Apify API key', 'Million Verifier API key', 'Instantly campaign ID in Settings'],
+      ok: outreachConfigured(creds, apiSecrets),
     },
     {
       id: 'blog',
       label: 'Blog',
-      keys: ['WordPress credentials', 'N8N_BLOG_AUTOMATION_WEBHOOK_URL'],
-      ok: blogConfigured(creds),
+      keys: ['WordPress credentials', 'OpenAI API key', 'KIE API key', 'DataForSEO login + API password'],
+      ok: blogConfigured(creds, apiSecrets),
     },
   ];
 
@@ -83,12 +97,19 @@ export function getModuleStatuses(creds: IntegrationCredentials): ModuleStatus[]
   }));
 }
 
-export function isAnyModuleConfigured(creds: IntegrationCredentials): boolean {
-  return getModuleStatuses(creds).some((m) => m.configured);
+export function isAnyModuleConfigured(
+  creds: IntegrationCredentials,
+  apiSecrets?: ApiTokenSecretsMap
+): boolean {
+  return getModuleStatuses(creds, apiSecrets).some((m) => m.configured);
 }
 
-export function isModuleConfigured(creds: IntegrationCredentials, moduleId: ModuleId): boolean {
-  return getModuleStatuses(creds).find((m) => m.id === moduleId)?.configured ?? false;
+export function isModuleConfigured(
+  creds: IntegrationCredentials,
+  moduleId: ModuleId,
+  apiSecrets?: ApiTokenSecretsMap
+): boolean {
+  return getModuleStatuses(creds, apiSecrets).find((m) => m.id === moduleId)?.configured ?? false;
 }
 
 /** All modules marked configured — used for APP_ADMIN client dashboard access. */
@@ -114,8 +135,10 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
   social: new Set(['social-overview', 'social-creator-studio', 'social-dash']),
   newsletter: new Set([
     'newsletter-dashboard',
+    'newsletter-overview',
     'newsletter-generate',
     'newsletter-campaign',
+    'newsletter-subscribers',
     'newsletter-history',
     'newsletter-services',
   ]),
@@ -126,6 +149,7 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
     'outreach-scraper',
     'outreach-scraper-history',
     'outreach-cleanup',
+    'outreach-settings',
     'cold-dm',
     'cold-call',
     'cold-sms',

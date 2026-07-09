@@ -6,6 +6,11 @@ import {
   CLIENT_OUTREACH_FUTURE_IDS,
 } from '@/lib/client-dashboard-nav';
 
+/**
+ * Renders the content for non-main-app tabs (Newsletter, Cold Email, Blog).
+ * Main-app tabs (Ads Lab, Create Ad, Overview, etc.) are handled by the
+ * persistent iframe in workspace/layout.tsx and never render here.
+ */
 export function ClientTabView({ tabId }: { tabId: string }) {
   const src = clientTabEmbedSrc(tabId);
   const title = clientTabLabel(tabId);

@@ -6,6 +6,7 @@ import {
   Trash2,
   BarChart3,
   History,
+  Settings2,
 } from 'lucide-react';
 
 export type AppSection = 'dashboard' | 'outreach';
@@ -42,6 +43,7 @@ const dashboardNav: NavItem[] = [
   { href: '/dashboard/scraper/history', label: 'Scraper History', icon: History },
   { href: '/dashboard/cleanup', label: 'Cleanup', icon: Trash2 },
   { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings2 },
 ];
 
 const outreachNav: NavItem[] = [
@@ -51,6 +53,7 @@ const outreachNav: NavItem[] = [
   { href: '/outreach/scraper', label: 'Lead Scraper', icon: Search },
   { href: '/outreach/scraper/history', label: 'Scraper History', icon: History },
   { href: '/outreach/cleanup', label: 'Reset Lead Status', icon: Trash2 },
+  { href: '/outreach/settings', label: 'Settings', icon: Settings2 },
 ];
 
 export const SECTION_CONFIG: Record<AppSection, SectionConfig> = {
@@ -66,7 +69,7 @@ export const SECTION_CONFIG: Record<AppSection, SectionConfig> = {
       totalCampaignsTitle: 'Total Campaigns',
       successRateTitle: 'Success Rate',
       leadsByChartTitle: 'Leads by Sheet',
-      scraperDescription: 'Scrape Google Maps for business leads via Apify — verified emails only saved to sheet',
+      scraperDescription: 'Scrape leads via Apify, verify emails with Million Verifier, save verified contacts to your lead lists',
     },
     navItems: dashboardNav,
   },
@@ -82,7 +85,7 @@ export const SECTION_CONFIG: Record<AppSection, SectionConfig> = {
       totalCampaignsTitle: 'Total Email Templates Generated',
       successRateTitle: 'Workflows Success Rate',
       leadsByChartTitle: 'Leads by Table',
-      scraperDescription: 'Find business leads and save verified contacts to your lead tables',
+      scraperDescription: 'Find business leads and save verified contacts to your per-company lead lists',
     },
     navItems: outreachNav,
   },

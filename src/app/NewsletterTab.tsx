@@ -2,8 +2,10 @@
 
 const TAB_PATHS: Record<string, string> = {
   'newsletter-dashboard': '/newsletter/dashboard',
+  'newsletter-overview': '/newsletter/overview',
   'newsletter-generate': '/newsletter/generate',
   'newsletter-campaign': '/newsletter/campaign',
+  'newsletter-subscribers': '/newsletter/subscribers',
   'newsletter-history': '/newsletter/history',
   'newsletter-services': '/newsletter/services',
 };

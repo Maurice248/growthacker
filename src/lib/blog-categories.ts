@@ -1,7 +1,7 @@
 export interface BlogCategory {
   id: number;
   category: string;
-  /** Service name shown in the Create Post tag (from n8n `service` field). */
+  /** Service name shown in the Create Post tag. */
   service: string;
   /** @deprecated Use `service`. Kept for backward-compatible webhook payloads. */
   type: string;
@@ -9,7 +9,7 @@ export interface BlogCategory {
   keywords: string[];
 }
 
-/** 8 service categories from n8n workflow node "Code in JavaScript1". */
+/** Default blog service categories for new companies. */
 export const BLOG_CATEGORIES: BlogCategory[] = [
   {
     id: 1,

@@ -6,6 +6,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  ExternalLink,
   PartyPopper,
   Sparkles,
   XCircle,
@@ -22,23 +23,30 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { BlogCategory } from '@/lib/blog-categories';
+import type { BlogCategoryData, BlogJobStatus } from '@/lib/blog/types';
 import { cn } from '@/lib/utils';
 
 type DialogPhase = 'select' | 'generating' | 'success' | 'error';
 
-const BLOG_GENERATION_STEPS = [
-  { at: 0, text: 'Sending category to n8n workflow...' },
-  { at: 8, text: 'Researching SEO keywords via DataForSEO...' },
-  { at: 25, text: 'Generating blog title and outline...' },
-  { at: 55, text: 'AI is writing the article content...' },
-  { at: 95, text: 'Creating featured image...' },
-  { at: 140, text: 'Publishing post to WordPress...' },
-  { at: 190, text: 'Finalising and saving records...' },
-  { at: 240, text: 'Almost done — wrapping up...' },
-];
+const STATUS_LABELS: Record<BlogJobStatus, string> = {
+  pending: 'Starting blog generation...',
+  keywords: 'Researching SEO keywords via DataForSEO...',
+  writing: 'Generating title, outline, and article...',
+  image: 'Creating featured image with kie.ai...',
+  publishing: 'Publishing post to WordPress...',
+  done: 'Post published successfully!',
+  error: 'Generation failed',
+};
 
-const ESTIMATED_DURATION_SEC = 300;
+const STATUS_PROGRESS: Record<BlogJobStatus, number> = {
+  pending: 5,
+  keywords: 20,
+  writing: 45,
+  image: 70,
+  publishing: 90,
+  done: 100,
+  error: 0,
+};
 
 interface CreatePostDialogProps {
   open: boolean;
@@ -48,13 +56,16 @@ interface CreatePostDialogProps {
 
 export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDialogProps) {
   const { toast } = useToast();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [phase, setPhase] = useState<DialogPhase>('select');
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [completedCategory, setCompletedCategory] = useState<BlogCategory | null>(null);
+  const [completedCategory, setCompletedCategory] = useState<BlogCategoryData | null>(null);
+  const [postUrl, setPostUrl] = useState<string | null>(null);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const {
     data: categoriesData,
@@ -67,32 +78,24 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
       const res = await fetch('/api/blog/categories');
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Failed to load categories');
-      return json as {
-        categories: BlogCategory[];
-        source: 'n8n' | 'fallback';
-        nodeName: string;
-        warning?: string;
-      };
+      return json as { categories: BlogCategoryData[]; source: string };
     },
     enabled: open,
     staleTime: 0,
   });
 
   const categories = categoriesData?.categories ?? [];
-
   const selectedCategory = categories.find((item) => item.id === selectedId) ?? null;
-  const currentStep =
-    [...BLOG_GENERATION_STEPS].reverse().find((step) => elapsed >= step.at) ??
-    BLOG_GENERATION_STEPS[0];
 
   useEffect(() => {
     return () => {
       if (elapsedRef.current) clearInterval(elapsedRef.current);
+      if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
 
   useEffect(() => {
-    if (selectedId !== null && !categories.some((item) => item.id === selectedId)) {
+    if (selectedId && !categories.some((item) => item.id === selectedId)) {
       setSelectedId(null);
     }
   }, [categories, selectedId]);
@@ -102,6 +105,10 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
       clearInterval(elapsedRef.current);
       elapsedRef.current = null;
     }
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
   }
 
   function resetDialog() {
@@ -109,8 +116,10 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
     setPhase('select');
     setElapsed(0);
     setProgress(0);
+    setStatusText('');
     setErrorMessage('');
     setCompletedCategory(null);
+    setPostUrl(null);
     setSelectedId(null);
   }
 
@@ -122,35 +131,61 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
 
   function startElapsedTimer() {
     setElapsed(0);
-    setProgress(2);
     elapsedRef.current = setInterval(() => {
-      setElapsed((prev) => {
-        const next = prev + 1;
-        setProgress((current) => {
-          const estimated = Math.min((next / ESTIMATED_DURATION_SEC) * 100, 95);
-          return Math.max(current, estimated);
-        });
-        return next;
-      });
+      setElapsed((prev) => prev + 1);
     }, 1000);
   }
 
-  function markSuccess(category: BlogCategory) {
-    clearTimers();
-    setCompletedCategory(category);
-    setProgress(100);
-    setPhase('success');
-    toast({
-      title: 'Post successful!',
-      description: `"${category.category}" was generated and published via the n8n workflow.`,
+  async function pollJob(jobId: string) {
+    const res = await fetch('/api/blog/job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId }),
     });
-    onCreated?.();
+    const json = await res.json();
+
+    if (json.job) {
+      const status = json.job.status as BlogJobStatus;
+      setStatusText(STATUS_LABELS[status] || status);
+      setProgress(STATUS_PROGRESS[status] ?? progress);
+
+      if (status === 'done') {
+        return { done: true, postUrl: json.job.wordpressPostUrl as string | null };
+      }
+      if (status === 'error') {
+        throw new Error(json.job.errorMessage || json.error || 'Blog generation failed');
+      }
+    }
+
+    if (!res.ok && !json.pending) {
+      throw new Error(json.error || 'Failed to poll blog job');
+    }
+
+    return { done: false, postUrl: null };
   }
 
-  function markError(message: string) {
-    clearTimers();
-    setErrorMessage(message);
-    setPhase('error');
+  function startPolling(jobId: string, category: BlogCategoryData) {
+    pollRef.current = setInterval(async () => {
+      try {
+        const result = await pollJob(jobId);
+        if (result.done) {
+          clearTimers();
+          setCompletedCategory(category);
+          setPostUrl(result.postUrl);
+          setProgress(100);
+          setPhase('success');
+          toast({
+            title: 'Post published!',
+            description: `"${category.category}" was generated and published to WordPress.`,
+          });
+          onCreated?.();
+        }
+      } catch (err) {
+        clearTimers();
+        setErrorMessage(err instanceof Error ? err.message : 'Blog generation failed');
+        setPhase('error');
+      }
+    }, 5000);
   }
 
   async function handleCreatePost() {
@@ -165,7 +200,8 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
 
     setPhase('generating');
     setErrorMessage('');
-    setProgress(0);
+    setProgress(2);
+    setStatusText(STATUS_LABELS.pending);
     startElapsedTimer();
 
     try {
@@ -178,28 +214,36 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const detail =
-          typeof json.error === 'string'
-            ? json.error
-            : json.details?.message ?? 'Failed to start blog generation';
-        throw new Error(detail);
+        throw new Error(
+          typeof json.error === 'string' ? json.error : 'Failed to start blog generation'
+        );
       }
 
-      if (json.configured === false) {
+      const jobId = String(json.jobId || '');
+      if (!jobId) {
+        throw new Error('No job ID returned from blog generation');
+      }
+
+      const firstPoll = await pollJob(jobId);
+      if (firstPoll.done) {
         clearTimers();
+        setCompletedCategory(selectedCategory);
+        setPostUrl(firstPoll.postUrl);
         setProgress(100);
         setPhase('success');
-        setCompletedCategory(selectedCategory);
         toast({
-          title: 'Category ready',
-          description: `"${selectedCategory.category}" is ready. Add N8N_BLOG_AUTOMATION_WEBHOOK_URL to run the workflow.`,
+          title: 'Post published!',
+          description: `"${selectedCategory.category}" was generated and published to WordPress.`,
         });
+        onCreated?.();
         return;
       }
 
-      markSuccess(selectedCategory);
+      startPolling(jobId, selectedCategory);
     } catch (err) {
-      markError(err instanceof Error ? err.message : 'Could not create post');
+      clearTimers();
+      setErrorMessage(err instanceof Error ? err.message : 'Could not create post');
+      setPhase('error');
     }
   }
 
@@ -227,9 +271,8 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
             <DialogHeader className="border-b px-6 py-5 text-left">
               <DialogTitle className="text-xl">Create Post</DialogTitle>
               <DialogDescription>
-                Choose a blog category from{' '}
-                <strong>Code in JavaScript1</strong> in the workflow linked to your blog-automation
-                webhook. Categories sync live from n8n when you open this dialog.
+                Choose a blog category configured in Automation. The native pipeline will research
+                keywords, write the article, generate a featured image, and publish to WordPress.
               </DialogDescription>
             </DialogHeader>
 
@@ -245,7 +288,11 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
               {categoriesError && !categoriesLoading && (
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-800">
                   <AlertCircle className="h-5 w-5" />
-                  <p>{categoriesError instanceof Error ? categoriesError.message : 'Failed to load categories'}</p>
+                  <p>
+                    {categoriesError instanceof Error
+                      ? categoriesError.message
+                      : 'Failed to load categories'}
+                  </p>
                   <Button variant="outline" size="sm" onClick={() => refetchCategories()}>
                     Retry
                   </Button>
@@ -254,10 +301,11 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
 
               {!categoriesLoading && !categoriesError && (
                 <div className="grid gap-2">
-                  {categories.map((item) => (
+                  {categories.map((item, index) => (
                     <CategoryOption
                       key={item.id}
                       item={item}
+                      index={index + 1}
                       selected={selectedId === item.id}
                       onSelect={() => setSelectedId(item.id)}
                     />
@@ -269,7 +317,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
             {selectedCategory && (
               <div className="border-t bg-gray-50 px-6 py-3 text-sm text-gray-600">
                 <span className="font-medium text-gray-900">Seed keyword:</span>{' '}
-                {selectedCategory.seed_keyword}
+                {selectedCategory.seedKeyword}
                 <span className="mx-2 text-gray-300">·</span>
                 <span className="font-medium text-gray-900">Service:</span> {selectedCategory.service}
               </div>
@@ -278,9 +326,9 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
             <DialogFooter className="border-t px-6 py-4 sm:justify-between">
               <p className="text-xs text-gray-400 sm:mr-auto">
                 {selectedCategory
-                  ? `Category ${selectedCategory.id} of ${categories.length} selected`
+                  ? `Category selected`
                   : categoriesLoading
-                    ? 'Loading categories from n8n...'
+                    ? 'Loading categories...'
                     : `${categories.length} categories available`}
               </p>
               <div className="flex gap-2">
@@ -316,7 +364,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
               <p className="mt-1 text-sm text-gray-500">{selectedCategory.category}</p>
             )}
             <p className="mt-3 min-h-[20px] text-sm font-medium text-[#0077b6] transition-all">
-              {currentStep.text}
+              {statusText}
             </p>
 
             <div className="mt-6 space-y-2">
@@ -338,7 +386,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
             </div>
 
             <p className="mt-4 text-xs text-gray-400">
-              Please keep this dialog open while n8n completes the workflow
+              Please keep this dialog open while the native pipeline completes
             </p>
           </div>
         )}
@@ -352,9 +400,21 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
             <h3 className="text-xl font-bold text-gray-900">Post successful!</h3>
             <p className="mt-2 text-sm text-gray-500">
               {completedCategory
-                ? `"${completedCategory.category}" has been processed by the blog automation workflow.`
-                : 'Your blog post workflow completed successfully.'}
+                ? `"${completedCategory.category}" has been published to WordPress.`
+                : 'Your blog post was published successfully.'}
             </p>
+
+            {postUrl && (
+              <a
+                href={postUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#0077b6] hover:underline"
+              >
+                View published post
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            )}
 
             <div className="mx-auto mt-6 max-w-xs space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-500">
@@ -368,7 +428,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
 
             <div className="mt-6 flex items-center justify-center gap-2 text-sm text-green-700">
               <CheckCircle2 className="h-4 w-4" />
-              Workflow complete
+              Published to WordPress
             </div>
 
             <Button
@@ -416,10 +476,12 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
 
 function CategoryOption({
   item,
+  index,
   selected,
   onSelect,
 }: {
-  item: BlogCategory;
+  item: BlogCategoryData;
+  index: number;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -443,12 +505,12 @@ function CategoryOption({
                 selected ? 'bg-[#0077b6] text-white' : 'bg-gray-100 text-gray-600'
               )}
             >
-              {item.id}
+              {index}
             </span>
             <p className="font-medium text-gray-900">{item.category}</p>
           </div>
           <p className="mt-1 pl-8 text-xs text-gray-500">
-            Seed: <span className="font-medium text-gray-700">{item.seed_keyword}</span>
+            Seed: <span className="font-medium text-gray-700">{item.seedKeyword}</span>
           </p>
         </div>
         <Badge variant="secondary" className="shrink-0">

@@ -10,6 +10,7 @@ export type BrandProfileData = {
   icpMetaAds: string;
   icpNewsletter: string;
   icpOutreach: string;
+  destinationUrl: string;
 };
 
 export type BrandConfigDbRow = {
@@ -22,6 +23,7 @@ export type BrandConfigDbRow = {
   icp_meta_ads?: string;
   icp_newsletter?: string;
   icp_outreach?: string;
+  destination_url?: string;
 };
 
 export type BrandSnapshot = {
@@ -64,6 +66,7 @@ export function profileFromDb(row: BrandConfigDbRow | null | undefined): BrandPr
     icpMetaAds: row?.icp_meta_ads || "",
     icpNewsletter: row?.icp_newsletter || "",
     icpOutreach: row?.icp_outreach || "",
+    destinationUrl: row?.destination_url || "",
   };
 }
 
@@ -78,6 +81,7 @@ export function profileToDb(data: BrandProfileData): BrandConfigDbRow {
     icp_meta_ads: data.icpMetaAds,
     icp_newsletter: data.icpNewsletter,
     icp_outreach: data.icpOutreach,
+    destination_url: data.destinationUrl,
   };
 }
 
@@ -116,3 +120,8 @@ export const BRAND_ICP_FIELDS: { key: keyof BrandProfileData; label: string }[] 
   { key: "icpNewsletter", label: "ICP - Newsletter" },
   { key: "icpOutreach", label: "ICP - Cold Email" },
 ];
+
+export const BRAND_DESTINATION_FIELD: { key: keyof BrandProfileData; label: string } = {
+  key: "destinationUrl",
+  label: "Destination URL (Meta Ads)",
+};

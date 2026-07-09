@@ -1,10 +1,10 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 180;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUserId, getRequestCompanyId } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import axios from 'axios';
-import { getRequestN8nConfig, getN8nWebhook } from '@/lib/company-integrations';
+import { sendCampaign } from '@/lib/cold-email/campaign';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +14,9 @@ export async function POST(req: NextRequest) {
     }
 
     const companyId = await getRequestCompanyId();
+    if (!companyId) {
+      return NextResponse.json({ error: 'Company context required' }, { status: 403 });
+    }
 
     const body = await req.json();
     const { campaignId, decision, comments } = body;
@@ -52,7 +55,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Handle rejection — no n8n call needed
     if (decision.toLowerCase() === 'rejected') {
       const updated = await prisma.campaign.update({
         where: { id: campaignId },
@@ -66,60 +68,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, campaign: updated, message: 'Campaign rejected' });
     }
 
-    // Handle approval — call n8n Workflow 2
-    const executionOutput = campaign.execution.outputData
-      ? JSON.parse(campaign.execution.outputData as string)
-      : {};
-
-    const approvalPayload = {
-      execution_id: campaign.execution.n8nExecutionId,
-      decision: 'approved',
-      user_id: userId,
-      comments: comments || '',
-      campaign_data: {
-        campaign_name: campaign.campaignName,
-        service_type: campaign.serviceType,
-        target_region: campaign.targetRegion,
-        selected_sheet: campaign.selectedSheet,
-        ...(campaign.aiGeneratedContent ? JSON.parse(campaign.aiGeneratedContent) : {}),
-        sheet_url: executionOutput?.sheet_info?.sheet_url,
-        sheet_tab: executionOutput?.sheet_info?.sheet_tab,
-        sheet_gid: executionOutput?.sheet_info?.sheet_gid,
-      },
-    };
-
-    const n8n = await getRequestN8nConfig();
-    const approvalWebhookUrl = getN8nWebhook(n8n, 'N8N_APPROVAL_WEBHOOK_URL');
-    if (!approvalWebhookUrl) {
-      return NextResponse.json(
-        { error: 'Campaign approval webhook is not configured in API key management.' },
-        { status: 503 }
-      );
+    let sendResult;
+    try {
+      sendResult = await sendCampaign(companyId, campaignId, userId);
+    } catch (err) {
+      const isConfig = err instanceof Error && err.message.includes('not configured');
+      const message = err instanceof Error ? err.message : 'Approval send failed';
+      return NextResponse.json({ error: message }, { status: isConfig ? 503 : 500 });
     }
 
-    const n8nResponse = await axios.post(
-      approvalWebhookUrl,
-      approvalPayload,
-      { headers: { 'Content-Type': 'application/json' }, timeout: 120000 }
-    );
-
-    const n8nData = n8nResponse.data;
-
-    // Log approval execution
-    await prisma.workflowExecution.create({
-      data: {
-        userId,
-        companyId: companyId ?? campaign.execution.companyId ?? undefined,
-        workflowType: 'CAMPAIGN_APPROVAL',
-        workflowName: `Approve: ${campaign.campaignName}`,
-        status: n8nData.status === 'success' ? 'SUCCESS' : 'FAILED',
-        inputData: JSON.stringify(approvalPayload),
-        outputData: JSON.stringify(n8nData),
-        n8nExecutionId: n8nData.execution_id || null,
-        startedAt: new Date(),
-        completedAt: new Date(),
-      },
-    });
+    if (sendResult.status === 'no_leads_available') {
+      return NextResponse.json({
+        success: false,
+        status: 'no_leads_available',
+        message: sendResult.message,
+        breakdown: sendResult.breakdown,
+        action_required: true,
+        action: 'SCRAPE_NEW_LEADS',
+      });
+    }
 
     const updated = await prisma.campaign.update({
       where: { id: campaignId },
@@ -128,23 +95,26 @@ export async function POST(req: NextRequest) {
         approvedBy: userId,
         approvedAt: new Date(),
         comments: comments || null,
+        totalLeadsSent: sendResult.total_sent ?? 0,
+        successfulSends: sendResult.total_sent ?? 0,
+        failedSends: sendResult.failed ?? 0,
       },
     });
 
     return NextResponse.json({
       success: true,
       campaign: updated,
-      n8nResponse: n8nData,
-      message: 'Campaign approved and emails are being sent',
+      result: {
+        status: 'success',
+        message: sendResult.message,
+        total_sent: sendResult.total_sent,
+        emails_sent: sendResult.emails_sent,
+        failed: sendResult.failed,
+      },
+      message: sendResult.message,
     });
   } catch (error) {
     console.error('Approval error:', error);
-    if (axios.isAxiosError(error)) {
-      return NextResponse.json(
-        { error: 'Failed to reach n8n approval workflow', details: error.response?.data || error.message },
-        { status: 500 }
-      );
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

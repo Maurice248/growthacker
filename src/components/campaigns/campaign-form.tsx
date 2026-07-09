@@ -55,7 +55,7 @@ export function CampaignForm() {
     onSuccess: (data) => {
       toast({
         title: 'Campaign launched successfully!',
-        description: `${data.n8nResponse?.results?.successful_sends || 0} emails sent to Instantly.ai`,
+        description: data.message || 'Campaign created and awaiting approval.',
       });
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       form.reset();

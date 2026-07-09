@@ -1,9 +1,8 @@
 import { PrismaClient } from '@prisma/client';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { encryptSecret } from '../src/lib/integration-crypto';
 import { computeBrandConfigHash } from '../src/lib/brand-config';
-import { webhooksFromEnv } from '../src/lib/n8n-config';
 
 const prisma = new PrismaClient();
 
@@ -29,11 +28,6 @@ async function ensureIntegrationsTable() {
       "wordpressSiteUrl" TEXT,
       "wordpressUsername" TEXT,
       "wordpressAppPasswordEnc" TEXT,
-      "n8nApiKeyEnc" TEXT,
-      "n8nApiBaseUrl" TEXT,
-      "n8nBlogWorkflowId" TEXT,
-      "n8nBlogWorkflowName" TEXT,
-      "n8nWebhooksJson" JSONB NOT NULL DEFAULT '{}',
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT company_integrations_pkey PRIMARY KEY (id),
@@ -73,21 +67,13 @@ async function seedCompanyIntegrationsFromEnv(companyId: string) {
   const wordpressSiteUrl = process.env.WORDPRESS_SITE_URL?.trim();
   const wordpressUsername = process.env.WORDPRESS_USERNAME?.trim();
   const wordpressAppPassword = process.env.WORDPRESS_APP_PASSWORD?.replace(/\s/g, '');
-  const n8nApiKey = process.env.N8N_API_KEY?.trim();
-  const n8nApiBaseUrl = process.env.N8N_API_BASE_URL?.trim();
-  const n8nBlogWorkflowId = process.env.N8N_BLOG_WORKFLOW_ID?.trim();
-  const n8nBlogWorkflowName = process.env.N8N_BLOG_WORKFLOW_NAME?.trim();
-  const n8nWebhooks = webhooksFromEnv();
 
   const hasAny =
     metaAccessToken ||
     metaAdAccountId ||
     metaPageId ||
     elevenLabsApiKey ||
-    wordpressSiteUrl ||
-    n8nApiKey ||
-    n8nApiBaseUrl ||
-    Object.keys(n8nWebhooks).length > 0;
+    wordpressSiteUrl;
 
   if (!hasAny) {
     console.log('[Prisma] No integration env vars found — skipping integration seed');
@@ -104,11 +90,6 @@ async function seedCompanyIntegrationsFromEnv(companyId: string) {
       wordpressSiteUrl: wordpressSiteUrl?.replace(/\/$/, '') || null,
       wordpressUsername: wordpressUsername || null,
       wordpressAppPasswordEnc: wordpressAppPassword ? encryptSecret(wordpressAppPassword) : null,
-      n8nApiKeyEnc: n8nApiKey ? encryptSecret(n8nApiKey) : null,
-      n8nApiBaseUrl: n8nApiBaseUrl?.replace(/\/$/, '') || null,
-      n8nBlogWorkflowId: n8nBlogWorkflowId || null,
-      n8nBlogWorkflowName: n8nBlogWorkflowName || null,
-      n8nWebhooksJson: n8nWebhooks,
     },
   });
 
@@ -153,11 +134,11 @@ async function seedSupabaseAuthAdmin() {
   });
 
   const { data: listData, error: listError } = await supabase.auth.admin.listUsers();
-  if (listError) {
-    throw new Error(`[Supabase Auth] listUsers failed: ${listError.message}`);
+  if (listError || !listData) {
+    throw new Error(`[Supabase Auth] listUsers failed: ${listError?.message ?? 'no data'}`);
   }
 
-  const existing = listData.users.find((u) => u.email?.toLowerCase() === ADMIN_EMAIL);
+  const existing = (listData.users as User[]).find((u) => u.email?.toLowerCase() === ADMIN_EMAIL);
 
   if (existing) {
     const { error } = await supabase.auth.admin.updateUserById(existing.id, {
@@ -275,6 +256,52 @@ async function seedTenantReportBrandConfig(companyId: string) {
   console.log('[Prisma] Tenant Report brand config ready');
 }
 
+/** Social Overview settings — sourced from Tenant Report Creator Studio defaults */
+async function seedTenantReportSocialStudioConfig(companyId: string) {
+  await prisma.socialStudioConfig.upsert({
+    where: { companyId },
+    create: {
+      companyId,
+      brandAbout:
+        'Tenant Report is an online tenant screening platform that helps landlords reduce rental risk, screen tenant applicants with background checks and credit reports, and ensure reliable rental income through AI-powered tenant evaluation and rental protection services.',
+      brandMission:
+        'Reduce risk and ensure reliable income for landlords through smarter tenant screening and property protection.',
+      brandServices:
+        'Tenant screening reports, Smart Tenant Subscription (AI-powered tenant insights), Rent Promise protection, and property management tools.',
+      brandAudience:
+        'Landlords and property owners who want confident tenant decisions and peace of mind. Canadian landlords and property managers screening rental applicants.',
+      brandWebsite: 'https://tenant-report-app.vercel.app/',
+      tone: 'Professional, trustworthy, and landlord-focused. Reassuring and risk-focused without fear-based language.',
+      defaultImageRatio: '1:1',
+      uploadPostUser: 'tenantreport',
+      facebookPageId: '750158511525291',
+      linkedinOrgUrn: 'urn:li:organization:80548299',
+      tiktokHandle: 'TenantReport',
+      enabledPlatforms: ['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube'],
+    },
+    update: {
+      brandAbout:
+        'Tenant Report is an online tenant screening platform that helps landlords reduce rental risk, screen tenant applicants with background checks and credit reports, and ensure reliable rental income through AI-powered tenant evaluation and rental protection services.',
+      brandMission:
+        'Reduce risk and ensure reliable income for landlords through smarter tenant screening and property protection.',
+      brandServices:
+        'Tenant screening reports, Smart Tenant Subscription (AI-powered tenant insights), Rent Promise protection, and property management tools.',
+      brandAudience:
+        'Landlords and property owners who want confident tenant decisions and peace of mind. Canadian landlords and property managers screening rental applicants.',
+      brandWebsite: 'https://tenant-report-app.vercel.app/',
+      tone: 'Professional, trustworthy, and landlord-focused. Reassuring and risk-focused without fear-based language.',
+      defaultImageRatio: '1:1',
+      uploadPostUser: 'tenantreport',
+      facebookPageId: '750158511525291',
+      linkedinOrgUrn: 'urn:li:organization:80548299',
+      tiktokHandle: 'TenantReport',
+      enabledPlatforms: ['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube'],
+    },
+  });
+
+  console.log('[Prisma] Tenant Report social studio config ready');
+}
+
 async function seedAppAdmin() {
   const passwordHash = await bcrypt.hash(APP_ADMIN_PASSWORD, 10);
 
@@ -306,6 +333,7 @@ async function main() {
   await seedAppAdmin();
   await seedCompanyIntegrationsFromEnv(company.id);
   await seedTenantReportBrandConfig(company.id);
+  await seedTenantReportSocialStudioConfig(company.id);
   await seedSupabaseAuthAdmin();
   console.log('\nLogin credentials (Client Dashboard at /client-login):');
   console.log(`  Email:    ${ADMIN_EMAIL}`);

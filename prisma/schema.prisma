@@ -19,9 +19,21 @@ model Company {
 
   users         User[]
   invites       CompanyInvite[]
-  integration   CompanyIntegration?
-  brandConfig   CompanyBrandConfig?
-  executions    WorkflowExecution[]
+  integration      CompanyIntegration?
+  brandConfig      CompanyBrandConfig?
+  executions       WorkflowExecution[]
+  socialStudioConfig SocialStudioConfig?
+  socialStudioJobs   SocialStudioJob[]
+  newsletterConfig   NewsletterConfig?
+  newsletterTemplates NewsletterTemplate[]
+  newsletterSubscribers NewsletterSubscriber[]
+  newsletterCampaigns NewsletterCampaign[]
+  outreachConfig      OutreachConfig?
+  outreachLeadLists   OutreachLeadList[]
+  outreachLeads       OutreachLead[]
+  blogConfig          BlogConfig?
+  blogCategories      BlogCategory[]
+  blogJobs            BlogJob[]
 
   @@map("companies")
 }
@@ -55,11 +67,6 @@ model CompanyIntegration {
   wordpressSiteUrl        String?
   wordpressUsername       String?
   wordpressAppPasswordEnc String?
-  n8nApiKeyEnc            String?
-  n8nApiBaseUrl           String?
-  n8nBlogWorkflowId       String?
-  n8nBlogWorkflowName     String?
-  n8nWebhooksJson         Json      @default("{}")
   apiTokenSecretsEnc      String?
 
   createdAt DateTime @default(now())
@@ -81,6 +88,7 @@ model CompanyBrandConfig {
   icpMetaAds       String   @default("") @map("icp_meta_ads")
   icpNewsletter    String   @default("") @map("icp_newsletter")
   icpOutreach      String   @default("") @map("icp_outreach")
+  destinationUrl   String   @default("") @map("destination_url")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -149,7 +157,7 @@ model WorkflowExecution {
   workflowType   String
   workflowName   String?
   status         String    @default("PENDING")
-  n8nExecutionId String?
+  externalExecutionId String?
   inputData      String
   outputData     String?
   errorMessage   String?
@@ -181,6 +189,8 @@ model Campaign {
   campaignGoal       String    @default("")
   campaignMessage    String    @default("")
   selectedSheet      String
+  leadListId         String?   @map("lead_list_id")
+  instantlyCampaignId String?  @map("instantly_campaign_id")
   totalLeadsSent     Int       @default(0)
   successfulSends    Int       @default(0)
   failedSends        Int       @default(0)
@@ -237,4 +247,285 @@ model CleanupLog {
 
   @@index([cleanupDate(sort: Desc)])
   @@map("cleanup_logs")
+}
+
+model SocialStudioConfig {
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  brandAbout       String   @default("") @map("brand_about")
+  brandMission     String   @default("") @map("brand_mission")
+  brandServices    String   @default("") @map("brand_services")
+  brandAudience    String   @default("") @map("brand_audience")
+  brandWebsite     String   @default("") @map("brand_website")
+  tone             String   @default("")
+  defaultImageRatio String  @default("1:1") @map("default_image_ratio")
+  uploadPostUser   String   @default("") @map("upload_post_user")
+  facebookPageId   String   @default("") @map("facebook_page_id")
+  linkedinOrgUrn   String   @default("") @map("linkedin_org_urn")
+  tiktokHandle     String   @default("") @map("tiktok_handle")
+  enabledPlatforms Json     @default("[\"facebook\",\"instagram\",\"linkedin\",\"tiktok\"]") @map("enabled_platforms")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("social_studio_configs")
+}
+
+model SocialStudioJob {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  kind         String
+  status       String   @default("pending")
+  input        Json     @default("{}")
+  story        String?
+  scenes       Json?
+  assetUrl     String?  @map("asset_url")
+  descriptions Json?
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, kind])
+  @@index([createdAt(sort: Desc)])
+  @@map("social_studio_jobs")
+}
+
+model NewsletterConfig {
+  id                 String   @id @default(cuid())
+  companyId          String   @unique
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromEmail          String   @default("") @map("from_email")
+  fromName           String   @default("") @map("from_name")
+  replyTo            String   @default("") @map("reply_to")
+  website            String   @default("")
+  logoUrl            String   @default("") @map("logo_url")
+  addressLine        String   @default("") @map("address_line")
+  phone              String   @default("")
+  unsubscribeBaseUrl String   @default("") @map("unsubscribe_base_url")
+  sendHour           Int      @default(10) @map("send_hour")
+  sendMinute         Int      @default(30) @map("send_minute")
+  sendTimezone       String   @default("UTC") @map("send_timezone")
+  dailyLimit         Int      @default(50) @map("daily_limit")
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("newsletter_configs")
+}
+
+model NewsletterTemplate {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name           String   @default("newsletter")
+  service        String   @default("")
+  topic          String   @default("")
+  subjectLine    String   @default("") @map("subject_line")
+  preheader      String   @default("")
+  html           String   @default("")
+  structuredJson Json     @default("{}") @map("structured_json")
+  createdAt      DateTime @default(now())
+
+  campaigns NewsletterCampaign[]
+
+  @@index([companyId])
+  @@index([createdAt(sort: Desc)])
+  @@map("newsletter_templates")
+}
+
+model NewsletterSubscriber {
+  id               String   @id @default(cuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  email            String
+  firstName        String   @default("") @map("first_name")
+  lastName         String   @default("") @map("last_name")
+  serviceType      String   @default("") @map("service_type")
+  status           String   @default("subscribed")
+  emailStatus      String   @default("verified") @map("email_status")
+  unsubscribeToken String   @unique @default(cuid()) @map("unsubscribe_token")
+  createdAt        DateTime @default(now())
+
+  sends NewsletterSend[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([companyId, status, emailStatus])
+  @@map("newsletter_subscribers")
+}
+
+model NewsletterCampaign {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String
+  templateId    String   @map("template_id")
+  template      NewsletterTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  dailyLimit    Int      @default(50) @map("daily_limit")
+  audienceLimit String   @default("All Subscribers") @map("audience_limit")
+  status        String   @default("active")
+  sentCount     Int      @default(0) @map("sent_count")
+  sendHour      Int      @default(10) @map("send_hour")
+  sendMinute    Int      @default(30) @map("send_minute")
+  sendTimezone  String   @default("UTC") @map("send_timezone")
+  lastRunAt     DateTime? @map("last_run_at")
+  createdAt     DateTime @default(now())
+
+  sends NewsletterSend[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([status])
+  @@map("newsletter_native_campaigns")
+}
+
+model NewsletterSend {
+  id           String   @id @default(cuid())
+  campaignId   String   @map("campaign_id")
+  campaign     NewsletterCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  subscriberId String   @map("subscriber_id")
+  subscriber   NewsletterSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  status       String   @default("sent")
+  resendId     String?  @map("resend_id")
+  sentAt       DateTime @default(now()) @map("sent_at")
+
+  @@unique([campaignId, subscriberId])
+  @@index([campaignId])
+  @@index([subscriberId])
+  @@map("newsletter_sends")
+}
+
+model OutreachConfig {
+  id                  String   @id @default(cuid())
+  companyId           String   @unique
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  instantlyCampaignId String   @default("") @map("instantly_campaign_id")
+  senderName          String   @default("") @map("sender_name")
+  defaultCtaLink      String   @default("") @map("default_cta_link")
+  cleanupIntervalDays Int      @default(10) @map("cleanup_interval_days")
+  cleanupBatchSize    Int      @default(100) @map("cleanup_batch_size")
+  dailySendLimit      Int      @default(60) @map("daily_send_limit")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("outreach_configs")
+}
+
+model OutreachLeadList {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leads OutreachLead[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("outreach_lead_lists")
+}
+
+model OutreachLead {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  listId       String   @map("list_id")
+  list         OutreachLeadList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  firstName    String   @default("") @map("first_name")
+  lastName     String   @default("") @map("last_name")
+  email        String
+  mobileNumber String   @default("") @map("mobile_number")
+  linkedin     String   @default("")
+  city         String   @default("")
+  country      String   @default("")
+  emailStatus  String   @default("pending") @map("email_status")
+  isCatchAll   Boolean  @default(false) @map("is_catch_all")
+  sentStatus   String   @default("not_sent") @map("sent_status")
+  source       String   @default("apify")
+  createdAt    DateTime @default(now())
+  sentAt       DateTime? @map("sent_at")
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([listId])
+  @@index([companyId, sentStatus])
+  @@index([companyId, emailStatus, sentStatus])
+  @@map("outreach_leads")
+}
+
+model BlogConfig {
+  id                    String    @id @default(cuid())
+  companyId             String    @unique
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  titlePrompt           String    @default("") @map("title_prompt")
+  titleUserPrompt       String    @default("") @map("title_user_prompt")
+  articleSystemPrompt   String    @default("") @map("article_system_prompt")
+  articleUserPrompt     String    @default("") @map("article_user_prompt")
+  imagePromptSystem     String    @default("") @map("image_prompt_system")
+  runHour               Int       @default(7) @map("run_hour")
+  runMinute             Int       @default(0) @map("run_minute")
+  runTimezone           String    @default("UTC") @map("run_timezone")
+  daysInterval          Int       @default(3) @map("days_interval")
+  active                Boolean   @default(true)
+  postStatus            String    @default("publish") @map("post_status")
+  imageSize             String    @default("16:9") @map("image_size")
+  dataForSeoLocationCode Int      @default(2124) @map("dataforseo_location_code")
+  openAiModel           String    @default("gpt-4o-mini") @map("openai_model")
+  lastCategoryIndex     Int       @default(0) @map("last_category_index")
+  lastRunAt             DateTime? @map("last_run_at")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("blog_configs")
+}
+
+model BlogCategory {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  service     String   @default("")
+  category    String
+  seedKeyword String   @default("") @map("seed_keyword")
+  keywords    Json     @default("[]")
+  sortOrder   Int      @default(0) @map("sort_order")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  jobs BlogJob[]
+
+  @@index([companyId])
+  @@index([companyId, active])
+  @@map("blog_categories")
+}
+
+model BlogJob {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  categoryId      String?   @map("category_id")
+  category        BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  status          String    @default("pending")
+  title           String?
+  slug            String?
+  articleHtml     String?   @map("article_html")
+  imagePrompt     String?   @map("image_prompt")
+  imageTaskId     String?   @map("image_task_id")
+  imageUrl        String?   @map("image_url")
+  wordpressPostId Int?      @map("wordpress_post_id")
+  wordpressPostUrl String?  @map("wordpress_post_url")
+  errorMessage    String?   @map("error_message")
+  input           Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([createdAt(sort: Desc)])
+  @@map("blog_jobs")
 }

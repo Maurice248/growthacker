@@ -1,7 +1,3 @@
-import { N8N_WEBHOOK_FIELDS } from '@/lib/n8n-config';
-import { getRequestCompanyId } from '@/lib/auth';
-import { getCompanyIntegrations } from '@/lib/company-integrations';
-
 function hostnameFromUrl(url: string): string | null {
   try {
     return new URL(url).hostname.toLowerCase();
@@ -24,23 +20,18 @@ function isBlockedHostname(hostname: string): boolean {
 
 function collectEnvHostnames(): Set<string> {
   const hosts = new Set<string>();
-
-  const addUrl = (url: string | undefined | null) => {
-    if (!url?.trim()) return;
-    const host = hostnameFromUrl(url.trim());
+  const raw = process.env.PROXY_ALLOWED_HOSTS?.trim();
+  if (!raw) return hosts;
+  for (const entry of raw.split(',')) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    const host = trimmed.includes('://') ? hostnameFromUrl(trimmed) : trimmed.toLowerCase();
     if (host) hosts.add(host);
-  };
-
-  addUrl(process.env.N8N_API_BASE_URL);
-
-  for (const field of N8N_WEBHOOK_FIELDS) {
-    addUrl(process.env[field.key]);
   }
-
   return hosts;
 }
 
-/** Returns true when the URL targets an allowed n8n host (env + tenant webhooks). */
+/** Returns true when the URL targets an allowed external host. */
 export async function isAllowedProxyUrl(url: string): Promise<boolean> {
   let parsed: URL;
   try {
@@ -58,30 +49,5 @@ export async function isAllowedProxyUrl(url: string): Promise<boolean> {
     return false;
   }
 
-  const allowed = collectEnvHostnames();
-
-  const companyId = await getRequestCompanyId();
-  if (companyId) {
-    const creds = await getCompanyIntegrations(companyId);
-    addIntegrationHosts(allowed, creds.n8nApiBaseUrl, creds.n8nWebhooks);
-  }
-
-  return allowed.has(hostname);
-}
-
-function addIntegrationHosts(
-  hosts: Set<string>,
-  apiBaseUrl: string | null | undefined,
-  webhooks: Record<string, string>
-) {
-  const addUrl = (url: string | undefined | null) => {
-    if (!url?.trim()) return;
-    const host = hostnameFromUrl(url.trim());
-    if (host) hosts.add(host);
-  };
-
-  addUrl(apiBaseUrl);
-  for (const webhookUrl of Object.values(webhooks)) {
-    addUrl(webhookUrl);
-  }
+  return collectEnvHostnames().has(hostname);
 }

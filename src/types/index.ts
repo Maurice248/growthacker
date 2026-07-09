@@ -40,7 +40,7 @@ export interface WorkflowExecution {
   workflowType: WorkflowType;
   workflowName: string | null;
   status: ExecutionStatus;
-  n8nExecutionId: string | null;
+  externalExecutionId: string | null;
   inputData: Record<string, unknown>;
   outputData: Record<string, unknown> | null;
   errorMessage: string | null;

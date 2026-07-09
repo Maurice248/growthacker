@@ -11,7 +11,7 @@ export default async function ClientApisPage() {
       <div>
         <h1 className="text-2xl font-bold text-[var(--text)]">API key management</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Connect Meta Ads, ElevenLabs, WordPress, n8n webhooks, and third-party API tokens for your
+          Connect Meta Ads, WordPress, DataForSEO, and third-party API tokens for your
           company workspace.
         </p>
       </div>

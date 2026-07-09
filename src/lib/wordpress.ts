@@ -25,6 +25,22 @@ export interface WordPressPostInput {
   status?: WordPressPostStatus;
   excerpt?: string;
   slug?: string;
+  categories?: number[];
+  featured_media?: number;
+}
+
+export interface WordPressMediaMeta {
+  alt_text?: string;
+  caption?: string;
+  description?: string;
+  title?: string;
+}
+
+export interface WordPressCategory {
+  id: number;
+  name: string;
+  slug: string;
+  count: number;
 }
 
 export interface WordPressListParams {
@@ -103,7 +119,6 @@ async function wpRequest<T>(path: string, options: RequestInit = {}, config?: Wo
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
       Authorization: getAuthHeader(username, appPassword),
       ...(options.headers ?? {}),
     },
@@ -142,12 +157,15 @@ export async function createWordPressPost(input: WordPressPostInput, config?: Wo
     '/posts',
     {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: input.title,
         content: input.content,
         status: input.status ?? 'draft',
         excerpt: input.excerpt,
         slug: input.slug,
+        categories: input.categories,
+        featured_media: input.featured_media,
       }),
     },
     config
@@ -163,6 +181,7 @@ export async function updateWordPressPost(
     `/posts/${id}`,
     {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     },
     config
@@ -172,6 +191,77 @@ export async function updateWordPressPost(
 export async function deleteWordPressPost(id: number, force = false, config?: WordPressConfig | null) {
   const query = force ? '?force=true' : '';
   return wpRequest<WordPressPost>(`/posts/${id}${query}`, { method: 'DELETE' }, config);
+}
+
+export async function listWordPressCategories(config?: WordPressConfig | null) {
+  return wpRequest<WordPressCategory[]>('/categories?per_page=100', {}, config);
+}
+
+export async function uploadWordPressMedia(
+  imageBytes: ArrayBuffer | Uint8Array,
+  filename: string,
+  mimeType: string,
+  config?: WordPressConfig | null
+): Promise<{ id: number; source_url: string }> {
+  const { siteUrl, username, appPassword } = getWordPressConfig(config);
+  const url = `${siteUrl}${WP_API_BASE}/media`;
+  const bytes = imageBytes instanceof Uint8Array ? imageBytes : new Uint8Array(imageBytes);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: getAuthHeader(username, appPassword),
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Type': mimeType,
+    },
+    body: Buffer.from(bytes),
+  });
+
+  const body = await response.text();
+  if (!response.ok) {
+    throw new WordPressApiError(
+      `WordPress media upload failed (${response.status})`,
+      response.status,
+      body
+    );
+  }
+
+  const parsed = JSON.parse(body) as { id: number; source_url: string };
+  return { id: parsed.id, source_url: parsed.source_url };
+}
+
+export async function updateWordPressMediaMeta(
+  mediaId: number,
+  meta: WordPressMediaMeta,
+  config?: WordPressConfig | null
+) {
+  return wpRequest<{ id: number }>(
+    `/media/${mediaId}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(meta),
+    },
+    config
+  );
+}
+
+export async function setWordPressFeaturedMedia(
+  postId: number,
+  mediaId: number,
+  config?: WordPressConfig | null
+) {
+  return updateWordPressPost(postId, { featured_media: mediaId }, config);
+}
+
+export async function fetchImageBytes(imageUrl: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const res = await fetch(imageUrl, { signal: AbortSignal.timeout(120_000) });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch image (${res.status}): ${imageUrl}`);
+  }
+  const mimeType = res.headers.get('content-type') || 'image/jpeg';
+  const buffer = await res.arrayBuffer();
+  return { bytes: new Uint8Array(buffer), mimeType };
 }
 
 export function stripHtml(html: string): string {

@@ -1,12 +1,7 @@
 import { z } from 'zod';
 
 export const LEAD_SHEET_OPTIONS = [
-  'Tenant Screening Leads',
-  'Smart Tenant Subscription Leads',
-  'Rent Promise & Protection Leads',
-  'Background Screening Leads',
-  'Property Management Leads',
-  'All Service Leads',
+  'Default List',
 ] as const;
 
 export const campaignSchema = z.object({
@@ -28,15 +23,18 @@ export const campaignSchema = z.object({
     'Warm and educational',
     'Professional and clinical',
     'Friendly and encouraging',
+    'Professional and authoritative',
+    'Friendly and conversational',
+    'Urgent and action-oriented',
   ]),
-  selected_sheet: z.enum(LEAD_SHEET_OPTIONS),
+  selected_sheet: z.string().min(1, 'Lead list is required'),
 });
 
 export const scraperSchema = z.object({
   niches: z.string().min(1, 'At least one niche is required'),
   location: z.string().min(1, 'Location is required'),
   max_results: z.number().min(1).max(1000),
-  target_sheet: z.enum(LEAD_SHEET_OPTIONS),
+  target_sheet: z.string().min(1, 'Lead list is required'),
 });
 
 export const loginSchema = z.object({

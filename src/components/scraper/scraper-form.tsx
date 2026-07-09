@@ -49,7 +49,7 @@ export function ScraperForm() {
     onSuccess: (data) => {
       toast({
         title: 'Scraper completed!',
-        description: `Found ${data.n8nResponse?.results?.valid_emails || 0} valid leads`,
+        description: `Found ${data.summary?.verified_leads || 0} valid leads`,
       });
       queryClient.invalidateQueries({ queryKey: ['scraper-jobs'] });
       form.reset();

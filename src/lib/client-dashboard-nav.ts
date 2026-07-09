@@ -54,8 +54,10 @@ export const CLIENT_SOCIAL_TABS: ClientNavItem[] = [
 
 export const CLIENT_NEWSLETTER_TABS: ClientNavItem[] = [
   { id: 'newsletter-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'newsletter-overview', label: 'Settings', icon: Settings2 },
   { id: 'newsletter-generate', label: 'Generate Newsletter', icon: PenLine },
   { id: 'newsletter-campaign', label: 'Create Campaign', icon: Megaphone },
+  { id: 'newsletter-subscribers', label: 'Subscribers', icon: User },
   { id: 'newsletter-history', label: 'History', icon: History },
   { id: 'newsletter-services', label: 'Manage Services', icon: Settings2 },
 ];
@@ -73,6 +75,7 @@ export const CLIENT_OUTREACH_TABS: ClientNavItem[] = [
   { id: 'outreach-scraper', label: 'Lead Scraper', icon: Search },
   { id: 'outreach-scraper-history', label: 'Scraper History', icon: History },
   { id: 'outreach-cleanup', label: 'Reset Lead Status', icon: Trash2 },
+  { id: 'outreach-settings', label: 'Settings', icon: Settings2 },
 ];
 
 export const CLIENT_OUTREACH_FUTURE_IDS = new Set(CLIENT_OUTREACH_FUTURE_TABS.map((t) => t.id));
@@ -102,6 +105,16 @@ export function clientWorkspaceHref(tabId: string) {
   return `/client-dashboard/workspace/${tabId}`;
 }
 
+/** Posted from embedded main app iframe when tab changes internally */
+export const CLIENT_DASHBOARD_NAVIGATE_EVENT = 'client-dashboard-navigate';
+
+/** Posted from parent shell to embedded main app iframe to switch tabs without reload */
+export const CLIENT_DASHBOARD_SET_TAB_EVENT = 'client-dashboard-set-tab';
+
+export function isClientDashboardTabId(tabId: string) {
+  return CLIENT_ALL_TAB_IDS.has(tabId);
+}
+
 const OUTREACH_PATHS: Record<string, string> = {
   'outreach-dashboard': '/outreach',
   'outreach-campaigns': '/outreach/campaigns',
@@ -109,12 +122,15 @@ const OUTREACH_PATHS: Record<string, string> = {
   'outreach-scraper': '/outreach/scraper',
   'outreach-scraper-history': '/outreach/scraper/history',
   'outreach-cleanup': '/outreach/cleanup',
+  'outreach-settings': '/outreach/settings',
 };
 
 const NEWSLETTER_PATHS: Record<string, string> = {
   'newsletter-dashboard': '/newsletter/dashboard',
+  'newsletter-overview': '/newsletter/overview',
   'newsletter-generate': '/newsletter/generate',
   'newsletter-campaign': '/newsletter/campaign',
+  'newsletter-subscribers': '/newsletter/subscribers',
   'newsletter-history': '/newsletter/history',
   'newsletter-services': '/newsletter/services',
 };
@@ -141,6 +157,10 @@ const MAIN_APP_TABS = new Set([
   'cold-call',
   'cold-sms',
 ]);
+
+export function isMainAppEmbedTab(tabId: string) {
+  return MAIN_APP_TABS.has(tabId);
+}
 
 export function clientTabEmbedSrc(tabId: string): string | null {
   if (OUTREACH_PATHS[tabId]) return `${OUTREACH_PATHS[tabId]}?embed=1`;

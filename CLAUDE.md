@@ -45,15 +45,77 @@ Frontend (page.js)
   → n8n cloud webhooks (srv881198.hstgr.cloud)
   → n8n POSTs results back via Supabase realtime
 
-Frontend (dashboard/)
-  → /api/campaigns, /api/scraper, /api/cleanup  (Next.js API routes)
+Frontend (dashboard/ outreach)
+  → /api/campaigns, /api/scraper, /api/cleanup, /api/cold-email/*  (native Next.js API routes)
+  → src/lib/cold-email/*  (business logic)
   → Prisma → PostgreSQL (Supabase)
-  → n8n webhooks (via server-side fetch with env vars)
+  → Apify, Million Verifier, OpenAI, Instantly.ai (per-company API keys)
 ```
 
-The main `page.js` reads live data from **two Supabase projects**:
+The main `page.js` reads live data from Supabase:
 - Main: `NEXT_PUBLIC_SUPABASE_URL` — used for reports, ad data (`src/lib/supabase.js`)
-- Social-Dash: `NEXT_PUBLIC_SOCIAL_DASH_SUPABASE_URL` — used for `SocialDash.js` (`src/lib/socialSupabase.js`)
+
+### Social Channels (Creator Studio) — native pipeline
+
+Social Channels no longer uses n8n webhooks. Creator Studio runs natively via `/api/social-studio/*`:
+
+```
+Frontend (SocialDash.tsx / SocialOverview.tsx)
+  → /api/social-studio/config        (per-company brand + posting settings)
+  → /api/social-studio/image/*       (image prompt → kie.ai → social copy → post)
+  → /api/social-studio/video/*       (story → scenes → kie.ai images/clips → FFmpeg stitch → post)
+  → /api/social-studio/job           (per-company job status + previews)
+  → Prisma SocialStudioConfig / SocialStudioJob
+  → OpenAI, kie.ai, ElevenLabs, AssemblyAI, Upload Post (per-company API keys)
+```
+
+- **Overview** (`SocialOverview.tsx`): company enters brand About/mission/services/audience, tone, Upload Post user, platform IDs, enabled platforms. This data is injected into centralized prompts in `src/lib/social-studio/prompts.ts`.
+- **Creator Studio** (`SocialDash.tsx`): image and video generation UI; polls job status instead of shared Supabase `n8n`/`Images`/`videos` row id=1.
+- **Prompts**: server-side only in `src/lib/social-studio/prompts.ts` — companies never edit prompt templates.
+- **Legacy** `/api/social/workflow` returns HTTP 410 (n8n workflow editor retired).
+
+### Newsletter — native pipeline
+
+Newsletter no longer uses n8n webhooks. It runs natively via `/api/newsletter/*`:
+
+```
+Frontend (newsletter/* components)
+  → /api/newsletter/config        (per-company identity + schedule)
+  → /api/newsletter/generate      (OpenAI content → structured sections)
+  → /api/newsletter/regenerate    (revision with retry prompt)
+  → /api/newsletter/template      (OpenAI HTML → store NewsletterTemplate)
+  → /api/newsletter/campaigns     (create/list campaigns)
+  → /api/newsletter/campaigns/run (manual batch send)
+  → /api/newsletter/cron/send     (daily scheduled batch send)
+  → /api/newsletter/subscribers   (per-company subscriber CRUD)
+  → Prisma NewsletterConfig / NewsletterTemplate / NewsletterSubscriber / NewsletterCampaign / NewsletterSend
+  → OpenAI + Resend (per-company API keys from API key management)
+```
+
+- **Settings** (`NewsletterOverview.tsx`): company from-email, logo, website, unsubscribe URL, send schedule.
+- **Prompts**: server-side only in `src/lib/newsletter/prompts.ts` — brand context from `CompanyBrandConfig` + `NewsletterConfig`.
+- **Subscribers**: per-company `NewsletterSubscriber` model (not shared Supabase tables).
+
+### Cold Email (Outreach) — native pipeline
+
+Cold Email no longer uses n8n webhooks. It runs natively via `/api/campaigns`, `/api/scraper`, `/api/cleanup`, and `/api/cold-email/*`:
+
+```
+Frontend (dashboard/* / outreach/*)
+  → /api/cold-email/config        (Instantly campaign ID, send limits, cleanup settings)
+  → /api/cold-email/lists         (per-company lead list CRUD)
+  → /api/scraper                  (Apify leads-finder → Million Verifier → save leads)
+  → /api/campaigns                (OpenAI email generation → pending approval)
+  → /api/campaigns/approve        (push verified leads to Instantly.ai)
+  → /api/cleanup/trigger          (bulk delete from Instantly + reset lead status)
+  → /api/cold-email/cron/cleanup  (scheduled cleanup via CRON_SECRET)
+  → Prisma OutreachConfig / OutreachLeadList / OutreachLead / Campaign / ScraperJob / CleanupLog
+  → OpenAI, Apify, Million Verifier, Instantly.ai (per-company API keys from API key management)
+```
+
+- **Settings** (`ColdEmailSettings.tsx`): Instantly campaign ID, sender name, CTA link, cleanup interval, daily send limit, lead list management.
+- **Prompts**: server-side only in `src/lib/cold-email/prompts.ts` — brand context from `CompanyBrandConfig.icpOutreach` + `OutreachConfig`.
+- **Leads**: per-company `OutreachLead` in named `OutreachLeadList` records (replaces legacy Supabase table1–table6).
 
 ### Auth
 
@@ -61,9 +123,10 @@ NextAuth JWT strategy at `/api/auth/[...nextauth]`. Credentials (email + bcrypt 
 
 ### n8n Integration
 
-Two separate n8n instances are used:
-- `n8n.srv881198.hstgr.cloud` — Meta ads, campaigns, scraper, cleanup (server-side via env vars)
-- `n8n.srv1208919.hstgr.cloud` — Social media / SocialDash (hardcoded in `SocialDash.js`)
+Two separate n8n instances are used for **blog automation only** (and legacy Meta ads via Supabase realtime):
+- `n8n.srv881198.hstgr.cloud` — legacy Meta ads data (frontend CORS proxy)
+
+Social Channels, Create Ad, Newsletter, and Cold Email are **native** (see above).
 
 The `/api/trigger-n8n/route.js` acts as a CORS proxy; it intentionally wraps non-ok responses as 200 so the frontend can read the error body.
 

@@ -37,7 +37,7 @@ export function CleanupStatus() {
     onSuccess: (data) => {
       toast({
         title: 'Cleanup completed!',
-        description: `Deleted ${data.n8nResponse?.results?.deleted_count || 0} contacts from Instantly`,
+        description: `Deleted ${data.result?.results?.deleted_count || 0} contacts from Instantly`,
       });
       queryClient.invalidateQueries({ queryKey: ['cleanup-status'] });
       queryClient.invalidateQueries({ queryKey: ['cleanup-logs'] });
@@ -61,7 +61,7 @@ export function CleanupStatus() {
             Cleanup Status
           </CardTitle>
           <CardDescription>
-            Automatically removes old contacts from Instantly.ai every 10 days
+            Removes oldest sent leads from your Instantly.ai campaign on schedule
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,7 +109,7 @@ export function CleanupStatus() {
         <CardContent className="space-y-4">
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
             <p className="text-xs text-amber-800">
-              This will delete contacts older than 10 days from Instantly.ai and update Google Sheets.
+              This deletes the oldest sent leads from your Instantly.ai campaign and resets their status in your lead lists.
             </p>
           </div>
           <Button

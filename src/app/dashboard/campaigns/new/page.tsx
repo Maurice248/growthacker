@@ -17,7 +17,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { Header } from '@/components/dashboard/header';
 import { PageBody } from '@/components/outreach/page-body';
 import { useAppSection } from '@/lib/app-section';
-import { LEAD_SHEET_OPTIONS } from '@/lib/validations';
+
+interface LeadListOption {
+  id: string;
+  name: string;
+  _count?: { leads: number };
+}
 
 const campaignSchema = z.object({
   campaign_name: z.string().min(3, 'Campaign name must be at least 3 characters'),
@@ -33,11 +38,11 @@ const campaignSchema = z.object({
 
 type CampaignFormData = z.infer<typeof campaignSchema>;
 
-// Loading step messages shown while n8n processes
+// Loading step messages shown while the campaign pipeline runs
 const LOADING_STEPS = [
-  { at: 0,   text: 'Sending campaign brief to n8n...' },
+  { at: 0,   text: 'Preparing campaign brief...' },
   { at: 5,   text: 'Validating campaign data...' },
-  { at: 12,  text: 'Reading leads from Google Sheets...' },
+  { at: 12,  text: 'Loading brand context...' },
   { at: 25,  text: 'AI is crafting your email content...' },
   { at: 55,  text: 'Finalising subject line and preview text...' },
   { at: 90,  text: 'Almost done — saving campaign...' },
@@ -94,7 +99,15 @@ export default function NewCampaignPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [isReuse, setIsReuse] = useState(false);
+  const [leadLists, setLeadLists] = useState<LeadListOption[]>([]);
   const reusedRef = useRef(false);
+
+  useEffect(() => {
+    fetch('/api/cold-email/lists')
+      .then((r) => r.json())
+      .then((data) => setLeadLists(data.lists || []))
+      .catch(() => setLeadLists([]));
+  }, []);
 
   const form = useForm<CampaignFormData>({
     resolver: zodResolver(campaignSchema),
@@ -144,7 +157,10 @@ export default function NewCampaignPage() {
       const response = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          lead_list_id: data.selected_sheet,
+        }),
       });
 
       const result = await response.json();
@@ -155,7 +171,7 @@ export default function NewCampaignPage() {
 
       toast({
         title: '✅ Campaign created successfully!',
-        description: 'AI content generated. Review and approve it to send emails.',
+        description: 'AI content generated. Review and approve to push leads to Instantly.ai.',
       });
 
       router.push(`${basePath}/campaigns`);
@@ -172,13 +188,13 @@ export default function NewCampaignPage() {
 
   return (
     <>
-      {/* Full-screen loading overlay while n8n processes */}
+      {/* Full-screen loading overlay while AI generates content */}
       {isSubmitting && <LoadingOverlay elapsed={elapsed} />}
 
       <div>
         <Header
           title={isReuse ? 'Reuse Campaign' : 'New Campaign'}
-          description={isReuse ? 'Pre-filled from previous campaign — edit and create new' : 'AI generates the email content — you review and approve before sending'}
+          description={isReuse ? 'Pre-filled from previous campaign — edit and create new' : 'AI generates email content — approve to push verified leads to your Instantly.ai campaign'}
         />
 
         <PageBody className="max-w-2xl mx-auto">
@@ -199,6 +215,10 @@ export default function NewCampaignPage() {
             </p>
           </div>
         )}
+
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <strong>Instantly.ai:</strong> Approving a campaign pushes verified leads from your selected list into your Instantly campaign. Instantly handles delivery and follow-up sequences.
+        </div>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
@@ -257,12 +277,14 @@ export default function NewCampaignPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Lead Sheet</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lead List</label>
                   <Select onValueChange={(v) => form.setValue('selected_sheet', v)} disabled={isSubmitting}>
-                    <SelectTrigger><SelectValue placeholder="Select Google Sheet tab" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select lead list" /></SelectTrigger>
                     <SelectContent>
-                      {LEAD_SHEET_OPTIONS.map((sheet) => (
-                        <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                      {leadLists.map((list) => (
+                        <SelectItem key={list.id} value={list.id}>
+                          {list.name} ({list._count?.leads ?? 0} leads)
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

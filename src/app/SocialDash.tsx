@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useN8nWebhooks, n8nUrl } from '@/hooks/use-n8n-webhooks';
 import CustomSelect from './CustomSelect';
 import { createPortal } from 'react-dom';
 import {
@@ -26,7 +25,22 @@ import {
 } from 'lucide-react';
 
 import { Badge, Spinner } from './components';
-import { socialSupabase } from '../lib/socialSupabase';
+import {
+  acceptStory,
+  fetchJobStatus,
+  fetchLatestJob,
+  fetchSocialConfig,
+  generateImage,
+  generateStory,
+  pollImageUntilDone,
+  pollKiePhase,
+  pollStitchPhase,
+  pollVideoPhase,
+  postImage,
+  postVideo,
+  retryStory,
+  startVideoRender,
+} from '@/lib/social-studio/client-api';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
 import ImagePromptModal from './ImagePromptModal';
@@ -48,10 +62,10 @@ const VOICE_OPTIONS = {
 const medicalBlue = "#0284c7";
 const medicalTeal = "#0d9488";
 
-const BRAND_HANDLE = "tenant_report_ai";
-const BRAND_NAME = "Tenant Report AI";
-const BRAND_LOGO = "/tenant-report-logo.png";
-const BRAND_DOMAIN = "tenantreport.ai";
+const DEFAULT_BRAND_HANDLE = "brand";
+const DEFAULT_BRAND_NAME = "Your Brand";
+const DEFAULT_BRAND_LOGO = "/tenant-report-logo.png";
+const DEFAULT_BRAND_DOMAIN = "yourbrand.com";
 
 const SAMPLE_SOCIAL_FALLBACK = {
   instagram:
@@ -155,7 +169,13 @@ interface ToastState {
 }
 
 export default function SocialDash() {
-  const n8nWebhooks = useN8nWebhooks();
+  const [brandHandle, setBrandHandle] = useState(DEFAULT_BRAND_HANDLE);
+  const [brandName, setBrandName] = useState(DEFAULT_BRAND_NAME);
+  const [brandLogo] = useState(DEFAULT_BRAND_LOGO);
+  const [brandDomain, setBrandDomain] = useState(DEFAULT_BRAND_DOMAIN);
+  const [currentImageJobId, setCurrentImageJobId] = useState<string | null>(null);
+  const [currentVideoJobId, setCurrentVideoJobId] = useState<string | null>(null);
+  const [videoAudioUrl, setVideoAudioUrl] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>("");
   const [supabaseVideoUrl, setSupabaseVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
@@ -235,95 +255,90 @@ export default function SocialDash() {
   } | null>(null);
   const [activeVideoPlatform, setActiveVideoPlatform] = useState<'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'youtube' | 'twitter'>('instagram');
 
-  // ── Supabase Images table: fetch & stream video_link, image_link, Descriptions from row id=1 ──
+  // ── Load social config + latest jobs from native API ──
   useEffect(() => {
-    const fetchImageData = async () => {
+    const loadInitial = async () => {
       try {
-        const { data, error } = await socialSupabase
-          .from('Images')
-          .select('image_link, Descriptions')
-          .eq('id', 1)
-          .single();
-        console.log('[Images fetch] data:', data, '| error:', error);
-        if (data?.image_link) {
-          setSupabaseImageUrl(data.image_link);
-          setGeneratedSocialImage(data.image_link);
+        const [configRes, imageJob, videoJob] = await Promise.all([
+          fetchSocialConfig().catch(() => null),
+          fetchLatestJob('image'),
+          fetchLatestJob('video'),
+        ]);
+
+        if (configRes?.context) {
+          const ctx = configRes.context;
+          const slug = (ctx.brandWebsite || '').replace(/^https?:\/\//, '').split('/')[0];
+          setBrandName(ctx.companyName || DEFAULT_BRAND_NAME);
+          setBrandHandle(ctx.uploadPostUser || slug || DEFAULT_BRAND_HANDLE);
+          setBrandDomain(slug || DEFAULT_BRAND_DOMAIN);
+        }
+
+        if (imageJob?.assetUrl) {
+          setSupabaseImageUrl(imageJob.assetUrl);
+          setGeneratedSocialImage(imageJob.assetUrl);
+          setCurrentImageJobId(imageJob.id);
           setShowImageWorkspace(true);
         }
-        if (data?.Descriptions) {
-          const parsed = parseDescriptions(data.Descriptions);
-          setSupabaseDescription(parsed.supabaseTitle);
-          setSocialDescriptions(parsed.socialDescriptions);
+        if (imageJob?.descriptions) {
+          const d = imageJob.descriptions;
+          setSocialDescriptions({
+            instagram: d.instagram || '',
+            facebook: d.facebook || '',
+            tiktok: d.tiktok || '',
+            linkedin: d.linkedin || '',
+            twitter: d.twitter || '',
+          });
+        }
+
+        if (videoJob?.assetUrl) {
+          setSupabaseVideoUrl(videoJob.assetUrl);
+          setCurrentVideoJobId(videoJob.id);
+        }
+        if (videoJob?.descriptions) {
+          const d = videoJob.descriptions;
+          setVideoMetadata({
+            instagram: { content: d.instagram },
+            facebook: { content: d.facebook },
+            linkedin: { content: d.linkedin },
+            tiktok: { caption: d.tiktok },
+            youtube: { description: d.youtube },
+            twitter: { content: d.twitter },
+          });
         }
       } catch (err) {
-        console.error("Error fetching initial image data from Supabase:", err);
+        console.error('Error loading social studio data:', err);
       } finally {
         setIsInitialLoading(false);
       }
     };
-    const fetchVideoData = async () => {
+
+    loadInitial();
+
+    const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('/api/video-metadata');
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+        const [imageJob, videoJob, pipelineStatus] = await Promise.all([
+          fetchLatestJob('image'),
+          fetchLatestJob('video'),
+          fetchJobStatus(),
+        ]);
+        setStatus(pipelineStatus);
+
+        if (imageJob?.assetUrl && imageJob.id !== currentImageJobId) {
+          setSupabaseImageUrl(imageJob.assetUrl);
+          setGeneratedSocialImage(imageJob.assetUrl);
+          setCurrentImageJobId(imageJob.id);
         }
-        const data = await res.json();
-        if (data) {
-          if (data.video_link) {
-            setSupabaseVideoUrl(data.video_link);
-          }
-          if (data.metadata) {
-            setVideoMetadata(data.metadata);
-          }
+        if (videoJob?.assetUrl && videoJob.id !== currentVideoJobId) {
+          setSupabaseVideoUrl(videoJob.assetUrl);
+          setCurrentVideoJobId(videoJob.id);
         }
-      } catch (err) {
-        console.error("Error fetching video data from server API proxy:", err);
+      } catch {
+        // ignore poll errors
       }
-    };
-
-    fetchImageData();
-    fetchVideoData();
-
-    // Set up polling for live video metadata (to bypass real-time subscription RLS block)
-    const videoPollInterval = setInterval(() => {
-      fetchVideoData();
     }, 8000);
 
-    const channel = socialSupabase
-      .channel('images-all-cols')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'Images', filter: 'id=eq.1' }, (payload: any) => {
-        if (payload.new?.image_link) {
-          setSupabaseImageUrl(payload.new.image_link);
-          setGeneratedSocialImage(payload.new.image_link);
-          setShowImageWorkspace(true);
-        }
-        if (payload.new?.Descriptions) {
-          const parsed = parseDescriptions(payload.new.Descriptions);
-          setSupabaseDescription(parsed.supabaseTitle);
-          setSocialDescriptions(parsed.socialDescriptions);
-        }
-      })
-      .subscribe();
-
-    const videoChannel = socialSupabase
-      .channel('videos-all-cols')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'videos', filter: 'id=eq.1' }, (payload: any) => {
-        console.log('[Videos channel update] payload:', payload);
-        if (payload.new?.video_link) {
-          setSupabaseVideoUrl(payload.new.video_link);
-        }
-        if (payload.new?.metadata) {
-          setVideoMetadata(payload.new.metadata);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      socialSupabase.removeChannel(channel);
-      socialSupabase.removeChannel(videoChannel);
-      clearInterval(videoPollInterval);
-    };
-  }, []);
+    return () => clearInterval(pollInterval);
+  }, [currentImageJobId, currentVideoJobId]);
 
   // ── Automatically detect aspect ratio of generated/fetched image ──
   useEffect(() => {
@@ -347,33 +362,7 @@ export default function SocialDash() {
   }, []);
 
   useEffect(() => {
-    const sampleUrl = "https://cdssxtquayzijmbnlqmt.supabase.co/storage/v1/object/public/n8n/finalbefore2.mp3";
-    setVideoUrl(`${sampleUrl}?t=${Date.now()}`);
-
-    const fetchStatus = async () => {
-      try {
-        const { data, error } = await socialSupabase
-          .from('n8n')
-          .select('status')
-          .order('id', { ascending: false })
-          .limit(1);
-
-        if (error) { setStatus("Status Error"); }
-        else if (data && data.length > 0) { setStatus(data[0].status); }
-        else { setStatus("Waiting for Data..."); }
-      } catch { setStatus("Connection Error"); }
-    };
-
-    fetchStatus();
-
-    const channel = socialSupabase
-      .channel('n8n-status-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'n8n' }, (payload: any) => {
-        if (payload.new?.status) setStatus(payload.new.status);
-      })
-      .subscribe();
-
-    return () => { socialSupabase.removeChannel(channel); };
+    fetchJobStatus().then(setStatus).catch(() => setStatus('Connection Error'));
   }, []);
 
   // Timer logic for progress bar (max 6 minutes = 360s for video, 60s for images)
@@ -416,15 +405,21 @@ export default function SocialDash() {
   const handleRefreshPreview = async () => {
     setIsRefreshingVideo(true);
     try {
-      const res = await fetch(`/api/video-metadata?t=${Date.now()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.video_link) {
-          setSupabaseVideoUrl(`${data.video_link}?t=${Date.now()}`);
-        }
-        if (data?.metadata) {
-          setVideoMetadata(data.metadata);
-        }
+      const videoJob = await fetchLatestJob('video');
+      if (videoJob?.assetUrl) {
+        setSupabaseVideoUrl(`${videoJob.assetUrl}?t=${Date.now()}`);
+        setCurrentVideoJobId(videoJob.id);
+      }
+      if (videoJob?.descriptions) {
+        const d = videoJob.descriptions;
+        setVideoMetadata({
+          instagram: { content: d.instagram },
+          facebook: { content: d.facebook },
+          linkedin: { content: d.linkedin },
+          tiktok: { caption: d.tiktok },
+          youtube: { description: d.youtube },
+          twitter: { content: d.twitter },
+        });
       }
     } catch (err) {
       console.error("Error refreshing video preview:", err);
@@ -438,20 +433,22 @@ export default function SocialDash() {
   const handleRefreshImagePreview = async () => {
     setIsRefreshingImage(true);
     try {
-      const { data } = await socialSupabase
-        .from('Images')
-        .select('image_link, Descriptions')
-        .eq('id', 1)
-        .single();
-      if (data?.image_link) {
-        setSupabaseImageUrl(data.image_link);
-        setGeneratedSocialImage(`${data.image_link}?t=${Date.now()}`);
+      const imageJob = await fetchLatestJob('image');
+      if (imageJob?.assetUrl) {
+        setSupabaseImageUrl(imageJob.assetUrl);
+        setGeneratedSocialImage(`${imageJob.assetUrl}?t=${Date.now()}`);
+        setCurrentImageJobId(imageJob.id);
         setShowImageWorkspace(true);
       }
-      if (data?.Descriptions) {
-        const parsed = parseDescriptions(data.Descriptions);
-        setSupabaseDescription(parsed.supabaseTitle);
-        setSocialDescriptions(parsed.socialDescriptions);
+      if (imageJob?.descriptions) {
+        const d = imageJob.descriptions;
+        setSocialDescriptions({
+          instagram: d.instagram || '',
+          facebook: d.facebook || '',
+          tiktok: d.tiktok || '',
+          linkedin: d.linkedin || '',
+          twitter: d.twitter || '',
+        });
       }
     } catch (err) {
       console.error("Error refreshing image preview:", err);
@@ -466,58 +463,6 @@ export default function SocialDash() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const triggerWebhook = async (url: string, label: string, successMessage: string, body: any = null, method = 'POST') => {
-    if (label === 'post') {
-      setIsVideoPosting(true);
-    } else if (label === 'post_social') {
-      setIsImagePosting(true);
-    } else {
-      setLoading(label);
-    }
-    console.log(`[UI] Triggering webhook: ${url}`, { body, method });
-    try {
-      const response = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, body, method }),
-      });
-
-      console.log(`[UI] Proxy response status: ${response.status} ${response.statusText}`);
-
-      const rawText = await response.text();
-      console.log(`[UI] Raw proxy response:`, rawText.slice(0, 1000));
-
-      let data: any;
-      try { data = JSON.parse(rawText); }
-      catch { data = rawText ? { message: rawText } : { status: 'ok' }; }
-
-      if (response.ok) {
-        showToast(successMessage, 'success');
-        return data;
-      } else {
-        console.error(`[UI] Webhook failed:`, data);
-        showToast(`Trigger failed: ${data?.error || response.statusText}`, 'info');
-        return null;
-      }
-    } catch (err) {
-      console.error("[UI] Webhook fetch error:", err);
-      showToast("Trigger failed. Check browser console for details.", 'info');
-      return null;
-    } finally {
-      if (label === 'post') {
-        setIsVideoPosting(false);
-      } else if (label === 'post_social') {
-        setIsImagePosting(false);
-      } else {
-        setLoading(null);
-      }
-    }
-  };
-
-  const handleGenerateImages = () => {
-    setShowImageModal(true);
-  };
-
   const handleImagePromptSubmit = async (prompt: string) => {
     setShowImageModal(false);
     setStatus("Generating images...");
@@ -525,97 +470,56 @@ export default function SocialDash() {
     setGenerationType('images');
     setProgress(0);
     hasTriggeredInSession.current = true;
-
-    // Switch to visual workspace & show mobile screen loader instantly
     setShowImageWorkspace(true);
     setIsImageGenerating(true);
     setGeneratedSocialImage(null);
 
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL");
-    const result = await triggerWebhook(
-      webhookUrl,
-      "images",
-      "Images generated successfully!",
-      { prompt, text: prompt, ratio: imageRatio, aspect_ratio: imageRatio },
-      "POST"
-    );
+    try {
+      const start = await generateImage(prompt, imageRatio);
+      setCurrentImageJobId(start.jobId);
+      const result = await pollImageUntilDone(start.jobId, start.taskId, prompt);
 
-    if (result) {
       setProgress(100);
       setTimeout(() => {
         setIsGenerating(false);
         setGenerationType(null);
       }, 1000);
 
-      // Parse n8n response payload structure
-      try {
-        const payload = Array.isArray(result) ? result[0] : result;
-        const imageUrl = payload?.image_url || payload?.image || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png";
-        const platforms = payload?.platforms || {};
+      const imageUrl = result.imageUrl;
+      const descriptions = result.descriptions || {};
 
-        const instaText = platforms.instagram?.content || 
-                          platforms.instagram?.caption || 
-                          SAMPLE_SOCIAL_FALLBACK.instagram;
-
-        const fbText = platforms.facebook?.content || 
-                       platforms.facebook?.caption || 
-                       SAMPLE_SOCIAL_FALLBACK.facebook;
-
-        const ttText = payload?.raw?.caption ||
-                       payload?.Descriptions?.caption ||
-                       platforms.tiktok?.caption || 
-                       platforms.tiktok?.content || 
-                       platforms.tiktok?.description || 
-                       SAMPLE_SOCIAL_FALLBACK.tiktok;
-
-        const twText = platforms.twitter?.content || 
-                       platforms.twitter?.caption || 
-                       platforms.twitter?.description || 
-                       SAMPLE_SOCIAL_FALLBACK.twitter;
-
-        const liText = platforms.linkedin?.content || 
-                       platforms.linkedin?.caption || 
-                       SAMPLE_SOCIAL_FALLBACK.linkedin;
-
-        setGeneratedSocialImage(imageUrl);
-        setSocialDescriptions({
-          instagram: instaText,
-          facebook: fbText,
-          tiktok: ttText,
-          linkedin: liText,
-          twitter: twText
-        });
-        // Auto-refresh image preview from Supabase after successful generation
-        setTimeout(() => handleRefreshImagePreview(), 1500);
-      } catch (err) {
-        console.error("Error parsing webhook social data:", err);
-      } finally {
-        setIsImageGenerating(false);
-      }
-    } else {
+      setGeneratedSocialImage(imageUrl);
+      setSocialDescriptions({
+        instagram: descriptions.instagram || SAMPLE_SOCIAL_FALLBACK.instagram,
+        facebook: descriptions.facebook || SAMPLE_SOCIAL_FALLBACK.facebook,
+        tiktok: descriptions.tiktok || SAMPLE_SOCIAL_FALLBACK.tiktok,
+        linkedin: descriptions.linkedin || SAMPLE_SOCIAL_FALLBACK.linkedin,
+        twitter: descriptions.twitter || SAMPLE_SOCIAL_FALLBACK.twitter,
+      });
+      showToast("Images generated successfully!", 'success');
+    } catch (err: any) {
+      console.error('[UI] Image generation error:', err);
+      showToast(err?.message || 'Image generation failed', 'info');
       setIsGenerating(false);
       setGenerationType(null);
-      setIsImageGenerating(false);
-      
       setSocialDescriptions({ ...SAMPLE_SOCIAL_FALLBACK });
+    } finally {
+      setIsImageGenerating(false);
     }
   };
 
   const handleSocialPost = async () => {
+    if (!currentImageJobId || !generatedSocialImage) {
+      showToast('No image to post', 'info');
+      return;
+    }
     setIsImagePosting(true);
     try {
-      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_POST_URL");
-      await triggerWebhook(
-        webhookUrl,
-        "post_social",
-        "IMAGE PUBLISHED SUCCESSFULLY",
-        {
-          image_url: generatedSocialImage,
-          descriptions: socialDescriptions,
-          status: "Approved"
-        },
-        "POST"
-      );
+      await postImage(currentImageJobId, generatedSocialImage, socialDescriptions);
+      showToast('IMAGE PUBLISHED SUCCESSFULLY', 'success');
+      setStatus('Image Posted');
+    } catch (err: any) {
+      showToast(err?.message || 'Post failed', 'info');
     } finally {
       setIsImagePosting(false);
     }
@@ -623,104 +527,31 @@ export default function SocialDash() {
 
   const handleSocialRetrySubmit = async (retryPrompt: string) => {
     setShowSocialRetryModal(false);
-    setStatus("Regenerating images...");
+    await handleImagePromptSubmit(retryPrompt);
+  };
+
+  const handleManualTrigger = async () => {
     setIsGenerating(true);
-    setGenerationType('images');
     setProgress(0);
     hasTriggeredInSession.current = true;
-
-    // Switch to visual workspace & show mobile screen loader instantly
-    setShowImageWorkspace(true);
-    setIsImageGenerating(true);
-    setGeneratedSocialImage(null);
-
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_IMAGE_URL");
-    const result = await triggerWebhook(
-      webhookUrl,
-      "images",
-      "Social campaign regenerated successfully!",
-      {
-        prompt: retryPrompt,
-        text: retryPrompt,
-        ratio: imageRatio,
-        aspect_ratio: imageRatio,
-        is_retry: true,
-        status: "Reject",
-        previous_image: generatedSocialImage
-      },
-      "POST"
-    );
-
-    if (result) {
-      setProgress(100);
-      setTimeout(() => {
-        setIsGenerating(false);
-        setGenerationType(null);
-      }, 1000);
-
-      // Parse n8n response payload structure
-      try {
-        const payload = Array.isArray(result) ? result[0] : result;
-        const imageUrl = payload?.image_url || payload?.image || "https://tempfile.aiquickdraw.com/workers/nano/image_1779862412111_eo1ssy.png";
-        const platforms = payload?.platforms || {};
-
-        const instaText = platforms.instagram?.content || 
-                          platforms.instagram?.caption || 
-                          "";
-
-        const fbText = platforms.facebook?.content || 
-                       platforms.facebook?.caption || 
-                       "";
-
-        const ttText = payload?.raw?.caption ||
-                       payload?.Descriptions?.caption ||
-                       platforms.tiktok?.caption || 
-                       platforms.tiktok?.content || 
-                       platforms.tiktok?.description || 
-                       "";
-
-        const liText = platforms.linkedin?.content || 
-                       platforms.linkedin?.caption || 
-                       "";
-
-        const twText = platforms.twitter?.content || 
-                       platforms.twitter?.caption || 
-                       platforms.twitter?.description || 
-                       "";
-
-        setGeneratedSocialImage(imageUrl);
-        setSocialDescriptions({
-          instagram: instaText,
-          facebook: fbText,
-          tiktok: ttText,
-          linkedin: liText,
-          twitter: twText
-        });
-        // Auto-refresh image preview from Supabase after successful retry
-        setTimeout(() => handleRefreshImagePreview(), 1500);
-      } catch (err) {
-        console.error("Error parsing webhook social data in retry:", err);
-      } finally {
-        setIsImageGenerating(false);
+    localStorage.setItem('sd_generation_start', Date.now().toString());
+    setStatus("Starting video process...");
+    setLoading('manual');
+    try {
+      const result = await generateStory(videoFormData);
+      if (result.story) {
+        setGeneratedStory(result.story);
+        showToast('Story generated! Review and accept to continue.', 'success');
       }
-    } else {
-      setIsGenerating(false);
-      setGenerationType(null);
-      setIsImageGenerating(false);
+    } catch (err: any) {
+      showToast(err?.message || 'Video process failed', 'info');
+    } finally {
+      setLoading(null);
     }
   };
 
-  const handleManualTrigger = () => {
-    setIsGenerating(true);
-    setProgress(0);
-    hasTriggeredInSession.current = true;
-    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
-    setStatus("Starting video process...");
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_MANUAL_URL");
-    triggerWebhook(
-      webhookUrl,
-      "manual", "Video processing started. Check email!"
-    );
+  const handleGenerateImages = () => {
+    setShowImageModal(true);
   };
 
   const handleDynamicTrigger = () => {
@@ -731,166 +562,182 @@ export default function SocialDash() {
   const handleModalSubmit = async (data: any) => {
     console.log("[UI] Modal submitted with data:", data);
     setShowModal(false);
-    
-    // Normalize duration value (append 's' if numeric or missing 's')
+
     const formattedData = {
       ...data,
       duration: typeof data.duration === 'number' || (typeof data.duration === 'string' && !data.duration.endsWith('s'))
         ? `${data.duration}s`
         : data.duration
     };
-    
+
     setLastInputs(formattedData);
     setGeneratedScenes([]);
+    setLoading('dynamic');
 
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_DYNAMIC_URL");
-    const result = await triggerWebhook(
-      webhookUrl,
-      "dynamic",
-      "Spotlight Triggered!",
-      formattedData
-    );
-
-    console.log("[UI] handleModalSubmit result:", result);
-
-    const story = Array.isArray(result)
-      ? (result[0]?.output?.story || result[0]?.story)
-      : (result?.output?.story || result?.story);
-
-    console.log("[UI] Extracted story:", story ? story.slice(0, 100) : "NONE");
-
-    if (story) {
-      setGeneratedStory(story);
-    } else {
-      console.warn("[UI] No story found in result. Full result:", JSON.stringify(result));
+    try {
+      const result = await generateStory(formattedData);
+      const story = result?.output?.story || result?.story;
+      if (story) {
+        setGeneratedStory(story);
+        showToast('Story generated!', 'success');
+      } else {
+        showToast('No story returned', 'info');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Story generation failed', 'info');
+    } finally {
+      setLoading(null);
     }
   };
 
   const handleAcceptStory = async () => {
     const backupStory = generatedStory;
-    setGeneratedStory(null); // Clear immediately as requested
+    setGeneratedStory(null);
     setGeneratedScenes([]);
-    setAcceptedStory(null); // Clear any previous accepted story
-    
-    // Start progress bar loader immediately on click
+    setAcceptedStory(null);
     setIsGenerating(true);
     setGenerationType('video');
     setProgress(0);
     hasTriggeredInSession.current = true;
-    localStorage.setItem('sd_generation_start', Date.now().toString()); // ── Persist start time
+    localStorage.setItem('sd_generation_start', Date.now().toString());
     setStatus("Accepting story and generating prompts...");
+    setLoading('accept');
 
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_ACCEPT_URL");
-    const result = await triggerWebhook(
-      webhookUrl,
-      "accept",
-      "Story accepted and saved!",
-      { ...lastInputs, generated_story: backupStory, status: "accepted" }
-    );
+    try {
+      const result = await acceptStory({ ...lastInputs, generated_story: backupStory, status: "accepted" });
+      const scenes = result.scenes || [];
 
-    console.log("[UI] handleAcceptStory result:", result);
-
-    const scenes = findScenesRecursively(result) || [];
-
-    const isAccepted = (scenes && scenes.length > 0) || (
-      Array.isArray(result)
-        ? (result[0]?.body?.status === "accepted" || result[0]?.status === "accepted" || (result[0]?.body && result[0].body.status === "accepted") || (result[0] && result[0].status === "accepted"))
-        : (result?.body?.status === "accepted" || result?.status === "accepted" || (result?.body && result.body.status === "accepted") || (result && result.status === "accepted"))
-    );
-
-    if (isAccepted && scenes && scenes.length > 0) {
-      console.log("[UI] Story accepted, scenes returned directly from webhook response. Rendering.");
-      setGeneratedScenes(scenes);
-      setAcceptedStory(backupStory); // Retain accepted story text
-      setProgress(100);
-      setTimeout(() => {
-        setIsGenerating(false);   // Turn off loader since prompts are ready on UI
-        setGenerationType(null);
-      }, 1000);
-    } else {
-      if (isAccepted) {
-        console.warn("[UI] Story accepted but no scenes returned in webhook response. Decoupling progress check.");
+      if (scenes.length > 0) {
+        setGeneratedScenes(scenes);
+        setAcceptedStory(backupStory);
+        setCurrentVideoJobId(result.jobId);
+        setVideoAudioUrl(result.audioUrl || null);
+        setProgress(100);
+        showToast('Story accepted and scenes generated!', 'success');
+        setTimeout(() => {
+          setIsGenerating(false);
+          setGenerationType(null);
+        }, 1000);
       } else {
-        console.warn("[UI] Accept webhook failed or was rejected.");
+        setIsGenerating(false);
+        setGenerationType(null);
+        showToast('Story accepted but no scenes returned', 'info');
       }
+    } catch (err: any) {
       setIsGenerating(false);
       setGenerationType(null);
+      showToast(err?.message || 'Accept failed', 'info');
+    } finally {
+      setLoading(null);
     }
   };
 
   const handleConfirmPrompts = async () => {
-    setSceneFailures({}); // clear any previous failures
+    if (!currentVideoJobId || !acceptedStory) {
+      showToast('Missing job or story', 'info');
+      return;
+    }
+
+    setSceneFailures({});
     setIsGenerating(true);
     setGenerationType('video');
     setProgress(0);
     hasTriggeredInSession.current = true;
     localStorage.setItem('sd_generation_start', Date.now().toString());
     setStatus("Generating your social video preview...");
+    setLoading('confirm');
 
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_CONFIRM_PROMPTS_URL");
-    console.log("[UI] Confirming prompts to:", webhookUrl);
-
-    let result: any = null;
-    setLoading('confirm'); // disable button + hide scenes immediately
     try {
-      // Use direct fetch through proxy so we can read the body even on non-200 responses
-      const proxyRes = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: webhookUrl,
-          method: 'POST',
-          body: { story: acceptedStory, scenes: generatedScenes, status: "confirmed" }
-        })
+      const renderStart = await startVideoRender({
+        jobId: currentVideoJobId,
+        story: acceptedStory,
+        scenes: generatedScenes,
+        audioUrl: videoAudioUrl,
       });
-      const rawText = await proxyRes.text();
-      try { result = JSON.parse(rawText); } catch { result = rawText ? { message: rawText } : null; }
-      console.log("[UI] Confirm prompts raw response:", rawText.slice(0, 500));
-    } catch (err) {
-      console.error("[UI] Confirm prompts fetch error:", err);
-    } finally {
-      setLoading(null);
-    }
 
-    if (result) {
-      // Check for partial/full failures due to policy violations (present in both 200 and non-200 responses)
-      const responseArr = Array.isArray(result) ? result : [result];
-      const responseObj = responseArr[0] ?? result;
-      const failedResults: any[] = responseObj?.results?.filter((r: any) => r.state === 'fail') || [];
+      const imageTaskIds = renderStart.imageTaskIds || [];
+      const imagePoll = (await pollKiePhase(() =>
+        pollVideoPhase({
+          phase: 'images',
+          jobId: currentVideoJobId,
+          scenes: generatedScenes,
+          imageTaskIds,
+        })
+      )) as { complete?: boolean; scenes?: typeof generatedScenes; failures?: Array<{ failMsg?: string }> };
 
-      if (failedResults.length > 0) {
-        const failures: Record<number, { msg: string; column: 'image' | 'video' }> = {};
-        failedResults.forEach((r: any) => {
-          // Detect failure type: video tasks have duration/aspect_ratio fields
-          const isVideoTask = r.duration !== undefined || r.aspect_ratio !== undefined;
-          const column: 'image' | 'video' = isVideoTask ? 'video' : 'image';
-          const sceneIdx = (r.index ?? 0) - 1; // 1-based → 0-based
-          failures[sceneIdx] = {
-            msg: r.failMsg || 'This prompt violated content policy.',
-            column,
-          };
-        });
-        setSceneFailures(failures);
-        setIsGenerating(false);
-        setGenerationType(null);
-        showToast(`${failedResults.length} prompt(s) failed — edit the highlighted scenes and resubmit.`, 'info');
-        return;
-      }
+      const scenesWithImages = imagePoll.scenes || generatedScenes;
+      const videoStart = await pollVideoPhase({
+        phase: 'start_videos',
+        jobId: currentVideoJobId,
+        scenes: scenesWithImages,
+      });
 
-      // All succeeded
-      console.log("[UI] Prompts confirmed and video created successfully:", result);
+      const videoPoll = (await pollKiePhase(() =>
+        pollVideoPhase({
+          phase: 'videos',
+          jobId: currentVideoJobId,
+          scenes: scenesWithImages,
+          videoTaskIds: videoStart.videoTaskIds,
+        })
+      )) as { complete?: boolean; scenes?: typeof generatedScenes; failures?: Array<{ failMsg?: string }> };
+
+      const scenesComplete = videoPoll.scenes || scenesWithImages;
+
+      setStatus('Stitching scene clips into final video...');
+      const stitchStart = await pollVideoPhase({
+        phase: 'start_stitch',
+        jobId: currentVideoJobId,
+        scenes: scenesComplete,
+        audioUrl: videoAudioUrl,
+      });
+
+      await pollStitchPhase(() =>
+        pollVideoPhase({
+          phase: 'stitch',
+          jobId: currentVideoJobId,
+          stitchJobId: stitchStart.stitchJobId,
+        })
+      );
+
+      setStatus('Finalizing video and captions...');
+      const final = await pollVideoPhase({
+        phase: 'complete_finalize',
+        jobId: currentVideoJobId,
+        story: acceptedStory,
+        scenes: scenesComplete,
+        stitchJobId: stitchStart.stitchJobId,
+      });
+
       setProgress(100);
       setGeneratedScenes([]);
       setAcceptedStory(null);
+      if (final.assetUrl) {
+        setSupabaseVideoUrl(final.assetUrl);
+      }
+      if (final.descriptions) {
+        const d = final.descriptions;
+        setVideoMetadata({
+          instagram: { content: d.instagram },
+          facebook: { content: d.facebook },
+          linkedin: { content: d.linkedin },
+          tiktok: { caption: d.tiktok },
+          youtube: { description: d.youtube },
+          twitter: { content: d.twitter },
+        });
+      }
+      showToast('Video created successfully!', 'success');
       handleRefreshPreview();
       setTimeout(() => {
         setIsGenerating(false);
         setGenerationType(null);
       }, 1000);
-    } else {
-      console.warn("[UI] Confirm prompts webhook failed with no data.");
+    } catch (err: any) {
+      console.error('[UI] Confirm prompts error:', err);
       setIsGenerating(false);
       setGenerationType(null);
+      showToast(err?.message || 'Video generation failed', 'info');
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -898,22 +745,22 @@ export default function SocialDash() {
     setShowRetryModal(false);
     setGeneratedScenes([]);
     setSceneFailures({});
-    const data = { ...lastInputs, retry_prompt: retryPrompt, status: "retry", generated_story: generatedStory };
-    
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_RETRY_URL");
-    const result = await triggerWebhook(
-      webhookUrl,
-      "dynamic", 
-      "Retry Triggered!",
-      data
-    );
+    setLoading('dynamic');
 
-    const story = Array.isArray(result) 
-      ? (result[0]?.output?.story || result[0]?.story)
-      : (result?.output?.story || result?.story);
-    
-    if (story) {
-      setGeneratedStory(story);
+    try {
+      const result = await retryStory({
+        ...lastInputs,
+        retry_prompt: retryPrompt,
+        status: "retry",
+        generated_story: generatedStory,
+      });
+      const story = result?.output?.story || result?.story;
+      if (story) setGeneratedStory(story);
+      showToast('Retry complete', 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'Retry failed', 'info');
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -1002,7 +849,7 @@ export default function SocialDash() {
       overflow: 'hidden',
       border: '1px solid #e2e8f0'
     }}>
-      <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      <img src={brandLogo} alt={brandName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
   );
 
@@ -1022,7 +869,7 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderAvatar()}
             <div>
-              <p style={{ fontSize: '11px', fontWeight: 700, margin: 0 }}>{BRAND_HANDLE}</p>
+              <p style={{ fontSize: '11px', fontWeight: 700, margin: 0 }}>{brandHandle}</p>
               <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>AI Tenant Screening · Canada</p>
             </div>
           </div>
@@ -1055,7 +902,7 @@ export default function SocialDash() {
 
         {/* Description text */}
         <div style={{ padding: '0 12px', fontSize: '11px', lineHeight: '1.5', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-          <span style={{ fontWeight: 700, marginRight: '6px' }}>{BRAND_HANDLE}</span>
+          <span style={{ fontWeight: 700, marginRight: '6px' }}>{brandHandle}</span>
           {formattedText}
         </div>
       </div>
@@ -1078,7 +925,7 @@ export default function SocialDash() {
           {renderAvatar()}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <p style={{ fontSize: '12px', fontWeight: 700, margin: 0 }}>{BRAND_NAME}</p>
+              <p style={{ fontSize: '12px', fontWeight: 700, margin: 0 }}>{brandName}</p>
               <span style={{ color: '#1877f2', fontSize: '10px' }}>✔️</span>
             </div>
             <p style={{ fontSize: '9px', color: '#65676b', margin: 0 }}>Sponsored · 🌍</p>
@@ -1102,7 +949,7 @@ export default function SocialDash() {
             ) : null}
           </div>
           <div style={{ padding: '10px', background: '#f0f2f5', borderTop: '1px solid #e4e6eb' }}>
-            <p style={{ fontSize: '9px', color: '#65676b', textTransform: 'uppercase', margin: 0 }}>{BRAND_DOMAIN}</p>
+            <p style={{ fontSize: '9px', color: '#65676b', textTransform: 'uppercase', margin: 0 }}>{brandDomain}</p>
             <p style={{ fontSize: '12px', fontWeight: 700, margin: '4px 0 0 0', color: '#050505' }}>Affordable AI-Powered Tenant Screening for Canadian Landlords</p>
           </div>
         </div>
@@ -1138,7 +985,7 @@ export default function SocialDash() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
           {renderAvatar()}
           <div>
-            <p style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#000000' }}>{BRAND_NAME}</p>
+            <p style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#000000' }}>{brandName}</p>
             <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>AI-Powered Tenant Screening Platform · 10,240 followers</p>
             <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>1h · 🌍</p>
           </div>
@@ -1203,11 +1050,11 @@ export default function SocialDash() {
           
           {/* User & Caption Info */}
           <div style={{ flex: 1, paddingRight: '20px', color: '#ffffff', textShadow: '0 1px 4px rgba(0,0,0,0.8)', textAlign: 'left' }}>
-            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@{BRAND_HANDLE}</p>
+            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@{brandHandle}</p>
             <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, maxHeight: '60px', overflowY: 'auto', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
               {text}
             </p>
-            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - {BRAND_NAME}</p>
+            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - {brandName}</p>
           </div>
 
           {/* Right Floating Actions */}
@@ -1215,7 +1062,7 @@ export default function SocialDash() {
             {/* Avatar with Pink Plus */}
             <div style={{ position: 'relative', width: '28px', height: '28px' }}>
               <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '1.5px solid #ffffff', overflow: 'hidden', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src={brandLogo} alt={brandName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#ff0050', color: '#ffffff', borderRadius: '50%', width: '10px', height: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', fontWeight: 800 }}>+</div>
             </div>
@@ -1266,8 +1113,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderAvatar()}
             <div>
-              <p style={{ fontSize: '11px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{BRAND_NAME}</p>
-              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>@{BRAND_HANDLE} · 1h</p>
+              <p style={{ fontSize: '11px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{brandName}</p>
+              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>@{brandHandle} · 1h</p>
             </div>
           </div>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="#000000">
@@ -1388,7 +1235,7 @@ export default function SocialDash() {
       border: '1px solid #e2e8f0',
       flexShrink: 0
     }}>
-      <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      <img src={brandLogo} alt={brandName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
   );
 
@@ -1407,7 +1254,7 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderVideoAvatar()}
             <div>
-              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#262626' }}>{BRAND_HANDLE}</p>
+              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#262626' }}>{brandHandle}</p>
               <p style={{ fontSize: '8px', color: '#8e8e8e', margin: 0 }}>Canada</p>
             </div>
           </div>
@@ -1433,7 +1280,7 @@ export default function SocialDash() {
         <div style={{ padding: '0 10px 12px 10px', flex: 1 }}>
           <p style={{ fontSize: '9px', margin: '0 0 2px 0', color: '#262626', fontWeight: 700 }}>4,812 views</p>
           <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, color: '#262626', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-            <span style={{ fontWeight: 700, marginRight: '4px' }}>{BRAND_HANDLE}</span>
+            <span style={{ fontWeight: 700, marginRight: '4px' }}>{brandHandle}</span>
             {formattedText}
           </p>
         </div>
@@ -1450,7 +1297,7 @@ export default function SocialDash() {
             {renderVideoAvatar()}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#050505' }}>{BRAND_NAME}</p>
+                <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#050505' }}>{brandName}</p>
                 <span style={{ color: '#1877f2', fontSize: '9px' }}>✓</span>
               </div>
               <p style={{ fontSize: '8px', color: '#65676b', margin: 0 }}>Sponsored · 🌐</p>
@@ -1489,7 +1336,7 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderVideoAvatar()}
             <div>
-              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#000000' }}>{BRAND_NAME}</p>
+              <p style={{ fontSize: '10px', fontWeight: 700, margin: 0, color: '#000000' }}>{brandName}</p>
               <p style={{ fontSize: '7px', color: '#00000099', margin: '1px 0 0 0' }}>AI-Powered Tenant Screening for Landlords</p>
               <p style={{ fontSize: '7px', color: '#00000099', margin: 0 }}>1d · Edited · 🌐</p>
             </div>
@@ -1538,18 +1385,18 @@ export default function SocialDash() {
           
           {/* User Details & Caption Overlay */}
           <div style={{ flex: 1, paddingRight: '20px', color: '#ffffff', textShadow: '0 1px 4px rgba(0,0,0,0.8)', textAlign: 'left' }}>
-            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@{BRAND_HANDLE}</p>
+            <p style={{ fontSize: '11px', fontWeight: 700, margin: '0 0 4px 0' }}>@{brandHandle}</p>
             <p style={{ fontSize: '9px', lineHeight: '1.4', margin: 0, maxHeight: '60px', overflowY: 'auto', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
               {text}
             </p>
-            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - {BRAND_NAME}</p>
+            <p style={{ fontSize: '8px', color: '#d4d4d8', marginTop: '4px' }}>🎵 original sound - {brandName}</p>
           </div>
 
           {/* Right Floating Actions */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <div style={{ position: 'relative', width: '28px', height: '28px' }}>
               <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '1.5px solid #ffffff', overflow: 'hidden', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src={BRAND_LOGO} alt={BRAND_NAME} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src={brandLogo} alt={brandName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div style={{ position: 'absolute', bottom: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#ff0050', color: '#ffffff', borderRadius: '50%', width: '10px', height: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '6px', fontWeight: 800 }}>+</div>
             </div>
@@ -1599,7 +1446,7 @@ export default function SocialDash() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {renderVideoAvatar()}
               <div>
-                <p style={{ fontSize: '9px', fontWeight: 700, margin: 0, color: '#0f172a' }}>{BRAND_NAME}</p>
+                <p style={{ fontSize: '9px', fontWeight: 700, margin: 0, color: '#0f172a' }}>{brandName}</p>
                 <p style={{ fontSize: '7.5px', color: '#64748b', margin: 0 }}>12.4K subscribers</p>
               </div>
             </div>
@@ -1635,8 +1482,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderVideoAvatar()}
             <div>
-              <p style={{ fontSize: '10px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{BRAND_NAME}</p>
-              <p style={{ fontSize: '8px', color: '#64748b', margin: 0 }}>@{BRAND_HANDLE} · 1h</p>
+              <p style={{ fontSize: '10px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{brandName}</p>
+              <p style={{ fontSize: '8px', color: '#64748b', margin: 0 }}>@{brandHandle} · 1h</p>
             </div>
           </div>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="#000000">
@@ -1666,19 +1513,34 @@ export default function SocialDash() {
     );
   };
 
-  const handlePostVideo = () => {
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SOCIAL_POST_VIDEO_URL");
-    triggerWebhook(
-      webhookUrl,
-      "post",
-      "VIDEO PUBLISHED SUCCESSFULLY",
-      {
-        video_url: supabaseVideoUrl || videoUrl,
-        metadata: videoMetadata,
-        status: "Approved"
-      },
-      "POST"
-    );
+  const handlePostVideo = async () => {
+    if (!currentVideoJobId) {
+      showToast('No video job to post', 'info');
+      return;
+    }
+    setIsVideoPosting(true);
+    try {
+      const descriptions = {
+        instagram: videoMetadata?.instagram?.content || '',
+        facebook: videoMetadata?.facebook?.content || '',
+        linkedin: videoMetadata?.linkedin?.content || '',
+        tiktok: videoMetadata?.tiktok?.caption || '',
+        twitter: videoMetadata?.twitter?.content || '',
+        youtube: videoMetadata?.youtube?.description || '',
+      };
+      await postVideo(
+        currentVideoJobId,
+        supabaseVideoUrl || videoUrl,
+        descriptions,
+        videoMetadata?.facebook?.title || videoMetadata?.instagram?.title
+      );
+      showToast('VIDEO PUBLISHED SUCCESSFULLY', 'success');
+      setStatus('Video Posted');
+    } catch (err: any) {
+      showToast(err?.message || 'Video post failed', 'info');
+    } finally {
+      setIsVideoPosting(false);
+    }
   };
 
   /* ---- Portal Toast (renders directly into document.body, fully independent) ---- */
@@ -2124,11 +1986,11 @@ export default function SocialDash() {
                       {/* Storyline / Story Sentence — editable */}
                       <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #e2e8f0" }}>
                         <textarea
-                          value={scene.story_sentence || ""}
+                          value={scene.script_line || scene.story_sentence || ""}
                           onChange={(e) => {
                             setGeneratedScenes((prev: any[]) => {
                               const arr = [...prev];
-                              arr[i] = { ...arr[i], story_sentence: e.target.value };
+                              arr[i] = { ...arr[i], script_line: e.target.value };
                               return arr;
                             });
                           }}

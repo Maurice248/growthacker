@@ -9,7 +9,8 @@ export default function BlogAutomationPage() {
         <div>
           <h1 className="text-[28px] font-bold leading-tight text-gray-900">Automation</h1>
           <p className="mt-1 text-[15px] text-gray-500">
-            Configure schedule and prompts for blog generation
+            Configure schedule, AI prompts, publishing options, and blog categories for automated
+            generation
           </p>
         </div>
       </div>

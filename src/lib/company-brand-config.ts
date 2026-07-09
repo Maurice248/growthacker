@@ -18,6 +18,7 @@ export const EMPTY_BRAND_PROFILE: BrandProfileData = {
   icpMetaAds: '',
   icpNewsletter: '',
   icpOutreach: '',
+  destinationUrl: '',
 };
 
 function rowToApi(config: {
@@ -31,6 +32,7 @@ function rowToApi(config: {
   icpMetaAds: string;
   icpNewsletter: string;
   icpOutreach: string;
+  destinationUrl: string;
 }) {
   return {
     id: config.id,
@@ -43,6 +45,7 @@ function rowToApi(config: {
     icp_meta_ads: config.icpMetaAds,
     icp_newsletter: config.icpNewsletter,
     icp_outreach: config.icpOutreach,
+    destination_url: config.destinationUrl,
   };
 }
 
@@ -113,6 +116,7 @@ export async function updateCompanyBrandConfig(companyId: string, body: BrandCon
       icpMetaAds: body.icp_meta_ads ?? '',
       icpNewsletter: body.icp_newsletter ?? '',
       icpOutreach: body.icp_outreach ?? '',
+      destinationUrl: body.destination_url ?? '',
     },
   });
   return rowToApi(updated);

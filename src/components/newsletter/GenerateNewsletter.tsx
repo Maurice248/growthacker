@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useServices } from "@/context/ServicesContext";
 import { useNewsletter, NewsletterData } from "@/context/NewsletterContext";
 import { useNewsletterHistory } from "@/context/NewsletterHistoryContext";
-import { useN8nWebhooks, n8nUrl } from "@/hooks/use-n8n-webhooks";
 import EmailPreview from "./EmailPreview";
+import SettingsRequiredAlert, { GENERATE_REQUIRED_SETTINGS } from "./SettingsRequiredAlert";
 import "./newsletter.css";
 
 const SECTIONS: { key: keyof NewsletterData; label: string }[] = [
@@ -48,7 +48,6 @@ export default function GenerateNewsletter() {
   } = useNewsletter();
 
   const { addEntry } = useNewsletterHistory();
-  const n8nWebhooks = useN8nWebhooks();
   const [copied, setCopied] = useState(false);
 
   const applyResponse = (raw: unknown) => {
@@ -84,36 +83,14 @@ export default function GenerateNewsletter() {
     setErrorMessage("");
 
     try {
-      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_GENERATE_WEBHOOK_URL");
-
-      if (!webhookUrl) {
-        await new Promise((r) => setTimeout(r, 1200));
-        const mock: NewsletterData = {
-          subjectLine: `Why ${selectedService} Matters for Canadian Landlords`,
-          preheader: `Discover how ${selectedService} helps protect your rental income.`,
-          headerTitle: `Smarter Screening with ${selectedService}`,
-          intro: `Hello,\n\nManaging rental properties means making confident tenant decisions. Today, we'll explore how ${selectedService} helps landlords screen applicants and reduce risk.`,
-          mainStory: `Title: Protecting Your Rental Income\n\nEvery missed rent payment costs landlords thousands. ${selectedService} gives you comprehensive background checks, credit reports, and AI-powered reliability scoring — all in one affordable platform.`,
-          keyInsights: `→ Comprehensive Reports: Background checks and credit history in minutes.\n→ AI Reliability Scoring: Data-driven applicant assessment.\n→ Rent Protection: Reduce uncertainty with screening you can trust.`,
-          proTip: `💡 Pro Tip:\n\nAlways verify applicant identity and rental history before signing a lease. Consistent screening is your best defense against unreliable tenants.`,
-          callToAction: `Start screening smarter with ${selectedService}`,
-          closing: `Thank you for reading.\n\nWarm regards,\nThe Tenant Report AI Team`,
-          footerNote: `You're receiving this because you subscribed to our Landlord Insights Newsletter.`,
-        };
-        setNewsletter(mock);
-        saveToHistory(mock, "", "", "generated");
-        setStatus("success");
-        return;
-      }
-
-      const res = await fetch(webhookUrl, {
+      const res = await fetch("/api/newsletter/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ service: selectedService, topic: topic.trim() }),
       });
 
-      if (!res.ok) throw new Error(`Request failed: ${res.statusText}`);
       const raw = await res.json();
+      if (!res.ok) throw new Error(raw.error || `Request failed: ${res.statusText}`);
       applyResponse(raw);
       const structured = parseResponse(raw);
       saveToHistory(structured, structured ? "" : JSON.stringify(raw, null, 2), "", "generated");
@@ -130,17 +107,7 @@ export default function GenerateNewsletter() {
     setErrorMessage("");
 
     try {
-      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_REGENERATE_WEBHOOK_URL");
-
-      if (!webhookUrl) {
-        await new Promise((r) => setTimeout(r, 1200));
-        setNewsletter({ ...newsletter, intro: `[Regenerated based on: "${retryPrompt}"]\n\n` + (newsletter?.intro || "") } as NewsletterData);
-        setRetryPrompt("");
-        setStatus("success");
-        return;
-      }
-
-      const res = await fetch(webhookUrl, {
+      const res = await fetch("/api/newsletter/regenerate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -151,8 +118,8 @@ export default function GenerateNewsletter() {
         }),
       });
 
-      if (!res.ok) throw new Error(`Regeneration failed: ${res.statusText}`);
       const raw = await res.json();
+      if (!res.ok) throw new Error(raw.error || `Regeneration failed: ${res.statusText}`);
       applyResponse(raw);
       setRetryPrompt("");
       setStatus("success");
@@ -168,20 +135,17 @@ export default function GenerateNewsletter() {
     setTemplateId("");
 
     try {
-      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_HTML_WEBHOOK_URL");
-      if (webhookUrl) {
-        const res = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: newsletter, service: selectedService, topic: topic.trim() }),
-        });
-        if (!res.ok) throw new Error(`Failed to send: ${res.statusText}`);
-        const raw = await res.json();
-        const data = Array.isArray(raw) ? raw[0] : raw;
-        const tid: string = data?.["template id"] || data?.templateId || data?.template_id || "";
-        setTemplateId(tid);
-        saveToHistory(newsletter, rawFallback, tid, "proceeded");
-      }
+      const res = await fetch("/api/newsletter/template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newsletter, service: selectedService, topic: topic.trim() }),
+      });
+
+      const raw = await res.json();
+      if (!res.ok) throw new Error(raw.error || `Failed to send: ${res.statusText}`);
+      const tid: string = raw?.["template id"] || raw?.templateId || raw?.template_id || "";
+      setTemplateId(tid);
+      saveToHistory(newsletter, rawFallback, tid, "proceeded");
       setStatus("proceeded");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to send newsletter");
@@ -205,6 +169,7 @@ export default function GenerateNewsletter() {
 
   return (
     <div className="nl-root">
+      <SettingsRequiredAlert required={GENERATE_REQUIRED_SETTINGS} className="mb-4" />
       <div className="nl-grid nl-grid-2">
 
         {/* ---- Left: inputs ---- */}
@@ -379,7 +344,7 @@ export default function GenerateNewsletter() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-base font-black text-green-900">Transmission Complete</p>
-                  <p className="text-xs font-bold text-green-700/60 mt-1 uppercase tracking-widest">Validated by n8n Core Engine</p>
+                  <p className="text-xs font-bold text-green-700/60 mt-1 uppercase tracking-widest">Template saved natively</p>
                   {templateId && (
                     <div className="mt-4 bg-white border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                       <div className="min-w-0">

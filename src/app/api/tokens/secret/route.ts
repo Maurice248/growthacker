@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequestCompanyId, requireCompanyAdmin } from '@/lib/auth';
 import {
   getCompanyApiTokenSecrets,
+  getDataForSeoCredentialView,
   toApiTokenSecretsView,
   upsertCompanyApiTokenSecrets,
   type ApiTokenSecretKey,
@@ -14,7 +15,10 @@ export async function GET() {
   }
 
   const secrets = await getCompanyApiTokenSecrets(companyId);
-  return NextResponse.json({ tokens: toApiTokenSecretsView(secrets) });
+  return NextResponse.json({
+    tokens: toApiTokenSecretsView(secrets),
+    dataforseo: getDataForSeoCredentialView(secrets),
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -24,7 +28,15 @@ export async function PUT(request: NextRequest) {
   }
 
   const companyId = admin.companyId!;
-  const body = (await request.json()) as Partial<Record<ApiTokenSecretKey, string>>;
+  const body = (await request.json()) as Partial<Record<ApiTokenSecretKey, string>> & {
+    dataforseo?: string;
+    dataforseoLogin?: string;
+    dataforseoPassword?: string;
+  };
   const tokens = await upsertCompanyApiTokenSecrets(companyId, body);
-  return NextResponse.json({ tokens });
+  const secrets = await getCompanyApiTokenSecrets(companyId);
+  return NextResponse.json({
+    tokens,
+    dataforseo: getDataForSeoCredentialView(secrets),
+  });
 }

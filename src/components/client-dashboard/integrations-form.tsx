@@ -1,13 +1,12 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, CheckCircle2, KeyRound, Loader2, Workflow } from 'lucide-react';
+import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { groupN8nWebhookFields, N8N_WEBHOOK_FIELDS } from '@/lib/n8n-config';
 
 type SecretField = { set: boolean; masked: string };
 
@@ -19,33 +18,30 @@ type ApiTokenSecretView = {
   masked: string;
 };
 
+type DataForSeoCredentialView = {
+  loginSet: boolean;
+  loginMasked: string;
+  passwordSet: boolean;
+  passwordMasked: string;
+  configured: boolean;
+};
+
 type IntegrationSettings = {
   metaAccessToken: SecretField;
   metaAdAccountId: string;
   metaPageId: string;
-  elevenLabsApiKey: SecretField;
   wordpressSiteUrl: string;
   wordpressUsername: string;
   wordpressAppPassword: SecretField;
-  n8nApiKey: SecretField;
-  n8nApiBaseUrl: string;
-  n8nBlogWorkflowId: string;
-  n8nBlogWorkflowName: string;
-  n8nWebhooks: Record<string, string>;
 };
 
 const emptyForm = {
   metaAccessToken: '',
   metaAdAccountId: '',
   metaPageId: '',
-  elevenLabsApiKey: '',
   wordpressSiteUrl: '',
   wordpressUsername: '',
   wordpressAppPassword: '',
-  n8nApiKey: '',
-  n8nApiBaseUrl: '',
-  n8nBlogWorkflowId: '',
-  n8nBlogWorkflowName: '',
 };
 
 function SecretHint({ field }: { field: SecretField }) {
@@ -59,23 +55,18 @@ function SecretHint({ field }: { field: SecretField }) {
   );
 }
 
-function emptyWebhookForm(): Record<string, string> {
-  return Object.fromEntries(N8N_WEBHOOK_FIELDS.map((f) => [f.key, '']));
-}
-
 export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter();
   const [settings, setSettings] = useState<IntegrationSettings | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [webhookForm, setWebhookForm] = useState<Record<string, string>>(emptyWebhookForm);
   const [apiTokenSecrets, setApiTokenSecrets] = useState<ApiTokenSecretView[]>([]);
   const [apiTokenForm, setApiTokenForm] = useState<Record<string, string>>({});
+  const [dataforseoView, setDataforseoView] = useState<DataForSeoCredentialView | null>(null);
+  const [dataforseoForm, setDataforseoForm] = useState({ login: '', password: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  const webhookGroups = useMemo(() => groupN8nWebhookFields(), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,25 +82,17 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
 
       setSettings(data);
       setApiTokenSecrets(tokenData.tokens ?? []);
+      setDataforseoView(tokenData.dataforseo ?? null);
       setApiTokenForm(Object.fromEntries((tokenData.tokens ?? []).map((t: ApiTokenSecretView) => [t.key, ''])));
+      setDataforseoForm({ login: '', password: '' });
       setForm({
         metaAccessToken: '',
         metaAdAccountId: data.metaAdAccountId || '',
         metaPageId: data.metaPageId || '',
-        elevenLabsApiKey: '',
         wordpressSiteUrl: data.wordpressSiteUrl || '',
         wordpressUsername: data.wordpressUsername || '',
         wordpressAppPassword: '',
-        n8nApiKey: '',
-        n8nApiBaseUrl: data.n8nApiBaseUrl || '',
-        n8nBlogWorkflowId: data.n8nBlogWorkflowId || '',
-        n8nBlogWorkflowName: data.n8nBlogWorkflowName || '',
       });
-      setWebhookForm(
-        Object.fromEntries(
-          N8N_WEBHOOK_FIELDS.map((f) => [f.key, data.n8nWebhooks?.[f.key] || ''])
-        )
-      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load integrations');
     } finally {
@@ -133,29 +116,21 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
       metaPageId: form.metaPageId,
       wordpressSiteUrl: form.wordpressSiteUrl,
       wordpressUsername: form.wordpressUsername,
-      n8nApiBaseUrl: form.n8nApiBaseUrl,
-      n8nBlogWorkflowId: form.n8nBlogWorkflowId,
-      n8nBlogWorkflowName: form.n8nBlogWorkflowName,
     };
 
     if (form.metaAccessToken.trim()) payload.metaAccessToken = form.metaAccessToken.trim();
-    if (form.elevenLabsApiKey.trim()) payload.elevenLabsApiKey = form.elevenLabsApiKey.trim();
     if (form.wordpressAppPassword.trim()) {
       payload.wordpressAppPassword = form.wordpressAppPassword.trim();
     }
-    if (form.n8nApiKey.trim()) payload.n8nApiKey = form.n8nApiKey.trim();
-
-    const n8nWebhooks: Record<string, string> = {};
-    for (const field of N8N_WEBHOOK_FIELDS) {
-      const value = webhookForm[field.key]?.trim();
-      if (value) n8nWebhooks[field.key] = value;
-    }
-    payload.n8nWebhooks = n8nWebhooks;
 
     const tokenPayload: Record<string, string> = {};
     for (const token of apiTokenSecrets) {
       const value = apiTokenForm[token.key]?.trim();
       if (value) tokenPayload[token.key] = value;
+    }
+    if (dataforseoForm.login.trim()) tokenPayload.dataforseoLogin = dataforseoForm.login.trim();
+    if (dataforseoForm.password.trim()) {
+      tokenPayload.dataforseoPassword = dataforseoForm.password.trim();
     }
 
     try {
@@ -177,19 +152,14 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
 
       setSettings(data);
       setApiTokenSecrets(tokenData.tokens ?? []);
+      setDataforseoView(tokenData.dataforseo ?? null);
       setApiTokenForm(Object.fromEntries((tokenData.tokens ?? []).map((t: ApiTokenSecretView) => [t.key, ''])));
+      setDataforseoForm({ login: '', password: '' });
       setForm((prev) => ({
         ...prev,
         metaAccessToken: '',
-        elevenLabsApiKey: '',
         wordpressAppPassword: '',
-        n8nApiKey: '',
       }));
-      setWebhookForm(
-        Object.fromEntries(
-          N8N_WEBHOOK_FIELDS.map((f) => [f.key, data.n8nWebhooks?.[f.key] || ''])
-        )
-      );
       setSuccess('Integration settings saved.');
       router.refresh();
     } catch (err) {
@@ -278,25 +248,6 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">ElevenLabs</CardTitle>
-          <CardDescription>API key for AI voiceover selection in ad creation.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Label htmlFor="elevenLabsApiKey">API key</Label>
-          <Input
-            id="elevenLabsApiKey"
-            type="password"
-            autoComplete="off"
-            placeholder={settings?.elevenLabsApiKey.set ? '••••••••' : 'sk_…'}
-            value={form.elevenLabsApiKey}
-            onChange={(e) => setForm((f) => ({ ...f, elevenLabsApiKey: e.target.value }))}
-          />
-          {settings && <SecretHint field={settings.elevenLabsApiKey} />}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle className="text-lg">WordPress</CardTitle>
           <CardDescription>Blog publishing credentials for your WordPress site.</CardDescription>
         </CardHeader>
@@ -339,82 +290,63 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Workflow className="h-5 w-5" />
-            n8n Automation
-          </CardTitle>
+          <CardTitle className="text-lg">DataForSEO</CardTitle>
           <CardDescription>
-            API key, workflow settings, and webhook URLs for all dashboard automations. Stored per
-            company — no .env required at runtime.
+            Blog keyword research credentials. Use your DataForSEO account login and API password from{' '}
+            <a
+              href="https://app.dataforseo.com/api-access"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--primary)] underline"
+            >
+              app.dataforseo.com/api-access
+            </a>
+            . Leave a field blank to keep the current saved value.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="n8nApiKey">n8n API key</Label>
-            <Input
-              id="n8nApiKey"
-              type="password"
-              autoComplete="off"
-              placeholder={settings?.n8nApiKey.set ? '••••••••' : 'n8n_api_…'}
-              value={form.n8nApiKey}
-              onChange={(e) => setForm((f) => ({ ...f, n8nApiKey: e.target.value }))}
-            />
-            {settings && <SecretHint field={settings.n8nApiKey} />}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="n8nApiBaseUrl">n8n API base URL</Label>
-            <Input
-              id="n8nApiBaseUrl"
-              type="url"
-              placeholder="https://n8n.example.com"
-              value={form.n8nApiBaseUrl}
-              onChange={(e) => setForm((f) => ({ ...f, n8nApiBaseUrl: e.target.value }))}
-            />
-          </div>
+        <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="n8nBlogWorkflowId">Blog workflow ID</Label>
+              <Label htmlFor="dataforseoLogin">Account login (email)</Label>
               <Input
-                id="n8nBlogWorkflowId"
-                placeholder="Kgt5aL2eaVYIyNMo"
-                value={form.n8nBlogWorkflowId}
-                onChange={(e) => setForm((f) => ({ ...f, n8nBlogWorkflowId: e.target.value }))}
+                id="dataforseoLogin"
+                type="email"
+                autoComplete="off"
+                placeholder={dataforseoView?.loginSet ? dataforseoView.loginMasked : 'you@company.com'}
+                value={dataforseoForm.login}
+                onChange={(e) =>
+                  setDataforseoForm((prev) => ({ ...prev, login: e.target.value }))
+                }
               />
+              {dataforseoView?.loginSet ? (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Saved: <span className="font-mono">{dataforseoView.loginMasked}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-[var(--text-muted)]">Not configured</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="n8nBlogWorkflowName">Blog workflow name</Label>
+              <Label htmlFor="dataforseoPassword">API password</Label>
               <Input
-                id="n8nBlogWorkflowName"
-                placeholder="Tenant Report Blog Automation"
-                value={form.n8nBlogWorkflowName}
-                onChange={(e) => setForm((f) => ({ ...f, n8nBlogWorkflowName: e.target.value }))}
+                id="dataforseoPassword"
+                type="password"
+                autoComplete="new-password"
+                placeholder={dataforseoView?.passwordSet ? '••••••••' : 'API password from DataForSEO dashboard'}
+                value={dataforseoForm.password}
+                onChange={(e) =>
+                  setDataforseoForm((prev) => ({ ...prev, password: e.target.value }))
+                }
               />
+              {dataforseoView?.passwordSet ? (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Saved: <span className="font-mono">{dataforseoView.passwordMasked}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-[var(--text-muted)]">Not configured</p>
+              )}
             </div>
           </div>
-
-          {[...webhookGroups.entries()].map(([group, fields]) => (
-            <div key={group} className="space-y-3 border-t border-[var(--border)] pt-4">
-              <h4 className="text-sm font-semibold text-[var(--text-primary)]">{group} webhooks</h4>
-              <div className="space-y-3">
-                {fields.map((field) => (
-                  <div key={field.key} className="space-y-1">
-                    <Label htmlFor={`webhook-${field.key}`} className="text-sm">
-                      {field.label}
-                    </Label>
-                    <Input
-                      id={`webhook-${field.key}`}
-                      type="url"
-                      placeholder={`https://…/${field.key.includes('BLOG') ? 'webhook/blog-automation' : 'webhook/…'}`}
-                      value={webhookForm[field.key] || ''}
-                      onChange={(e) =>
-                        setWebhookForm((prev) => ({ ...prev, [field.key]: e.target.value }))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
         </CardContent>
       </Card>
 
@@ -422,7 +354,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
         <CardHeader>
           <CardTitle className="text-lg">API tokens</CardTitle>
           <CardDescription>
-            Third-party API keys and secrets used by n8n workflows. ElevenLabs is configured above.
+            Third-party API keys used by native pipelines (Cold Email, Ads Analysis, Newsletter, Social Studio, Blog, Create Ad voiceovers). DataForSEO is configured in its own section above.
             Leave blank to keep the current saved value.
           </CardDescription>
         </CardHeader>

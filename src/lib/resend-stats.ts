@@ -107,8 +107,7 @@ async function fetchAllResendEvents(supabase: SupabaseClient, days?: number): Pr
   return rows;
 }
 
-async function fetchResendEventsFromApi(days?: number): Promise<ResendEventRow[]> {
-  const apiKey = process.env.RESEND_API_KEY;
+async function fetchResendEventsFromApi(apiKey: string, days?: number): Promise<ResendEventRow[]> {
   if (!apiKey) return [];
 
   const rows: ResendEventRow[] = [];
@@ -159,12 +158,14 @@ async function fetchResendEventsFromApi(days?: number): Promise<ResendEventRow[]
 
 export async function getResendStats(
   supabase: SupabaseClient,
-  days?: number
+  days?: number,
+  resendApiKey?: string | null
 ): Promise<{ chartData: ResendChartPoint[] }> {
   let events = await fetchAllResendEvents(supabase, days);
 
   if (events.length === 0) {
-    events = await fetchResendEventsFromApi(days);
+    const key = resendApiKey?.trim() || process.env.RESEND_API_KEY || '';
+    events = await fetchResendEventsFromApi(key, days);
   }
 
   return { chartData: aggregateEvents(events) };

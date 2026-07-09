@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { getRequestCompanyId } from '@/lib/auth';
+import { getCompanyApiTokenSecrets } from '@/lib/api-token-secrets';
 import { getRequestCompanyIntegrations } from '@/lib/company-integrations';
 
 const FALLBACK_VOICES = [
@@ -14,8 +16,12 @@ const FALLBACK_VOICES = [
 ];
 
 export async function GET() {
-  const creds = await getRequestCompanyIntegrations();
-  const apiKey = creds.elevenLabsApiKey?.trim();
+  const companyId = await getRequestCompanyId();
+  const [secrets, creds] = await Promise.all([
+    companyId ? getCompanyApiTokenSecrets(companyId) : Promise.resolve(null),
+    getRequestCompanyIntegrations(),
+  ]);
+  const apiKey = secrets?.elevenLabs?.trim() || creds.elevenLabsApiKey?.trim();
 
   if (!apiKey) {
     console.log("[ElevenLabs] No API key found, using fallback list.");

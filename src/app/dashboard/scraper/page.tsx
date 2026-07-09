@@ -109,24 +109,21 @@ type PageState = 'form' | 'loading' | 'success' | 'error';
 // ─── Loading steps (2-5 min process) ─────────────────────────────────────────
 
 const LOADING_STEPS = [
-  { at: 0,   text: 'Sending request to n8n scraper workflow...' },
-  { at: 8,   text: 'Connecting to Apify Google Maps scraper...' },
-  { at: 20,  text: 'Scraping Google Maps for businesses...' },
-  { at: 60,  text: 'Extracting business contact details...' },
-  { at: 120, text: 'Validating email addresses...' },
-  { at: 180, text: 'Saving verified leads to Google Sheets...' },
+  { at: 0,   text: 'Starting lead scraper...' },
+  { at: 8,   text: 'Connecting to Apify leads finder...' },
+  { at: 20,  text: 'Searching for matching contacts...' },
+  { at: 60,  text: 'Extracting contact details...' },
+  { at: 120, text: 'Validating email addresses with Million Verifier...' },
+  { at: 180, text: 'Saving verified leads to your list...' },
   { at: 240, text: 'Finalising and updating records...' },
   { at: 290, text: 'Almost done — wrapping up...' },
 ];
 
-const SHEETS = [
-  'Tenant Screening Leads',
-  'Smart Tenant Subscription Leads',
-  'Rent Promise & Protection Leads',
-  'Background Screening Leads',
-  'Property Management Leads',
-  'All Service Leads',
-];
+interface LeadListOption {
+  id: string;
+  name: string;
+  _count?: { leads: number };
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -145,6 +142,16 @@ export default function ScraperPage() {
   const [location, setLocation] = useState('');
   const [maxResults, setMaxResults] = useState('100');
   const [targetSheet, setTargetSheet] = useState('');
+  const [leadLists, setLeadLists] = useState<LeadListOption[]>([]);
+  const [listsLoading, setListsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/cold-email/lists')
+      .then((r) => r.json())
+      .then((data) => setLeadLists(data.lists || []))
+      .catch(() => setLeadLists([]))
+      .finally(() => setListsLoading(false));
+  }, []);
 
   // Elapsed timer
   useEffect(() => {
@@ -181,6 +188,7 @@ export default function ScraperPage() {
           location: location.trim(),
           max_results: Number(maxResults),
           target_sheet: targetSheet,
+          list_id: targetSheet,
         }),
         signal: AbortSignal.timeout(320000),
       });
@@ -321,28 +329,35 @@ export default function ScraperPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Save Verified Leads To <span className="text-red-500">*</span>
                   </label>
-                  <Select onValueChange={setTargetSheet} disabled={pageState === 'loading'}>
+                  <Select onValueChange={setTargetSheet} disabled={pageState === 'loading' || listsLoading}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select Google Sheet tab" />
+                      <SelectValue placeholder={listsLoading ? 'Loading lists...' : 'Select lead list'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {SHEETS.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      {leadLists.map((list) => (
+                        <SelectItem key={list.id} value={list.id}>
+                          {list.name} ({list._count?.leads ?? 0} leads)
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-gray-400 mt-1">Only verified emails are saved here</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Only verified emails are saved.{' '}
+                    <Link href={`${basePath}/settings`} className="text-[#0077b6] hover:underline">
+                      Manage lists in Settings
+                    </Link>
+                  </p>
                 </div>
               </CardContent>
             </Card>
 
             {/* Info box */}
             <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 space-y-1">
-              <p className="font-semibold">What gets saved to Google Sheets:</p>
+              <p className="font-semibold">What gets saved to your lead list:</p>
               <p className="text-xs text-blue-700">
-                first_name · last_name · mobile_number · personal_email · linkedin · city · country · email_status
+                first_name · last_name · mobile_number · email · linkedin · city · country · email_status
               </p>
-              <p className="text-xs text-blue-600 mt-1">Invalid emails go to a separate &quot;Invalid_Emails&quot; sheet automatically.</p>
+              <p className="text-xs text-blue-600 mt-1">Invalid and catch-all emails are filtered out automatically.</p>
             </div>
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -514,10 +529,10 @@ export default function ScraperPage() {
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Scraper Failed</h3>
-              <p className="text-sm text-gray-500 mt-1">n8n workflow returned an error</p>
+              <p className="text-sm text-gray-500 mt-1">Lead scraper returned an error</p>
             </div>
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 text-left">
-              {errorMsg || 'Unknown error occurred. Check your n8n workflow logs.'}
+              {errorMsg || 'Unknown error occurred. Check your API keys in API key management.'}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Button variant="outline" onClick={() => setPageState('form')}>

@@ -94,10 +94,10 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Approval loading steps ───────────────────────────────────────────────────
 
 const APPROVAL_STEPS = [
-  { at: 0,  text: 'Sending approval to n8n...' },
-  { at: 5,  text: 'Reading subscriber list from Google Sheets...' },
+  { at: 0,  text: 'Processing approval...' },
+  { at: 5,  text: 'Loading verified leads from your list...' },
   { at: 12, text: 'Personalising emails for each recipient...' },
-  { at: 25, text: 'Sending via Instantly.ai...' },
+  { at: 25, text: 'Pushing leads to Instantly.ai...' },
   { at: 45, text: 'Updating campaign records...' },
   { at: 60, text: 'Finishing up...' },
 ];
@@ -168,7 +168,12 @@ export default function CampaignsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Approval failed');
-      setApprovalResult(json.n8nResponse ?? json);
+      if (json.status === 'no_leads_available' || json.success === false) {
+        setApprovalResult(json);
+        setDialogState('error');
+        return;
+      }
+      setApprovalResult(json.result ?? json);
       setDialogState('success');
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
     } catch (err) {
@@ -521,7 +526,7 @@ export default function CampaignsPage() {
                   </div>
                 ) : (
                   <div className="rounded-lg border border-dashed px-5 py-8 text-center text-gray-400 text-sm">
-                    No AI email content was returned by n8n for this campaign.
+                    No AI email content was generated for this campaign.
                   </div>
                 )}
 
@@ -562,7 +567,7 @@ export default function CampaignsPage() {
                   onClick={handleApprove}
                 >
                   <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve &amp; Send
+                  Approve &amp; Push to Instantly
                 </Button>
               </div>
             </>
@@ -581,7 +586,7 @@ export default function CampaignsPage() {
               </div>
 
               <div>
-                <h3 className="text-base font-semibold text-gray-900">Sending Emails...</h3>
+                <h3 className="text-base font-semibold text-gray-900">Pushing to Instantly.ai...</h3>
                 <p className="text-sm text-[#0077b6] mt-1 min-h-[20px]">{currentStep.text}</p>
               </div>
 
@@ -607,7 +612,7 @@ export default function CampaignsPage() {
 
               <div>
                 <h3 className="text-xl font-bold text-gray-900">Campaign Approved!</h3>
-                <p className="text-sm text-gray-500 mt-1">Emails have been sent via Instantly.ai</p>
+                <p className="text-sm text-gray-500 mt-1">Leads pushed to your Instantly.ai campaign</p>
               </div>
 
               {/* Stats */}
@@ -635,7 +640,7 @@ export default function CampaignsPage() {
                 )}
               </div>
 
-              {/* n8n message + execution id */}
+              {/* Result message */}
               {(approvalResult.message || approvalResult.execution_id) && (
                 <div className="w-full rounded-lg bg-gray-50 border px-4 py-3 text-left space-y-1">
                   {approvalResult.message && (
@@ -680,13 +685,13 @@ export default function CampaignsPage() {
               <div>
                 <h3 className="text-xl font-bold text-gray-900">Approval Failed</h3>
                 <p className="text-sm text-gray-500 mt-1">
-                  The n8n workflow returned an error
+                  Failed to push leads to Instantly.ai
                 </p>
               </div>
 
               <div className="w-full rounded-lg bg-red-50 border border-red-200 px-4 py-4 text-left">
                 <p className="text-sm text-red-700">
-                  {approvalResult.error ?? 'An unknown error occurred. Check your n8n workflow logs.'}
+                  {approvalResult.error ?? approvalResult.message ?? 'An unknown error occurred. Check your API keys and Instantly campaign ID.'}
                 </p>
               </div>
 

@@ -7,6 +7,7 @@ const OUTREACH_PATHS: Record<string, string> = {
   'outreach-scraper': '/outreach/scraper',
   'outreach-scraper-history': '/outreach/scraper/history',
   'outreach-cleanup': '/outreach/cleanup',
+  'outreach-settings': '/outreach/settings',
 };
 
 export default function OutreachTab({ activeTab }: { activeTab: string }) {

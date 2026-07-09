@@ -39,7 +39,9 @@ export function LeadChart({ data, title = 'Leads by Sheet' }: LeadChartProps) {
               cy="50%"
               outerRadius={90}
               label={({ sheet, percent }) =>
-                `${sheet.replace(' Leads', '')} (${(percent * 100).toFixed(0)}%)`
+                percent >= 0.05
+                  ? `${sheet.replace(' Leads', '')} (${(percent * 100).toFixed(0)}%)`
+                  : null
               }
               labelLine={false}
             >

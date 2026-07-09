@@ -62,7 +62,6 @@ import SocialOverview from "./SocialOverview";
 import CustomSelect from "./CustomSelect";
 import VoiceExplorerModal from "./VoiceExplorerModal";
 import { HideNextDevIndicator } from "@/components/HideNextDevIndicator";
-import { useN8nWebhooks, n8nUrl } from "@/hooks/use-n8n-webhooks";
 import "./globals.css";
 import { DEFAULT_WEBSITE_URL } from "@/lib/legacy-brand";
 import { reportBelongsToCompany } from "@/lib/reports-query";
@@ -73,9 +72,74 @@ import {
   profileToDb,
   snapshotToProfile,
 } from "@/lib/brand-config";
+import {
+  CLIENT_DASHBOARD_NAVIGATE_EVENT,
+  CLIENT_DASHBOARD_SET_TAB_EVENT,
+} from "@/lib/client-dashboard-nav";
 
 // ─── CONSTANTS ───────────────────────────────────────────────
-const API_URL = "/api/trigger-n8n";
+const COMPETITOR_ANALYSIS_API = "/api/competitor-analysis";
+const CREATE_AD_IDEAS_API = "/api/create-ad/ideas";
+const CREATE_AD_IMAGE_CONCEPTS_API = "/api/create-ad/image/concepts";
+const CREATE_AD_IMAGE_GENERATE_API = "/api/create-ad/image/generate";
+const CREATE_AD_IMAGE_FINALIZE_API = "/api/create-ad/image/finalize";
+const CREATE_AD_KIE_POLL_API = "/api/create-ad/kie/poll";
+const CREATE_AD_VIDEO_PROMPTS_API = "/api/create-ad/video/prompts";
+const CREATE_AD_VIDEO_IMAGES_API = "/api/create-ad/video/images";
+const CREATE_AD_VIDEO_IMAGES_MATCH_API = "/api/create-ad/video/images/match";
+const CREATE_AD_VIDEO_CLIPS_API = "/api/create-ad/video/clips";
+const CREATE_AD_VIDEO_CLIPS_MATCH_API = "/api/create-ad/video/clips/match";
+const CREATE_AD_VIDEO_STITCH_API = "/api/create-ad/video/stitch";
+
+const ANALYSIS_PIPELINE_PHASES = [
+  {
+    label: "Scraping Meta Ads Library",
+    status: "Scraping competitor ads from Meta Ads Library…",
+    durationMs: 150_000,
+    progressEnd: 42,
+  },
+  {
+    label: "Processing competitor ads",
+    status: "Filtering and scoring competitor ads…",
+    durationMs: 20_000,
+    progressEnd: 55,
+  },
+  {
+    label: "AI competitor analysis",
+    status: "Running AI analysis on competitor data…",
+    durationMs: 90_000,
+    progressEnd: 88,
+  },
+  {
+    label: "Generating insights",
+    status: "Building your competitor intelligence report…",
+    durationMs: 40_000,
+    progressEnd: 97,
+  },
+] as const;
+
+function getAnalysisProgressFromElapsed(elapsedMs: number) {
+  let phaseStart = 0;
+  for (let i = 0; i < ANALYSIS_PIPELINE_PHASES.length; i++) {
+    const phase = ANALYSIS_PIPELINE_PHASES[i];
+    const phaseEnd = phaseStart + phase.durationMs;
+    const prevProgress = i === 0 ? 2 : ANALYSIS_PIPELINE_PHASES[i - 1].progressEnd;
+
+    if (elapsedMs < phaseEnd) {
+      const phaseRatio = (elapsedMs - phaseStart) / phase.durationMs;
+      const progress = Math.round(prevProgress + (phase.progressEnd - prevProgress) * phaseRatio);
+      return {
+        progress: Math.min(progress, 97),
+        phaseIndex: i,
+        status: phase.status,
+      };
+    }
+    phaseStart = phaseEnd;
+  }
+
+  const last = ANALYSIS_PIPELINE_PHASES[ANALYSIS_PIPELINE_PHASES.length - 1];
+  return { progress: 97, phaseIndex: ANALYSIS_PIPELINE_PHASES.length - 1, status: last.status };
+}
 const VIDEO_GEN_DURATION = 360_000; // 6 minutes
 const AD_COMPLETION_POLL_MS = 10_000;
 
@@ -89,6 +153,7 @@ const DEFAULT_BRAND_CONFIG = {
   icpMetaAds: "",
   icpNewsletter: "",
   icpOutreach: "",
+  destinationUrl: "",
 };
 
 const TABS = [
@@ -112,8 +177,10 @@ const SOCIAL_TAB_IDS = new Set(SOCIAL_TABS.map((t) => t.id));
 
 const NEWSLETTER_TABS = [
   { id: "newsletter-dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "newsletter-overview", label: "Settings", icon: Settings2 },
   { id: "newsletter-generate", label: "Generate Newsletter", icon: PenLine },
   { id: "newsletter-campaign", label: "Create Campaign", icon: Megaphone },
+  { id: "newsletter-subscribers", label: "Subscribers", icon: User },
   { id: "newsletter-history", label: "History", icon: History },
   { id: "newsletter-services", label: "Manage Services", icon: Settings2 },
 ];
@@ -135,6 +202,7 @@ const OUTREACH_TABS = [
   { id: "outreach-scraper", label: "Lead Scraper", icon: Search },
   { id: "outreach-scraper-history", label: "Scraper History", icon: History },
   { id: "outreach-cleanup", label: "Reset Lead Status", icon: Trash2 },
+  { id: "outreach-settings", label: "Settings", icon: Settings2 },
 ];
 
 const OUTREACH_FUTURE_IDS = new Set(OUTREACH_FUTURE_TABS.map((t) => t.id));
@@ -210,7 +278,7 @@ const LOCATION_SUGGESTIONS = [
 // ─── HELPERS ─────────────────────────────────────────────────
 /**
  * Ensures Supabase storage URLs use the current project's hostname.
- * This fixes issues where n8n or old data might use a different Supabase instance.
+ * This fixes issues where old data might use a different Supabase instance.
  */
 const normalizeSupabaseUrl = (url) => {
   if (!url || typeof url !== "string") return url;
@@ -339,16 +407,91 @@ function buildStoryboardFromAnalysis(analysis, itemIndex = 0) {
   return parts.join("").trim();
 }
 
-function inferAdTypeFromAnalysis(analysis) {
-  const format = getAnalysisInsightValue(analysis, "format").toLowerCase();
+function parseFormatToAdType(format) {
+  const f = String(format || "").toLowerCase();
+  if (!f) return null;
+  if (f.includes("video") || f.includes("reel") || f.includes("short")) return "video";
+  if (f.includes("image") || f.includes("carousel") || f.includes("static") || f.includes("photo")) {
+    return "image";
+  }
+  return null;
+}
+
+function sortGapsByPriority(gaps) {
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  return [...(gaps || [])].sort(
+    (a, b) =>
+      (priorityOrder[a?.priority?.toLowerCase()] ?? 9) -
+      (priorityOrder[b?.priority?.toLowerCase()] ?? 9)
+  );
+}
+
+function inferDominantFormatFromSummary(analysis) {
+  const summary = String(analysis?.executive_summary || "").toLowerCase();
+  if (!summary) return null;
   if (
-    format.includes("image") ||
-    format.includes("carousel") ||
-    format.includes("static")
+    /dominant\s+(ad\s+)?format[^.]{0,80}\bimage\b/.test(summary) ||
+    /\bimage\s+ads?\b/.test(summary) ||
+    /format\s+is\s+image/.test(summary)
   ) {
     return "image";
   }
-  return "video";
+  if (
+    /dominant\s+(ad\s+)?format[^.]{0,80}\bvideo\b/.test(summary) ||
+    /\bvideo\s+ads?\b/.test(summary) ||
+    /format\s+is\s+video/.test(summary)
+  ) {
+    return "video";
+  }
+  return null;
+}
+
+function inferAdTypeFromAnalysis(analysis, index = 0) {
+  const scripts = analysis?.ready_ad_scripts || [];
+  const script = scripts[index] ?? scripts[0];
+  if (script) {
+    const fromScript = parseFormatToAdType(
+      script.format || script.ad_format || script.type || script.media_type
+    );
+    if (fromScript) return fromScript;
+  }
+
+  const bestStart = analysis?.budget_recommendation?.best_ad_format_to_start;
+  const fromBudget = parseFormatToAdType(bestStart);
+  if (fromBudget) return fromBudget;
+
+  const actionPlan = analysis?.action_plan || [];
+  const firstAction =
+    actionPlan.find((a) => Number(a?.priority) === 1) || actionPlan[0];
+  if (firstAction) {
+    const fromAction = parseFormatToAdType(firstAction.format);
+    if (fromAction) return fromAction;
+  }
+
+  const dominant = getAnalysisInsightValue(analysis, "format");
+  const fromDominant = parseFormatToAdType(dominant);
+  if (fromDominant) return fromDominant;
+
+  const fromSummary = inferDominantFormatFromSummary(analysis);
+  if (fromSummary) return fromSummary;
+
+  const gaps = sortGapsByPriority(analysis?.gaps_table || analysis?.gap_opportunities || []);
+  const gap = gaps[index] ?? gaps[0];
+  if (gap) {
+    const fromGap = parseFormatToAdType(gap.ad_format);
+    if (fromGap) return fromGap;
+  }
+
+  return "image";
+}
+
+function normalizeIdeaForAdType(idea, adType) {
+  if (adType !== "image" || !idea) return idea;
+  return idea
+    .replace(/\bvideo\s+content\b/gi, "image ad creative")
+    .replace(/\bvideo\s+ad\b/gi, "image ad")
+    .replace(/\bshort[- ]form\s+video\b/gi, "static image ad")
+    .replace(/\breel\b/gi, "carousel");
 }
 
 type AnalysisResultSection =
@@ -496,7 +639,6 @@ function AnalysisCollapsiblePanel({
 
 function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
   const scripts = analysis?.ready_ad_scripts || [];
-  const adType = inferAdTypeFromAnalysis(analysis);
   const itemCount = Math.max(
     1,
     Math.min(5, scripts.length > 1 ? scripts.length : 1)
@@ -504,9 +646,10 @@ function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
 
   const newItems = [];
   for (let i = 0; i < itemCount; i++) {
-    const idea = buildStoryboardFromAnalysis(analysis, i);
     const existing = prevConfig.items[i];
     const id = existing?.id || Date.now() + i;
+    const adType = inferAdTypeFromAnalysis(analysis, i);
+    const idea = normalizeIdeaForAdType(buildStoryboardFromAnalysis(analysis, i), adType);
 
     if (adType === "video") {
       newItems.push({
@@ -600,15 +743,40 @@ export default function Dashboard() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const companyId = session?.user?.companyId ?? null;
-  const n8nWebhooks = useN8nWebhooks();
   const [storedTab, setStoredTab] = useLocalStorage(tenantStorageKey(companyId, "app_active_tab"), "overview");
   const [embedTab, setEmbedTab] = useState(readEmbedTabFromUrl);
+  const embedTabRef = useRef(embedTab);
+  embedTabRef.current = embedTab;
   const [embed, setEmbed] = useState(isEmbedMode);
   const tab = embed ? embedTab : storedTab;
+
+  const syncTabFromParent = useCallback((value) => {
+    setEmbedTab(value);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", value);
+      window.history.replaceState(null, "", url.toString());
+    }
+  }, []);
+
   const setTab = useCallback(
     (value) => {
-      if (embed) setEmbedTab(value);
-      else setStoredTab(value);
+      if (embed) {
+        setEmbedTab(value);
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.set("tab", value);
+          window.history.replaceState(null, "", url.toString());
+          if (window.parent !== window) {
+            window.parent.postMessage(
+              { type: CLIENT_DASHBOARD_NAVIGATE_EVENT, tabId: value },
+              window.location.origin
+            );
+          }
+        }
+      } else {
+        setStoredTab(value);
+      }
     },
     [embed, setStoredTab]
   );
@@ -633,6 +801,21 @@ export default function Dashboard() {
     if (isEmbed) setEmbedTab(urlTab);
     else setStoredTab(urlTab);
   }, [setStoredTab]);
+
+  // Parent sidebar navigation — switch tab without reloading the iframe
+  useEffect(() => {
+    if (!embed) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== CLIENT_DASHBOARD_SET_TAB_EVENT) return;
+      const tabId = event.data?.tabId;
+      if (typeof tabId !== "string" || !ALL_APP_TAB_IDS.has(tabId)) return;
+      if (tabId === embedTabRef.current) return;
+      syncTabFromParent(tabId);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [embed, syncTabFromParent]);
 
   // Auto-open Meta Ads group when navigating to one of its tabs
   useEffect(() => { if (META_ADS_IDS.has(tab)) setMetaAdsOpen(true); }, [tab]);
@@ -660,6 +843,8 @@ export default function Dashboard() {
   // idle | generating | done | error
   const [analysisData, setAnalysisData] = useLocalStorage("app_analysis_data", null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analysisPhaseIndex, setAnalysisPhaseIndex] = useState(0);
+  const [analysisStatusMessage, setAnalysisStatusMessage] = useState<string>(ANALYSIS_PIPELINE_PHASES[0].status);
 
   const [analysisError, setAnalysisError] = useState("");
   const [topicAnalysisExpanded, setTopicAnalysisExpanded] = useState(true);
@@ -814,6 +999,7 @@ export default function Dashboard() {
   // Ad scenes (generated prompts per ad item)
   const [adScenesMap, setAdScenesMap] = useState({});       // { [itemId]: scenesArray }
   const [adAudioKeysMap, setAdAudioKeysMap] = useState<any>({}); // { [itemId]: audioKey }
+  const [adAudioUrlsMap, setAdAudioUrlsMap] = useState<any>({}); // { [itemId]: audioUrl }
   const [adScenesGenerating, setAdScenesGenerating] = useState({}); // { [itemId]: boolean }
   const [scenesModal, setScenesModal] = useState({ open: false, scenes: [], adLabel: "", itemId: null });
   const [editedScenes, setEditedScenes] = useState([]);     // editable copy of scenes in modal
@@ -840,6 +1026,14 @@ export default function Dashboard() {
   // ── Supabase reports state ──
   const [sbRows, setSbRows] = useState([]);
   const [adsLabView, setAdsLabView] = useState<"analysis" | "pastRuns">("analysis");
+
+  // Topic for Analysis defaults to expanded when entering Ads Lab or switching sub-tabs
+  useEffect(() => {
+    if (tab === "analysis" && adsLabView === "analysis") {
+      setTopicAnalysisExpanded(true);
+    }
+  }, [tab, adsLabView]);
+
   const [hoveredInputs, setHoveredInputs] = useState<any>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -894,9 +1088,9 @@ export default function Dashboard() {
     fetchProfile();
   }, [companyId]);
 
-  // ── Poll for global n8n errors directly from Supabase (RLS disabled) ──
+  // ── Poll for global workflow errors directly from Supabase (RLS disabled) ──
   // Strategy: track the DISMISSED ERROR MESSAGE (not timestamp).
-  // This way, even if n8n updates updated_at every few seconds with the same error,
+  // This way, even if the error row updates updated_at every few seconds with the same error,
   // the alert stays dismissed until a genuinely NEW/DIFFERENT error message appears.
   useEffect(() => {
     let active = true;
@@ -972,8 +1166,6 @@ export default function Dashboard() {
   // Error notification stays visible until user manually closes it
 
   const [sbLoading, setSbLoading] = useState(true);
-  const [sbTriggeringId, setSbTriggeringId] = useState(null);
-  const [sbSessionTriggered, setSbSessionTriggered] = useState(new Set());
   const [sbToasts, setSbToasts] = useState([]);
   const [sbExpandedInsights, setSbExpandedInsights] = useState({});
   const [sbAdsConfigOpen, setSbAdsConfigOpen] = useState({});
@@ -1071,17 +1263,10 @@ export default function Dashboard() {
   const [selectedCampaignForReports, setSelectedCampaignForReports] = useState(null);
 
 
-  function resetCreateTabWorkspace() {
-    setCreateTabAdsConfig({
-      totalAds: 1,
-      videoCount: 1,
-      imageCount: 0,
-      items: [
-        { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
-      ]
-    });
+  function clearCreateTabGenerationState() {
     setAdScenesMap({});
     setAdAudioKeysMap({});
+    setAdAudioUrlsMap({});
     setAdStatus("idle");
     setPromptsAccepted(false);
     setFailedPrompts([]);
@@ -1108,6 +1293,33 @@ export default function Dashboard() {
       localStorage.removeItem("app_ad_status");
       localStorage.removeItem("app_ad_data");
     }
+  }
+
+  function openCreateAdFromAnalysis() {
+    if (!analysisData) return;
+    clearCreateTabGenerationState();
+    setCreateTabAdsConfig(
+      buildCreateTabConfigFromAnalysis(analysisData, {
+        totalAds: 1,
+        videoCount: 0,
+        imageCount: 0,
+        items: [],
+      })
+    );
+    setCreateTabConfigOpen(true);
+    setTab("create");
+  }
+
+  function resetCreateTabWorkspace() {
+    clearCreateTabGenerationState();
+    setCreateTabAdsConfig({
+      totalAds: 1,
+      videoCount: 1,
+      imageCount: 0,
+      items: [
+        { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
+      ]
+    });
   }
 
   const addSbToast = useCallback((message, type = "success") => {
@@ -1799,7 +2011,7 @@ export default function Dashboard() {
     fetchReports();
     fetchAdTableLinks();
 
-    // Realtime: refresh tenant-scoped reports when n8n writes to Supabase
+    // Realtime: refresh tenant-scoped reports when analysis completes
     const channel = supabase
       .channel(`reports_json_realtime_${companyId}`)
       .on(
@@ -1854,7 +2066,7 @@ export default function Dashboard() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Supabase realtime: detect new videos from n8n ──
+  // ── Supabase realtime: detect new videos ──
   useEffect(() => {
     const adsChannel = supabase
       .channel("your_name_table_realtime")
@@ -1948,33 +2160,38 @@ export default function Dashboard() {
     return () => { if (interval) clearInterval(interval); };
   }, [isStatusPolling, adStatus, fetchAdTableLinks, addSbToast, companyId]);
 
-  // ── Analysis progress bar: increments over time, persists across refresh ──
+  // ── Analysis progress bar: phase-aligned estimates for direct API pipeline ──
   useEffect(() => {
     if (analysisStatus !== "generating") {
       setAnalysisProgress(analysisStatus === "done" ? 100 : 0);
+      if (analysisStatus !== "done") {
+        setAnalysisPhaseIndex(0);
+        setAnalysisStatusMessage(ANALYSIS_PIPELINE_PHASES[0].status);
+      }
       return;
     }
 
     const startRaw = window.localStorage.getItem("app_analysis_start");
     const startTime = startRaw ? Number(startRaw) : null;
-    const MAX_DURATION = 300_000; // 5 min max (proxy maxDuration)
 
     // Auto-reset if start time is missing or > 6 min old (stale from previous session)
     if (!startTime || (Date.now() - startTime) > 360_000) {
       setAnalysisStatus("idle");
       setAnalysisProgress(0);
+      setAnalysisPhaseIndex(0);
+      setAnalysisStatusMessage(ANALYSIS_PIPELINE_PHASES[0].status);
       window.localStorage.removeItem("app_analysis_start");
       return;
     }
 
     const tick = () => {
-      const elapsed = Date.now() - startTime;
-      const raw = Math.min(0.88, elapsed / MAX_DURATION);
-      const eased = 1 - Math.pow(1 - raw / 0.88, 2);
-      setAnalysisProgress(Math.round(eased * 88) + 2); // start at 2%
+      const { progress, phaseIndex, status } = getAnalysisProgressFromElapsed(Date.now() - startTime);
+      setAnalysisProgress(progress);
+      setAnalysisPhaseIndex(phaseIndex);
+      setAnalysisStatusMessage(status);
     };
     tick();
-    const timer = setInterval(tick, 2000);
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [analysisStatus]);
 
@@ -2300,26 +2517,166 @@ export default function Dashboard() {
     await fetchAdTableLinks();
   }
 
-  async function handleTriggerAds(reportId, reportData) {
-    const config = getAdsConfig(reportId);
-    setSbTriggeringId(reportId);
-    try {
-      const res = await fetch("/api/trigger-ads", {
+  async function pollKieTasks(taskIds: string[], maxRetries = 8) {
+    if (!taskIds.length) return [];
+    let results: any[] = [];
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const res = await fetch(CREATE_AD_KIE_POLL_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ report_id: reportId, report_data: reportData, ads_config: config }),
+        body: JSON.stringify({ taskIds }),
       });
-      const result = await res.json();
-      if (result.success) {
-        setSbSessionTriggered((prev) => new Set([...prev, reportId]));
-        addSbToast("Ads workflow triggered successfully!");
-      } else {
-        addSbToast("Failed to trigger. Try again.", "error");
-      }
-    } catch {
-      addSbToast("Failed to trigger. Try again.", "error");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "KIE poll failed");
+      results = data.results || [];
+      if (data.allComplete) return results;
+      await new Promise((r) => setTimeout(r, attempt < 2 ? 20_000 : 30_000));
     }
-    setSbTriggeringId(null);
+    const res = await fetch(CREATE_AD_KIE_POLL_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskIds }),
+    });
+    const data = await res.json();
+    return data.results || results;
+  }
+
+  function buildSceneGenerationResponse(scenes: any[], imagePoll: any[], videoPoll: any[]) {
+    const results: any[] = [];
+    const failedPrompts: any[] = [];
+    scenes.forEach((scene, index) => {
+      const prompt = scene.prompt_clean || scene.prompt || "";
+      if (!scene.image_url) {
+        const imgFail = imagePoll[index] || {};
+        results.push({ success: false, state: "fail", prompt, taskId: imgFail.taskId || "", index, failMsg: imgFail.failMsg || "Image generation failed" });
+        failedPrompts.push({ prompt, reason: imgFail.failMsg || "Image generation failed" });
+        return;
+      }
+      if (!scene.video_url) {
+        const vidFail = videoPoll[index] || {};
+        results.push({ success: false, state: "fail", prompt, taskId: vidFail.taskId || "", index, failMsg: vidFail.failMsg || "Video generation failed" });
+        failedPrompts.push({ prompt, reason: vidFail.failMsg || "Video generation failed" });
+        return;
+      }
+      results.push({ success: true, state: "success", prompt, taskId: scene.task_id || "", index });
+    });
+    const failCount = results.filter((r) => !r.success).length;
+    return { totalCount: results.length, successCount: results.length - failCount, failCount, failedPrompts, results };
+  }
+
+  async function runClientVideoGeneration(
+    generatedPrompts: Record<string, any[]>,
+    audioKeys: Record<string, string> = {},
+    audioUrls: Record<string, string> = {}
+  ) {
+    const responses: any[] = [];
+    for (const [itemId, scenes] of Object.entries(generatedPrompts)) {
+      if (!Array.isArray(scenes) || scenes.length === 0) continue;
+
+      const imgRes = await fetch(CREATE_AD_VIDEO_IMAGES_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenes }),
+      });
+      const imgData = await imgRes.json();
+      if (!imgRes.ok) throw new Error(imgData.error || "Scene image generation failed");
+
+      const imagePoll = await pollKieTasks((imgData.tasks || []).map((t: any) => t.taskId));
+      const matchImgRes = await fetch(CREATE_AD_VIDEO_IMAGES_MATCH_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenes,
+          pollResults: imagePoll,
+          taskPrompts: (imgData.tasks || []).map((t: any) => t.prompt),
+        }),
+      });
+      const matchImgData = await matchImgRes.json();
+      if (!matchImgRes.ok) throw new Error(matchImgData.error || "Scene image match failed");
+      const scenesWithImages = matchImgData.scenes || scenes;
+
+      const clipRes = await fetch(CREATE_AD_VIDEO_CLIPS_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenes: scenesWithImages }),
+      });
+      const clipData = await clipRes.json();
+      if (!clipRes.ok) throw new Error(clipData.error || "Scene clip generation failed");
+
+      const clipPoll = await pollKieTasks((clipData.tasks || []).map((t: any) => t.taskId));
+      const matchClipRes = await fetch(CREATE_AD_VIDEO_CLIPS_MATCH_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenes: scenesWithImages,
+          tasks: clipData.tasks || [],
+          pollResults: clipPoll,
+        }),
+      });
+      const matchClipData = await matchClipRes.json();
+      if (!matchClipRes.ok) throw new Error(matchClipData.error || "Scene clip match failed");
+      const scenesWithVideos = matchClipData.scenes || scenesWithImages;
+
+      const response = buildSceneGenerationResponse(scenesWithVideos, imagePoll, clipPoll);
+      if (response.failCount === 0) {
+        const stitchRes = await fetch(CREATE_AD_VIDEO_STITCH_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scenes: scenesWithVideos,
+            report_data: analysisData,
+            ads_config: createTabAdsConfig,
+            audioKey: audioKeys[itemId] || "",
+            audioUrl: audioUrls[itemId] || "",
+            itemId: Number(itemId),
+          }),
+        });
+        const stitchData = await stitchRes.json().catch(() => ({}));
+        if (!stitchRes.ok) {
+          throw new Error(stitchData.error || "Video stitch failed");
+        }
+      }
+      responses.push(response);
+    }
+    return responses;
+  }
+
+  async function runImageAdPipeline() {
+    const conceptsRes = await fetch(CREATE_AD_IMAGE_CONCEPTS_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        report_data: analysisData,
+        ads_config: createTabAdsConfig,
+      }),
+    });
+    const conceptsData = await conceptsRes.json();
+    if (!conceptsRes.ok) throw new Error(conceptsData.error || "Image concept generation failed");
+
+    const generateRes = await fetch(CREATE_AD_IMAGE_GENERATE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ concepts: conceptsData.concepts || [] }),
+    });
+    const generateData = await generateRes.json();
+    if (!generateRes.ok) throw new Error(generateData.error || "Image generation start failed");
+
+    const taskIds = (generateData.tasks || []).map((t: any) => t.taskId);
+    const pollResults = await pollKieTasks(taskIds);
+
+    const finalizeRes = await fetch(CREATE_AD_IMAGE_FINALIZE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        concepts: conceptsData.concepts || [],
+        pollResults,
+        report_data: analysisData,
+        ads_config: createTabAdsConfig,
+      }),
+    });
+    const finalizeData = await finalizeRes.json();
+    if (!finalizeRes.ok) throw new Error(finalizeData.error || "Image finalize failed");
+    return finalizeData;
   }
 
   async function handleCreateTabTriggerAds() {
@@ -2352,8 +2709,7 @@ export default function Dashboard() {
     }, 2000);
 
     try {
-      const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_GENERATE_AD_URL");
-      const res = await fetch(webhookUrl, {
+      const res = await fetch(CREATE_AD_VIDEO_PROMPTS_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2363,21 +2719,25 @@ export default function Dashboard() {
         }),
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate video prompts");
 
       const scenesMap: any = {};
       const audioKeysMap: any = {};
+      const audioUrlsMap: any = {};
       config.items.forEach((item: any, idx: number) => {
         const match = Array.isArray(data)
-          ? data.find((d: any) => d.itemIndex === idx) || data[idx]
+          ? data.find((d: any) => d.itemIndex === idx || d.itemId === item.id) || data[idx]
           : null;
         scenesMap[item.id] = match?.scenes || [];
         audioKeysMap[item.id] = match?.audioKey || "";
+        audioUrlsMap[item.id] = match?.audioUrl || "";
       });
       setAdScenesMap(scenesMap);
       setAdAudioKeysMap(audioKeysMap);
+      setAdAudioUrlsMap(audioUrlsMap);
       setAdStatus("done");
       addSbToast("Ad prompts generated! Click \"View Prompts\" on each ad.", "success");
-    } catch (e) {
+    } catch (e: any) {
       setAdStatus("error");
       setWebhookError(e.message || "Failed to reach webhook");
       addSbToast("Failed to generate ad prompts. Try again.", "error");
@@ -2437,11 +2797,11 @@ export default function Dashboard() {
     return map;
   }
 
-  /** Parse failures from n8n response — handles arrays of multiple response objects (one per ad item/type) */
+  /** Parse failures from generation response — handles arrays of multiple response objects (one per ad item/type) */
   /**
-   * Parse generation failures from n8n response.
+   * Parse generation failures from pipeline response.
    *
-   * Key design: each n8n flow runs ONE ad at a time, so the response is for a single ad.
+   * Key design: each generation run handles ONE ad at a time, so the response is for a single ad.
    * results[i].index is LOCAL to that ad (0 = scene 0 of that ad, not global scene 0).
    * Primary match strategy: prompt text comparison (most reliable).
    * Fallback: once we identify which itemId owns this response via a successful result's
@@ -2565,8 +2925,8 @@ export default function Dashboard() {
     return successIds;
   }
 
-  /** IMAGE — fire-and-forget webhook, detect completion via Supabase polling + realtime */
-  function handleImageGenerate() {
+  /** IMAGE — native pipeline with client-side polling */
+  async function handleImageGenerate() {
     const item = createTabAdsConfig.items[0];
     if (!item) return;
 
@@ -2575,14 +2935,12 @@ export default function Dashboard() {
     setImageGenProgress(0);
     setFailedPrompts([]);
 
-    // Progress bar — images ~1-3 min, max 5 min
     const IMAGE_MAX = 300_000;
     const imgStart = Date.now();
     clearInterval(imageGenTimerRef.current);
     imageGenTimerRef.current = setInterval(() => {
       const pct = Math.min(99, ((Date.now() - imgStart) / IMAGE_MAX) * 100);
       setImageGenProgress(Math.round(pct));
-      // Timeout fallback — if no image after 5 min, stop and warn
       if (Date.now() - imgStart >= IMAGE_MAX) {
         clearInterval(imageGenTimerRef.current);
         clearInterval(videoGenPollRef.current);
@@ -2592,20 +2950,20 @@ export default function Dashboard() {
       }
     }, 2000);
 
-    // Fire-and-forget — same generate_ad webhook handles both image and video
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_GENERATE_AD_URL");
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        report_id: analysisData?.id || crypto.randomUUID(),
-        report_data: analysisData,
-        ads_config: createTabAdsConfig,
-        type: "image",
-      }),
-    }).catch(() => {}); // delivery only — n8n handles image gen async
-
-    startAdCompletionPolling(Date.now());
+    try {
+      await runImageAdPipeline();
+      setImageGenProgress(100);
+      addSbToast("Image ad generated successfully!", "success");
+      await fetchAdTableLinks();
+      resetCreateTabWorkspace();
+    } catch (e: any) {
+      addSbToast(e?.message || "Image generation failed.", "error");
+    } finally {
+      clearInterval(imageGenTimerRef.current);
+      setImageGenerating(false);
+      imageGeneratingRef.current = false;
+      setImageGenProgress(0);
+    }
   }
 
   async function handleAcceptPrompts() {
@@ -2636,9 +2994,9 @@ export default function Dashboard() {
       generated_prompts: adScenesMap,
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
+      audioUrls: adAudioUrlsMap,
       scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
     };
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
 
     // ── IMMEDIATE: unblock UI, start progress bar, keep workspace cards visible ──
     setAcceptingPrompts(false);
@@ -2648,21 +3006,11 @@ export default function Dashboard() {
     startVideoGenProgress();
     addSbToast("✅ Prompts accepted! Generation started — cards will update when done.", "success");
 
-    // ── BACKGROUND: fire webhook, read response for error detection (10-min window) ──
-    const bgController = new AbortController();
-    const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: bgController.signal,
-    })
-      .then(res => { clearTimeout(bgTimeout); return res.ok ? res.json() : null; })
-      .then(responseData => {
-        if (!responseData) return;
+    // ── BACKGROUND: run native video pipeline ──
+    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
+      .then((responseData) => {
         const failures = parseGenerationFailures(responseData, indexMap);
         const successes = parseGenerationSuccesses(responseData, indexMap);
-        // Mark completed ads
         if (successes.length > 0) {
           setCompletedItemIds(prev => [...new Set([...prev, ...successes])]);
         }
@@ -2672,9 +3020,21 @@ export default function Dashboard() {
           generationActiveRef.current = false;
           setFailedPrompts(failures);
           addSbToast(`⚠️ ${failures.length} scene(s) failed. Click the red card to view and fix prompts.`, "error");
+        } else {
+          stopVideoGenProgress(true);
+          setGenerationActive(false);
+          generationActiveRef.current = false;
+          fetchAdTableLinks();
+          addSbToast("✅ Video generation complete! Check Ad Previews.", "success");
         }
       })
-      .catch(() => { clearTimeout(bgTimeout); });
+      .catch((err: any) => {
+        stopVideoGenProgress(false);
+        setGenerationActive(false);
+        generationActiveRef.current = false;
+        const msg = err?.message || "Video generation failed. Try again.";
+        addSbToast(msg.includes("upload-post") || msg.includes("Upload Post") ? `Video stitch failed: check your Upload Post API token in Integrations. (${msg})` : msg, "error");
+      });
   }
 
   /** Update a failed prompt's text (user edits it before retrying) */
@@ -2725,28 +3085,19 @@ export default function Dashboard() {
     startVideoGenProgress();
     addSbToast(`🔄 Restarting generation for ${Object.keys(scenesForRequest).length} ad(s)…`, "success");
 
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
       generated_prompts: scenesForRequest,
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
+      audioUrls: adAudioUrlsMap,
       is_retry: true,
       scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
     };
 
-    const bgController = new AbortController();
-    const bgTimeout = setTimeout(() => bgController.abort(), 600_000);
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: bgController.signal,
-    })
-      .then(res => { clearTimeout(bgTimeout); return res.ok ? res.json() : null; })
-      .then(responseData => {
-        if (!responseData) return;
+    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
+      .then((responseData) => {
         const failures = parseGenerationFailures(responseData, newIndexMap);
         const successes = parseGenerationSuccesses(responseData, newIndexMap);
         if (successes.length > 0) setCompletedItemIds(prev => [...new Set([...prev, ...successes])]);
@@ -2756,9 +3107,18 @@ export default function Dashboard() {
           generationActiveRef.current = false;
           setFailedPrompts(failures);
           addSbToast(`⚠️ ${failures.length} scene(s) failed again. Fix and retry.`, "error");
+        } else {
+          stopVideoGenProgress(true);
+          setGenerationActive(false);
+          generationActiveRef.current = false;
+          fetchAdTableLinks();
         }
       })
-      .catch(() => { clearTimeout(bgTimeout); });
+      .catch(() => {
+        stopVideoGenProgress(false);
+        setGenerationActive(false);
+        generationActiveRef.current = false;
+      });
   }
 
   /** Retry a single card — sends ALL scenes for that ad with edited prompts merged in */
@@ -2788,34 +3148,25 @@ export default function Dashboard() {
       setRetryItemProgress(Math.min(99, Math.round(((Date.now() - retryStart) / CARD_RETRY_DURATION) * 100)));
     }, 2000);
 
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
       generated_prompts: { [itemId]: updatedScenes },
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
+      audioUrls: adAudioUrlsMap,
       is_retry: true,
       scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
     };
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 600_000);
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-      .then(res => { clearTimeout(timeout); return res.ok ? res.json() : null; })
-      .then(responseData => {
+    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
+      .then((responseData) => {
         clearInterval(retryGenTimerRef.current);
         const newFailures = responseData ? parseGenerationFailures(responseData, indexMap) : [];
         const newSuccesses = responseData ? parseGenerationSuccesses(responseData, indexMap) : [];
         if (newSuccesses.length > 0) {
           setCompletedItemIds(prev => [...new Set([...prev, ...newSuccesses])]);
         }
-        // Replace failures for this card only
         setFailedPrompts((prev: any[]) => {
           const others = prev.filter(f => String(f.itemId) !== itemId);
           const updated = [...others, ...newFailures];
@@ -2834,7 +3185,6 @@ export default function Dashboard() {
         }
       })
       .catch(() => {
-        clearTimeout(timeout);
         clearInterval(retryGenTimerRef.current);
         setRetryingItemId(null);
         setRetryItemProgress(0);
@@ -2890,27 +3240,19 @@ export default function Dashboard() {
       if (Date.now() - retryStart >= RETRY_DURATION) clearInterval(retryGenTimerRef.current);
     }, 2000);
 
-    const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_ACCEPT_PROMPTS_URL");
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
       generated_prompts: retryScenesMap,
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
+      audioUrls: adAudioUrlsMap,
       is_retry: true,
       scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
     };
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 600_000); // 10 min
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-      .then(res => { clearTimeout(timeout); return res.ok ? res.json() : null; })
-      .then(responseData => {
+    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
+      .then((responseData) => {
         clearInterval(retryGenTimerRef.current);
         const newFailures = responseData ? parseGenerationFailures(responseData, newIndexMap) : [];
         if (newFailures.length > 0) {
@@ -2923,7 +3265,7 @@ export default function Dashboard() {
           setTimeout(() => {
             setRetryGenActive(false);
             setRetryGenProgress(0);
-            resetCreateTabWorkspace(); // reset workspace after successful retry
+            resetCreateTabWorkspace();
           }, 1500);
           addSbToast("✅ Retry successful! Check Ad Previews.", "success");
           fetchAdTableLinks();
@@ -2931,7 +3273,6 @@ export default function Dashboard() {
         setRetryGenActive(false);
       })
       .catch(() => {
-        clearTimeout(timeout);
         clearInterval(retryGenTimerRef.current);
         setRetryGenActive(false);
         setRetryGenProgress(0);
@@ -2969,36 +3310,6 @@ export default function Dashboard() {
     else { setSbSortField(field); setSbSortDir("desc"); }
   }
 
-  // ── Reusable webhook caller ──
-  async function callWebhook(payload, setStatus) {
-    setStatus("generating");
-    setWebhookError("");
-    try {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-action": payload.action || ""
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json().catch(() => ({ ok: true }));
-      const resultData = Array.isArray(data) ? data[0] : data;
-      const isValid =
-        resultData &&
-        typeof resultData === "object" &&
-        !resultData.rawResponse &&
-        Object.keys(resultData).length > 0;
-      return isValid ? resultData : null;
-    } catch (e) {
-      setStatus("error");
-      setWebhookError(e.message || "Could not reach n8n");
-      console.error("Webhook error:", e);
-      return null;
-    }
-  }
-
   // ── Action 1: Competitor Analysis ──
   async function runCompetitorAnalysis() {
     const startRaw = window.localStorage.getItem("app_analysis_start");
@@ -3031,6 +3342,8 @@ export default function Dashboard() {
     setAnalysisData(null);
     setAnalysisError("");
     setAnalysisProgress(0);
+    setAnalysisPhaseIndex(0);
+    setAnalysisStatusMessage(ANALYSIS_PIPELINE_PHASES[0].status);
     const analysisTopic = kwSnapshot[0] || selectedTopic || "Tenant Screening";
     window.localStorage.setItem("app_analysis_start", String(Date.now()));
     sessionStorage.setItem("app_analysis_active", "1"); // marks this session as the one that fired
@@ -3041,20 +3354,25 @@ export default function Dashboard() {
 
     try {
       const brandConfig = getBrandConfigForAnalysis();
-      const result = await callWebhook({
-        action: "competitor_analysis",
-        topic: analysisTopic,
-        keywords: kwSnapshot,
-        countries: researchCountries,
-        max_ads: Number(researchMaxAds) || 100,
-        only_active: researchOnlyActive,
-        sort: researchSort,
-        brand_config: brandConfig,
-        brand_snapshot_id: activeBrandSnapshot?.id !== "current" ? activeBrandSnapshot?.id : null,
-        timestamp: new Date().toISOString(),
-      }, setAnalysisStatus);
+      const res = await fetch(COMPETITOR_ANALYSIS_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: analysisTopic,
+          keywords: kwSnapshot,
+          countries: researchCountries,
+          max_ads: Number(researchMaxAds) || 100,
+          only_active: researchOnlyActive,
+          sort: researchSort,
+          brand_config: brandConfig,
+          brand_snapshot_id: activeBrandSnapshot?.id !== "current" ? activeBrandSnapshot?.id : null,
+          timestamp: new Date().toISOString(),
+        }),
+      });
 
-      if (result && !result.error) {
+      const result = await res.json().catch(() => null);
+
+      if (result && result.success && !result.error) {
         freshAnalysisResultRef.current = true;
         expandTopicCollapseResults();
         setAnalysisData(result);
@@ -3064,7 +3382,7 @@ export default function Dashboard() {
         sessionStorage.removeItem("app_analysis_active");
         setPendingAnalysisTopic(null);
         addSbToast("Analysis complete!", "success");
-      } else if (result?.error && !result?.isTimeout) {
+      } else if (result?.error) {
         setAnalysisStatus("error");
         setAnalysisProgress(0);
         window.localStorage.removeItem("app_analysis_start");
@@ -3072,8 +3390,12 @@ export default function Dashboard() {
         setAnalysisError(result.error);
         addSbToast(`Analysis failed: ${result.error}`, "error");
       } else {
-        // Webhook timed out or returned no data — keep generating and let polling/realtime finish
-        setAnalysisStatus("generating");
+        setAnalysisStatus("error");
+        setAnalysisProgress(0);
+        window.localStorage.removeItem("app_analysis_start");
+        sessionStorage.removeItem("app_analysis_active");
+        setAnalysisError("No analysis data returned");
+        addSbToast("Analysis failed: no data returned", "error");
       }
     } catch (err: any) {
       console.error("[Analysis] Unexpected error:", err);
@@ -3088,37 +3410,13 @@ export default function Dashboard() {
     }
   }
 
-  // ── Action 2: Generate Ad ──
-  async function createAdFromAnalysis() {
-    setAdData(null);
-    const result = await callWebhook({
-      action: "generate_ad",
-      topic: selectedTopic,
-      executive_summary: analysisData?.executive_summary || "",
-      top_hooks: analysisData?.hooks_table || [],
-      competitors: (analysisData?.competitors_table || []).slice(0, 5),
-      gaps: analysisData?.gaps_table || [],
-      timestamp: new Date().toISOString(),
-    }, setAdStatus);
-    if (result) {
-      setAdData(result);
-      setAdStatus("done");
-    } else if (adStatus !== "error") {
-      setAdStatus("waiting");
-    }
-  }
-
-
-
-
-
-  // ── Receive n8n result ──
+  // ── Receive analysis result ──
   function receiveAnalysisResult(data) {
     setAnalysisData(data);
     setAnalysisStatus("done");
   }
 
-  // ── DEV: simulate n8n response ──
+  // ── DEV: simulate analysis response ──
   function simulateAnalysisResponse() {
     receiveAnalysisResult({
       success: true,
@@ -4691,11 +4989,11 @@ export default function Dashboard() {
                   >
                     {analysisStatus === "done"
                       ? "Re-run competitor analysis"
-                      : "Trigger n8n webhook — run competitor analysis"}
+                      : "Run competitor analysis"}
                   </button>
                   {analysisStatus === "error" && (
                     <div style={{ marginTop: 10, fontSize: 13, color: "var(--red-strong)", background: "var(--red-light)", padding: "10px 14px", borderRadius: "var(--radius-md)", border: "1px solid var(--red)" }}>
-                      <strong>Webhook error:</strong> {analysisError || webhookError || "Could not reach the webhook endpoint."}
+                      <strong>Analysis error:</strong> {analysisError || webhookError || "Could not complete competitor analysis."}
                     </div>
                   )}
                 </div>
@@ -4715,7 +5013,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Competitor Analysis Running</div>
-                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>n8n is scraping Meta Ads Library &amp; running AI analysis…</div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>{analysisStatusMessage}</div>
                       </div>
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>{analysisProgress}%</span>
@@ -4735,24 +5033,23 @@ export default function Dashboard() {
 
                   {/* Step indicators */}
                   <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-                    {[
-                      { label: "Connecting to n8n", pct: 5 },
-                      { label: "Scraping Meta Ads Library", pct: 25 },
-                      { label: "AI competitor analysis", pct: 55 },
-                      { label: "Generating insights", pct: 80 },
-                    ].map((s) => (
-                      <div key={s.label} style={{
+                    {ANALYSIS_PIPELINE_PHASES.map((phase, i) => {
+                      const isDone = analysisPhaseIndex > i;
+                      const isActive = analysisPhaseIndex === i;
+                      return (
+                      <div key={phase.label} style={{
                         display: "flex", alignItems: "center", gap: 5,
                         padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                        background: analysisProgress >= s.pct ? "#eff6ff" : "#f8fafc",
-                        color: analysisProgress >= s.pct ? "#1d4ed8" : "#94a3b8",
-                        border: `1px solid ${analysisProgress >= s.pct ? "#bfdbfe" : "#e2e8f0"}`,
+                        background: isDone || isActive ? "#eff6ff" : "#f8fafc",
+                        color: isDone || isActive ? "#1d4ed8" : "#94a3b8",
+                        border: `1px solid ${isDone || isActive ? "#bfdbfe" : "#e2e8f0"}`,
                         transition: "all 0.5s"
                       }}>
-                        <span>{analysisProgress >= s.pct ? "✓" : "○"}</span>
-                        {s.label}
+                        <span>{isDone ? "✓" : isActive ? "●" : "○"}</span>
+                        {phase.label}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -4917,12 +5214,12 @@ export default function Dashboard() {
                     <AnalysisCollapsiblePanel
                       expanded={analysisCardsExpanded.raw}
                       onToggle={() => toggleAnalysisSection("raw")}
-                      title="n8n Raw Response"
+                      title="Raw Analysis Response"
                       marginBottom={14}
                     >
                       <div style={{ padding: "16px 20px" }}>
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
-                          n8n responded but no table data was found. Raw output:
+                          Analysis completed but no table data was found. Raw output:
                         </div>
                         <pre style={{
                           fontSize: 11,
@@ -4944,13 +5241,7 @@ export default function Dashboard() {
                 {analysisData && (
                   <div>
                     <button
-                      onClick={() => {
-                        setCreateTabAdsConfig((prev) =>
-                          buildCreateTabConfigFromAnalysis(analysisData, prev)
-                        );
-                        setTab("create");
-                        setCreateTabConfigOpen(true);
-                      }}
+                      onClick={openCreateAdFromAnalysis}
                       disabled={adStatus === "generating" || adStatus === "waiting"}
                       style={{
                         padding: "11px 18px",
@@ -4969,18 +5260,18 @@ export default function Dashboard() {
                         transition: "background 0.2s",
                       }}
                     >
-                      {adStatus === "generating" ? <><Spinner size={12} color="var(--primary)" /> Sending to n8n...</> :
+                      {adStatus === "generating" ? <><Spinner size={12} color="var(--primary)" /> Sending to pipeline...</> :
                         adStatus === "waiting" ? <><Spinner size={12} color="var(--primary)" /> Generating ad...</> :
                           "Create ad based on this analysis →"}
                     </button>
                     {adStatus === "waiting" && (
                       <div style={{ marginTop: 8, fontSize: 12, color: "var(--amber)" }}>
-                        n8n is generating your ad using the analysis data. Results will appear in the Create Ad tab when ready.
+                        The ad pipeline is generating your ad using the analysis data. Results will appear in the Create Ad tab when ready.
                       </div>
                     )}
                     {adStatus === "error" && (
                       <div style={{ marginTop: 8, fontSize: 12, color: "var(--red-strong)" }}>
-                        Could not reach n8n: {webhookError}. Please try again.
+                        Could not reach the ad pipeline: {webhookError}. Please try again.
                       </div>
                     )}
                   </div>
@@ -5189,9 +5480,9 @@ export default function Dashboard() {
                     transition: "background 0.2s",
                   }}
                 >
-                  {adStatus === "generating" ? <><Spinner size={12} color="var(--primary)" /> Sending to n8n...</> :
+                  {adStatus === "generating" ? <><Spinner size={12} color="var(--primary)" /> Sending to pipeline...</> :
                     adStatus === "waiting" ? <><Spinner size={12} color="var(--primary)" /> Generating ad...</> :
-                      "Generate ad — trigger n8n"}
+                      "Generate ad"}
                 </button>
               ) : (
                 <div className="animate-fade-in" style={{
@@ -5386,13 +5677,12 @@ export default function Dashboard() {
                                         return;
                                       }
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
-                                      addSbToast(`Generating Video ${idx + 1} ideas via webhook...`);
+                                      addSbToast(`Generating Video ${idx + 1} ideas...`);
                                       try {
-                                        const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SINGLE_IDEA_URL");
-                                        const res = await fetch(webhookUrl, {
+                                        const res = await fetch(CREATE_AD_IDEAS_API, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify(item),
+                                          body: JSON.stringify({ ...item, brand_config: getBrandConfigForAnalysis() }),
                                           cache: "no-store"
                                         });
                                         if (res.ok) {
@@ -5409,7 +5699,7 @@ export default function Dashboard() {
                                             setGeneratedIdeas(prev => ({ ...prev, [item.id]: ideasArr }));
                                             addSbToast("Ideas generated successfully!", "success");
                                           } else {
-                                            console.error("Unrecognized JSON format from n8n:", data);
+                                            console.error("Unrecognized JSON format from ad pipeline:", data);
                                             addSbToast("No valid ideas format returned.", "error");
                                           }
                                         } else {
@@ -5501,13 +5791,12 @@ export default function Dashboard() {
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
-                                      addSbToast(`Generating Image ${idx + 1} ideas via webhook...`);
+                                      addSbToast(`Generating Image ${idx + 1} ideas...`);
                                       try {
-                                        const webhookUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SINGLE_IDEA_URL");
-                                        const res = await fetch(webhookUrl, {
+                                        const res = await fetch(CREATE_AD_IDEAS_API, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify(item),
+                                          body: JSON.stringify({ ...item, brand_config: getBrandConfigForAnalysis() }),
                                           cache: "no-store"
                                         });
                                         if (res.ok) {
@@ -5524,7 +5813,7 @@ export default function Dashboard() {
                                             setGeneratedIdeas(prev => ({ ...prev, [item.id]: ideasArr }));
                                             addSbToast("Ideas generated successfully!", "success");
                                           } else {
-                                            console.error("Unrecognized JSON format from n8n:", data);
+                                            console.error("Unrecognized JSON format from ad pipeline:", data);
                                             addSbToast("No valid ideas format returned.", "error");
                                           }
                                         } else {
@@ -5696,7 +5985,7 @@ export default function Dashboard() {
                             {workflowStatus || "Video is Generating..."}
                           </div>
                           <div style={{ fontSize: 11, color: "var(--text-dim)", fontStyle: "italic" }}>
-                            n8n is orchestrating Claude 3.5 and Runway ML. Ad previews will refresh automatically upon completion.
+                            The ad pipeline is orchestrating image and video generation. Ad previews will refresh automatically upon completion.
                           </div>
 
                           {/* Image & Video Generation Progress Bars */}
@@ -7267,6 +7556,7 @@ export default function Dashboard() {
               { key: "positioning", label: "Positioning", iconEl: <Target size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
               { key: "competitors", label: "Competitors", iconEl: <Users size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
               { key: "painPoints", label: "Pain Points", iconEl: <AlertTriangle size={16} color="#D97706" />, iconBg: "#FFFBEB" },
+              { key: "destinationUrl", label: "Destination URL (Meta Ads)", iconEl: <LayoutGrid size={16} color="#2563EB" />, iconBg: "#EFF6FF", singleLine: true },
             ].map((f, i, arr) => (
               <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -7275,6 +7565,16 @@ export default function Dashboard() {
                   </div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: "#1E293B" }}>{f.label}</label>
                 </div>
+                {f.singleLine ? (
+                  <input
+                    type="url"
+                    value={displayProfileData[f.key]}
+                    onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
+                    disabled={!isEditingProfile}
+                    placeholder="https://your-app.vercel.app/"
+                    style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
+                  />
+                ) : (
                 <textarea
                   value={displayProfileData[f.key]}
                   onChange={(e) => setProfileData({...profileData, [f.key]: e.target.value})}
@@ -7282,6 +7582,7 @@ export default function Dashboard() {
                   disabled={!isEditingProfile}
                   style={{ width: "100%", padding: "10px 14px", fontSize: 13, border: `1.5px solid ${isEditingProfile ? "#93C5FD" : "#E2E8F0"}`, borderRadius: 12, background: isEditingProfile ? "#fff" : "#F8FAFC", color: "#334155", outline: "none", resize: "none", lineHeight: 1.6, fontFamily: "inherit", boxSizing: "border-box", cursor: isEditingProfile ? "text" : "default" }}
                 />
+                )}
               </div>
             ))}
           </div>
@@ -8133,15 +8434,34 @@ export default function Dashboard() {
                     setFailedImagePrompts(prev => prev.map(fp =>
                       fp.index === editingImagePrompt.index ? { ...fp, prompt: updatedPrompt } : fp
                     ));
-                    // Resubmit to single idea webhook
+                    // Resubmit via native image generation
                     try {
-                      const singleIdeaUrl = n8nUrl(n8nWebhooks, "NEXT_PUBLIC_N8N_SINGLE_IDEA_URL");
-                      const res = await fetch(singleIdeaUrl, {
+                      const concept = {
+                        id: editingImagePrompt.index,
+                        title: "Resubmit",
+                        prompt: `*${updatedPrompt}*`,
+                        headline: "Resubmit Ad",
+                        cta: "Get Started",
+                      };
+                      const generateRes = await fetch(CREATE_AD_IMAGE_GENERATE_API, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ prompt: updatedPrompt, index: editingImagePrompt.index }),
+                        body: JSON.stringify({ concepts: [concept] }),
                       });
-                      if (res.ok) {
+                      const generateData = await generateRes.json();
+                      if (!generateRes.ok) throw new Error(generateData.error || "Generate failed");
+                      const pollResults = await pollKieTasks((generateData.tasks || []).map((t: any) => t.taskId));
+                      const finalizeRes = await fetch(CREATE_AD_IMAGE_FINALIZE_API, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          concepts: [concept],
+                          pollResults,
+                          report_data: analysisData,
+                          ads_config: createTabAdsConfig,
+                        }),
+                      });
+                      if (finalizeRes.ok) {
                         // Remove this prompt from failed list on success
                         setFailedImagePrompts(prev => prev.filter(fp => fp.index !== editingImagePrompt.index));
                         addSbToast("Prompt resubmitted successfully!", "success");

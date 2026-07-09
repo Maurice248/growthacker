@@ -57,11 +57,16 @@ interface ChartPoint {
 }
 
 interface Campaign {
-  id: number;
+  id: string;
   template_id: string;
   subject_line: string;
   limit_for_daily: number;
-  table_name: string;
+  audience_limit: string;
+  sent_count: number;
+  send_hour: number;
+  send_minute: number;
+  send_timezone: string;
+  name: string;
 }
 
 function aggregateStats(chartData: ChartPoint[], days: number) {
@@ -103,15 +108,15 @@ export default function EmailAnalyticsDashboard() {
   const [periodOpen, setPeriodOpen] = useState(false);
   const [periodDays, setPeriodDays] = useState(30);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [leadCounts, setLeadCounts] = useState<Record<string, number>>({});
+  const [subscriberCount, setSubscriberCount] = useState(0);
 
   useEffect(() => {
-    fetch('/api/supabase/campaigns')
+    fetch('/api/newsletter/campaigns')
       .then((r) => r.json())
       .then((json) => {
         if (!json.error) {
           setCampaigns(json.campaigns || []);
-          setLeadCounts(json.leadCounts || {});
+          setSubscriberCount(json.subscriberCount ?? json.leadCounts?.subscribers ?? 0);
         }
       })
       .catch(() => {});
@@ -409,8 +414,7 @@ export default function EmailAnalyticsDashboard() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {campaigns.map((c) => {
-              const table = String(c.table_name || '');
-              const leads = leadCounts[table] ?? 0;
+              const leads = subscriberCount;
               const daily = Number(c.limit_for_daily || 0);
               const daysLeft = daily > 0 ? Math.ceil(leads / daily) : 0;
               const tid = String(c.template_id || '');
@@ -419,6 +423,7 @@ export default function EmailAnalyticsDashboard() {
                   key={c.id}
                   className="rounded-xl border border-gray-100 bg-gray-50 p-4 transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
                 >
+                  <p className="mb-1 text-xs font-semibold text-gray-500 uppercase">{c.name}</p>
                   <p className="mb-3 line-clamp-2 text-sm font-semibold leading-snug text-gray-800">
                     {c.subject_line || '—'}
                   </p>
@@ -427,10 +432,10 @@ export default function EmailAnalyticsDashboard() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-flex items-center rounded-lg bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700">
-                      {leads.toLocaleString()} leads · {table}
+                      {leads.toLocaleString()} subscribers · {c.audience_limit}
                     </span>
                     <span className="inline-flex items-center rounded-lg bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
-                      {daily}/day · ~{daysLeft}d left
+                      {daily}/day · {c.send_hour}:{String(c.send_minute).padStart(2, '0')} {c.send_timezone || 'UTC'} · ~{daysLeft}d left
                     </span>
                   </div>
                 </div>
