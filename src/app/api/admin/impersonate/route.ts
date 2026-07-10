@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAppAdmin } from '@/lib/auth';
+import { logAdminAction } from '@/lib/admin/audit';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
@@ -27,6 +28,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Company not found.' }, { status: 404 });
     }
 
+    await logAdminAction({
+      actorUserId: admin.id,
+      action: 'impersonate.start',
+      targetType: 'company',
+      targetId: company.id,
+      metadata: { companyName: company.name },
+    });
+
     return NextResponse.json({
       ok: true,
       companyId: company.id,
@@ -43,6 +52,13 @@ export async function DELETE() {
   if (!admin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  await logAdminAction({
+    actorUserId: admin.id,
+    action: 'impersonate.end',
+    targetType: 'session',
+    targetId: admin.id,
+  });
 
   return NextResponse.json({ ok: true });
 }

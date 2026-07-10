@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions, isCompanyAdminRole } from '@/lib/auth';
 import { MembersManager } from '@/components/client-dashboard/members-manager';
+import { AccountPage } from '@/components/client-dashboard/account-page';
 
 export default async function ClientMembersPage() {
   const session = await getServerSession(authOptions);
@@ -15,15 +16,11 @@ export default async function ClientMembersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text)]">Members</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Invite teammates and manage who has access to your company workspace.
-        </p>
-      </div>
-
+    <AccountPage
+      title="Members"
+      description="Invite teammates and manage who has access to your company workspace."
+    >
       <MembersManager currentUserId={session.user.id} />
-    </div>
+    </AccountPage>
   );
 }

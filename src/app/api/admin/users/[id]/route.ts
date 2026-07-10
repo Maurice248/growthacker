@@ -11,6 +11,7 @@ import {
 } from '@/lib/auth';
 import { isLastCompanyAdmin } from '@/lib/company-members';
 import { prisma } from '@/lib/prisma';
+import { logAdminAction } from '@/lib/admin/audit';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -105,6 +106,19 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       },
     });
 
+    await logAdminAction({
+      actorUserId: admin.id,
+      action: 'user.role_change',
+      targetType: 'user',
+      targetId: id,
+      metadata: {
+        previousRole: user.role,
+        newRole: updated.role,
+        previousCompanyId: user.companyId,
+        newCompanyId: updated.companyId,
+      },
+    });
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,
@@ -135,7 +149,7 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
 
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, role: true, companyId: true },
+    select: { id: true, role: true, companyId: true, email: true },
   });
 
   if (!user) {
@@ -155,6 +169,14 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
   }
 
   await prisma.user.delete({ where: { id } });
+
+  await logAdminAction({
+    actorUserId: admin.id,
+    action: 'user.delete',
+    targetType: 'user',
+    targetId: id,
+    metadata: { email: user.email, role: user.role, companyId: user.companyId },
+  });
 
   return NextResponse.json({ ok: true });
 }

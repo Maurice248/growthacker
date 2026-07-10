@@ -46,10 +46,10 @@ const emptyForm = {
 
 function SecretHint({ field }: { field: SecretField }) {
   if (!field.set) {
-    return <p className="text-xs text-[var(--text-muted)]">Not configured</p>;
+    return <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">Not configured</p>;
   }
   return (
-    <p className="text-xs text-[var(--text-muted)]">
+    <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">
       Saved: <span className="font-mono">{field.masked}</span> — leave blank to keep current value
     </p>
   );
@@ -179,14 +179,14 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {readOnly && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-muted)]">
           Only company admins can edit integration settings.
         </div>
       )}
 
-      <fieldset disabled={readOnly} className="space-y-6 disabled:opacity-80">
+      <fieldset disabled={readOnly} className="space-y-5 disabled:opacity-80">
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -210,7 +210,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
             Credentials for launching campaigns, live ads, reports, and location search.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="metaAccessToken">Access token</Label>
             <Input
@@ -223,7 +223,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
             />
             {settings && <SecretHint field={settings.metaAccessToken} />}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="metaAdAccountId">Ad account ID</Label>
               <Input
@@ -251,7 +251,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
           <CardTitle className="text-lg">WordPress</CardTitle>
           <CardDescription>Blog publishing credentials for your WordPress site.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="wordpressSiteUrl">Site URL</Label>
             <Input
@@ -262,7 +262,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
               onChange={(e) => setForm((f) => ({ ...f, wordpressSiteUrl: e.target.value }))}
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="wordpressUsername">Username</Label>
               <Input
@@ -282,9 +282,13 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
                 value={form.wordpressAppPassword}
                 onChange={(e) => setForm((f) => ({ ...f, wordpressAppPassword: e.target.value }))}
               />
-              {settings && <SecretHint field={settings.wordpressAppPassword} />}
             </div>
           </div>
+          {settings && (
+            <div className="rounded-md border border-[var(--border-light)] bg-[var(--surface)] px-3 py-2">
+              <SecretHint field={settings.wordpressAppPassword} />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -301,11 +305,11 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
             >
               app.dataforseo.com/api-access
             </a>
-            . Leave a field blank to keep the current saved value.
+            .
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="space-y-5">
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="dataforseoLogin">Account login (email)</Label>
               <Input
@@ -318,13 +322,6 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
                   setDataforseoForm((prev) => ({ ...prev, login: e.target.value }))
                 }
               />
-              {dataforseoView?.loginSet ? (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Saved: <span className="font-mono">{dataforseoView.loginMasked}</span>
-                </p>
-              ) : (
-                <p className="text-xs text-[var(--text-muted)]">Not configured</p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="dataforseoPassword">API password</Label>
@@ -338,15 +335,29 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
                   setDataforseoForm((prev) => ({ ...prev, password: e.target.value }))
                 }
               />
-              {dataforseoView?.passwordSet ? (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Saved: <span className="font-mono">{dataforseoView.passwordMasked}</span>
-                </p>
-              ) : (
-                <p className="text-xs text-[var(--text-muted)]">Not configured</p>
-              )}
             </div>
           </div>
+          {dataforseoView && (
+            <div className="grid gap-2 rounded-md border border-[var(--border-light)] bg-[var(--surface)] px-3 py-2 sm:grid-cols-2">
+              {dataforseoView.loginSet ? (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Login saved: <span className="font-mono">{dataforseoView.loginMasked}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-[var(--text-muted)]">Login not configured</p>
+              )}
+              {dataforseoView.passwordSet ? (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Password saved: <span className="font-mono">{dataforseoView.passwordMasked}</span>
+                </p>
+              ) : (
+                <p className="text-xs text-[var(--text-muted)]">Password not configured</p>
+              )}
+              <p className="text-xs text-[var(--text-muted)] sm:col-span-2">
+                Leave a field blank to keep the current saved value.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -358,38 +369,42 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
             Leave blank to keep the current saved value.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {apiTokenSecrets.map((token) => (
-            <div key={token.key} className="space-y-2">
-              <Label htmlFor={`token-${token.key}`}>{token.label}</Label>
-              <Input
-                id={`token-${token.key}`}
-                type="password"
-                autoComplete="off"
-                placeholder={token.set ? '••••••••' : token.placeholder}
-                value={apiTokenForm[token.key] ?? ''}
-                onChange={(e) =>
-                  setApiTokenForm((prev) => ({ ...prev, [token.key]: e.target.value }))
-                }
-              />
-              {token.set ? (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Saved: <span className="font-mono">{token.masked}</span> — leave blank to keep
-                  current value
-                </p>
-              ) : (
-                <p className="text-xs text-[var(--text-muted)]">Not configured</p>
-              )}
-            </div>
-          ))}
+        <CardContent>
+          <div className="grid gap-5 sm:grid-cols-2">
+            {apiTokenSecrets.map((token) => (
+              <div key={token.key} className="space-y-2">
+                <Label htmlFor={`token-${token.key}`}>{token.label}</Label>
+                <Input
+                  id={`token-${token.key}`}
+                  type="password"
+                  autoComplete="off"
+                  placeholder={token.set ? '••••••••' : token.placeholder}
+                  value={apiTokenForm[token.key] ?? ''}
+                  onChange={(e) =>
+                    setApiTokenForm((prev) => ({ ...prev, [token.key]: e.target.value }))
+                  }
+                />
+                {token.set ? (
+                  <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">
+                    Saved: <span className="font-mono">{token.masked}</span> — leave blank to keep
+                    current value
+                  </p>
+                ) : (
+                  <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">Not configured</p>
+                )}
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
       {!readOnly && (
-        <Button type="submit" disabled={saving} className="gap-2">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {saving ? 'Saving…' : 'Save integrations'}
-        </Button>
+        <div className="sticky bottom-0 -mx-1 flex justify-end border-t border-[var(--border-light)] bg-[var(--bg)]/95 px-1 py-4 backdrop-blur-sm">
+          <Button type="submit" disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {saving ? 'Saving…' : 'Save integrations'}
+          </Button>
+        </div>
       )}
       </fieldset>
     </form>

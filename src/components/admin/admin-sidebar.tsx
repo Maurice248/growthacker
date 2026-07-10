@@ -4,19 +4,29 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
+  Activity,
   Building2,
   ExternalLink,
   LayoutDashboard,
   LogOut,
   Shield,
+  Stethoscope,
+  TrendingUp,
+  UserPlus,
   Users,
+  Workflow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/admin', label: 'Control panel', icon: LayoutDashboard, exact: true },
+  { href: '/admin/operations', label: 'Operations', icon: Workflow },
   { href: '/admin/companies', label: 'Companies', icon: Building2 },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/diagnostics', label: 'Diagnostics', icon: Stethoscope },
+  { href: '/admin/onboarding', label: 'Onboarding', icon: UserPlus },
+  { href: '/admin/usage', label: 'Usage', icon: TrendingUp },
+  { href: '/admin/activity', label: 'Activity log', icon: Activity },
 ];
 
 type AdminSidebarProps = {

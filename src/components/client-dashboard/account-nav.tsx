@@ -15,16 +15,17 @@ const ADMIN_NAV_ITEM = { href: '/client-dashboard/members', label: 'Members', ic
 
 type AccountNavProps = {
   isAdmin?: boolean;
+  className?: string;
 };
 
-export function AccountNav({ isAdmin = false }: AccountNavProps) {
+export function AccountNav({ isAdmin = false, className }: AccountNavProps) {
   const pathname = usePathname();
   const navItems = isAdmin
     ? [BASE_NAV_ITEMS[0], ADMIN_NAV_ITEM, BASE_NAV_ITEMS[1], BASE_NAV_ITEMS[2]]
     : [...BASE_NAV_ITEMS];
 
   return (
-    <nav className="w-full shrink-0 lg:w-56">
+    <nav className={cn('w-full shrink-0 lg:sticky lg:top-8 lg:w-52', className)}>
       <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:pb-0">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;

@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAppAdmin } from '@/lib/auth';
 import { getCompanyIntegrationStatus } from '@/lib/company-integration-status';
+import { computeCompanyHealth } from '@/lib/admin/company-health';
+import { logAdminAction } from '@/lib/admin/audit';
 import { prisma } from '@/lib/prisma';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -48,6 +50,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
   }
 
   const { configured, modules } = await getCompanyIntegrationStatus(id);
+  const health = await computeCompanyHealth(id);
 
   return NextResponse.json({
     id: company.id,
@@ -70,6 +73,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
       expiresAt: i.expiresAt.toISOString(),
       createdAt: i.createdAt.toISOString(),
     })),
+    health,
   });
 }
 
@@ -107,6 +111,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       },
     });
 
+    await logAdminAction({
+      actorUserId: admin.id,
+      action: 'company.update',
+      targetType: 'company',
+      targetId: id,
+      metadata: { name: updated.name, slug: updated.slug },
+    });
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,
@@ -128,6 +140,14 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
 
   try {
     await prisma.company.delete({ where: { id } });
+
+    await logAdminAction({
+      actorUserId: admin.id,
+      action: 'company.delete',
+      targetType: 'company',
+      targetId: id,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[admin/companies DELETE]', err);

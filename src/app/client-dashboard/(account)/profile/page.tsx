@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CompanyProfileForm } from '@/components/client-dashboard/company-profile-form';
+import { AccountPage } from '@/components/client-dashboard/account-page';
 
 function formatDate(date: Date) {
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -57,12 +58,7 @@ export default async function ClientProfilePage() {
   const isAdmin = isCompanyAdminRole(user.role);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text)]">Profile</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">Your account and company details.</p>
-      </div>
-
+    <AccountPage title="Profile" description="Your account and company details.">
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Account</CardTitle>
@@ -99,6 +95,6 @@ export default async function ClientProfilePage() {
       </Card>
 
       <CompanyProfileForm readOnly={!isAdmin} />
-    </div>
+    </AccountPage>
   );
 }

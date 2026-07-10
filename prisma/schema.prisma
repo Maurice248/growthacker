@@ -132,6 +132,7 @@ model User {
   company    Company?            @relation(fields: [companyId], references: [id])
   executions WorkflowExecution[]
   sessions   Session[]
+  auditLogs  AdminAuditLog[]
 
   @@index([email])
   @@index([companyId])
@@ -528,4 +529,20 @@ model BlogJob {
   @@index([companyId, status])
   @@index([createdAt(sort: Desc)])
   @@map("blog_jobs")
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String   @map("actor_user_id")
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String   @map("target_id")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorUserId])
+  @@index([targetType, targetId])
+  @@map("admin_audit_logs")
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ViewAsCompanyButton } from '@/components/admin/view-as-company-button';
 import { AdminUsersTable } from '@/components/admin/admin-users-table';
+import { HealthScoreBadge } from '@/components/admin/admin-status-badge';
+import { cn } from '@/lib/utils';
+
+type HealthFactor = {
+  id: string;
+  label: string;
+  ok: boolean;
+  detail?: string;
+};
+
+type CompanySupportSnapshot = {
+  lastWorkflowAt: string | null;
+  recentErrorCount: number;
+  activeNewsletterCampaigns: number;
+  activeOutreachCampaigns: number;
+  subscriberCount: number;
+  leadCount: number;
+  socialJobCount: number;
+  blogJobCount: number;
+  lastNewsletterRunAt: string | null;
+  lastBlogRunAt: string | null;
+};
 
 type CompanyDetail = {
   id: string;
@@ -23,6 +45,11 @@ type CompanyDetail = {
   hasBrandConfig: boolean;
   brandConfigUpdatedAt: string | null;
   pendingInvites: Array<{ id: string; email: string; role: string; expiresAt: string }>;
+  health?: {
+    score: number;
+    factors: HealthFactor[];
+    support: CompanySupportSnapshot;
+  };
 };
 
 export function CompanyDetailPanel({ companyId }: { companyId: string }) {
@@ -139,7 +166,7 @@ export function CompanyDetailPanel({ companyId }: { companyId: string }) {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Company settings</CardTitle>
@@ -203,7 +230,76 @@ export function CompanyDetailPanel({ companyId }: { companyId: string }) {
             </div>
           </CardContent>
         </Card>
+
+        {company.health && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Health score</CardTitle>
+              <CardDescription>Setup and operational readiness.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <HealthScoreBadge score={company.health.score} />
+              <ul className="space-y-2">
+                {company.health.factors.map((factor) => (
+                  <li key={factor.id} className="flex items-start gap-2 text-sm">
+                    {factor.ok ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    ) : (
+                      <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                    )}
+                    <div>
+                      <div className={cn(factor.ok ? 'text-slate-700' : 'text-slate-900')}>{factor.label}</div>
+                      {factor.detail && <div className="text-xs text-slate-500">{factor.detail}</div>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {company.health && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Support snapshot</CardTitle>
+            <CardDescription>Read-only operational context for support.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: 'Last workflow', value: company.health.support.lastWorkflowAt?.slice(0, 10) ?? 'Never' },
+                { label: 'Recent errors', value: company.health.support.recentErrorCount },
+                { label: 'Newsletter campaigns', value: company.health.support.activeNewsletterCampaigns },
+                { label: 'Pending outreach', value: company.health.support.activeOutreachCampaigns },
+                { label: 'Subscribers', value: company.health.support.subscriberCount },
+                { label: 'Leads', value: company.health.support.leadCount },
+                { label: 'Social jobs', value: company.health.support.socialJobCount },
+                { label: 'Blog jobs', value: company.health.support.blogJobCount },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <div className="text-xs text-slate-500">{label}</div>
+                  <div className="mt-0.5 font-semibold tabular-nums text-slate-900">{value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href={`/admin/operations?companyId=${company.id}`}
+                className="text-sm font-medium text-violet-600 hover:underline"
+              >
+                View operations →
+              </Link>
+              <Link
+                href={`/admin/diagnostics?companyId=${company.id}`}
+                className="text-sm font-medium text-violet-600 hover:underline"
+              >
+                View diagnostics →
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {company.pendingInvites.length > 0 && (
         <Card>

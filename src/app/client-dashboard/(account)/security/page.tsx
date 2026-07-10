@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { ChangeEmailForm } from '@/components/client-dashboard/change-email-form';
 import { ChangePasswordForm } from '@/components/client-dashboard/change-password-form';
+import { AccountPage } from '@/components/client-dashboard/account-page';
 
 export default async function ClientSecurityPage() {
   const session = await getServerSession(authOptions);
@@ -22,14 +23,12 @@ export default async function ClientSecurityPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text)]">Security</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">Manage your password and account security.</p>
-      </div>
-
+    <AccountPage
+      title="Security"
+      description="Manage your password and account security."
+    >
       <ChangeEmailForm currentEmail={user.email} />
       <ChangePasswordForm />
-    </div>
+    </AccountPage>
   );
 }
