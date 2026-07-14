@@ -57,6 +57,7 @@ import { useSession, signOut } from "next-auth/react";
 import { tenantStorageKey } from "@/lib/tenant-storage";
 import CampaignSetup from "./CampaignSetup";
 import AdPerformance from "./AdPerformance";
+import GenerateVariants from "./GenerateVariants";
 import SocialDash from "./SocialDash";
 import SocialOverview from "./SocialOverview";
 import CustomSelect from "./CustomSelect";
@@ -162,9 +163,10 @@ const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "create", label: "Create Ad", icon: WandSparkles },
   { id: "approval", label: "Approval", icon: ClipboardCheck },
+  { id: "variants", label: "Generate Ad Variants", icon: Sparkles },
   { id: "campaigns", label: "Campaign Setup", icon: Settings2 },
   { id: "live_campaigns", label: "Running Campaign", icon: TrendingUp },
-  { id: "ad_performance", label: "Ad Performance", icon: Activity },
+  { id: "ad_performance", label: "Automated Campaigns", icon: Activity },
   { id: "reports", label: "Reports", icon: PieChart },
 ];
 
@@ -187,7 +189,7 @@ const NEWSLETTER_TABS = [
 
 const NEWSLETTER_TAB_IDS = new Set(NEWSLETTER_TABS.map((t) => t.id));
 
-const META_ADS_IDS = new Set(["overview", "create", "approval", "campaigns", "live_campaigns", "ad_performance", "reports"]);
+const META_ADS_IDS = new Set(["overview", "create", "approval", "variants", "campaigns", "live_campaigns", "ad_performance", "reports"]);
 
 const OUTREACH_FUTURE_TABS = [
   { id: "cold-dm", label: "Cold DM", icon: MessageSquare },
@@ -1234,6 +1236,13 @@ export default function Dashboard() {
   });
   const [selectedMetaCampaign, setSelectedMetaCampaign] = useLocalStorage("app_selected_meta_campaign", null);
   const [launchAdCandidate, setLaunchAdCandidate] = useLocalStorage("app_launch_ad_candidate", null);
+  const [variantAutomationId, setVariantAutomationId] = useState<string | null>(null);
+  const [variantAds, setVariantAds] = useState<any[]>([]);
+  const [automationParams, setAutomationParams] = useState<{
+    numVariants: number;
+    evalLengthDays: number;
+    dailyBudgetCents: number;
+  } | null>(null);
 
   // Custom Media Upload
   const [customUploadLoading, setCustomUploadLoading] = useState(false);
@@ -4416,7 +4425,7 @@ export default function Dashboard() {
                 }}
               >
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", letterSpacing: "0.04em" }}>
-                  ALL
+                  {allAnalysisSectionsExpanded ? "Collapse All" : "Expand All"}
                 </span>
                 <AnalysisResultToggle expanded={allAnalysisSectionsExpanded} darkText />
               </button>
@@ -6787,6 +6796,26 @@ export default function Dashboard() {
         </div>
       )}
 
+      <div
+        className="animate-fade-in"
+        style={{ display: tab === "variants" ? "block" : "none", paddingTop: 8 }}
+      >
+        <GenerateVariants
+          approvedAds={allApprovedAds}
+          onContinueToCampaignSetup={(payload) => {
+            setVariantAutomationId(payload.automationId);
+            setVariantAds(payload.variants);
+            setAutomationParams({
+              numVariants: payload.numVariants,
+              evalLengthDays: payload.evalLengthDays,
+              dailyBudgetCents: payload.dailyBudgetCents,
+            });
+            setLaunchAdCandidate(null);
+            setTab("campaigns");
+          }}
+        />
+      </div>
+
       {/* ═══════════════════════════════════════════════════════
           CAMPAIGN SETUP
       ═══════════════════════════════════════════════════════ */}
@@ -6795,6 +6824,9 @@ export default function Dashboard() {
           selectedId={selectedMetaCampaign?.id}
           selectedAd={launchAdCandidate}
           approvedAds={allApprovedAds}
+          variantAutomationId={variantAutomationId}
+          variantAds={variantAds}
+          automationParams={automationParams}
           onSelect={(campaign) => setSelectedMetaCampaign(campaign)}
         />
       )}
@@ -7100,16 +7132,10 @@ export default function Dashboard() {
       )}
 
       {/* ═══════════════════════════════════════════════════════
-          AD PERFORMANCE
+          AUTOMATED CAMPAIGNS
       ═══════════════════════════════════════════════════════ */}
       {tab === "ad_performance" && (
         <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 8, paddingBottom: 40 }}>
-          <div>
-            <SectionTitle style={{ marginBottom: 4 }}>Ad Performance</SectionTitle>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-              Compare metrics across every ad, filtered by campaign, ad set, and date range.
-            </div>
-          </div>
           <AdPerformance />
         </div>
       )}

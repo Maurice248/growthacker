@@ -58,6 +58,22 @@ const DEFAULT_CONFIG: any = {
   link_data: "",
 };
 
+type VariantCopy = {
+  name: string;
+  primary_text: string;
+  description: string;
+};
+
+function conceptFromVariant(variant: { concept?: Record<string, unknown> }) {
+  const concept = variant.concept || {};
+  return ((concept.metadata as Record<string, unknown>) || concept) as Record<string, unknown>;
+}
+
+function variantLabel(variant: { role?: string; format?: string }, index: number) {
+  if (variant.role === "base") return "Base variant";
+  return `AI variant ${index}`;
+}
+
 // ─── PERSISTENCE KEYS ────────────────────────────────────────────────────────
 const STORE_CONFIG   = "app_campaign_config";
 const STORE_STEP     = "app_campaign_step";
@@ -101,6 +117,19 @@ interface CampaignSetupProps {
   selectedId: string | null | undefined;
   selectedAd: any;
   approvedAds?: any[];
+  variantAutomationId?: string | null;
+  variantAds?: Array<{
+    id: string;
+    mediaUrl: string;
+    format: string;
+    role: string;
+    concept?: Record<string, unknown>;
+  }>;
+  automationParams?: {
+    numVariants: number;
+    evalLengthDays: number;
+    dailyBudgetCents: number;
+  } | null;
 }
 
 const STEPS = [
@@ -109,7 +138,15 @@ const STEPS = [
   { num: 3, label: "Ad Creative", sub: "Select & Configure" },
 ];
 
-export default function CampaignSetup({ onSelect, selectedId, selectedAd, approvedAds: approvedAdsProp = [] }: CampaignSetupProps) {
+export default function CampaignSetup({
+  onSelect,
+  selectedId,
+  selectedAd,
+  approvedAds: approvedAdsProp = [],
+  variantAutomationId = null,
+  variantAds = [],
+  automationParams = null,
+}: CampaignSetupProps) {
   const [step, setStep] = useState(1);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(true);
@@ -126,6 +163,26 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
   const [stepErrors, setStepErrors] = useState<string[]>([]);
   const [adSets, setAdSets] = useState<any[]>([]);
   const [adSetsLoading, setAdSetsLoading] = useState(false);
+  const [variantCopyById, setVariantCopyById] = useState<Record<string, VariantCopy>>({});
+  const [generatingCopy, setGeneratingCopy] = useState(false);
+  const [copyError, setCopyError] = useState("");
+  const variantCopyInitRef = useRef("");
+
+  const hasVariantLaunch = variantAds.length > 0;
+  const hasMultiVariantLaunch = variantAds.length > 1;
+  const activeAd = selectedAd || (hasVariantLaunch ? { text: variantAds[0]?.mediaUrl, format: variantAds[0]?.format } : null);
+
+  useEffect(() => {
+    if (!hydrated || !automationParams) return;
+    setConfig((prev: any) => ({
+      ...prev,
+      ad_set: {
+        ...prev.ad_set,
+        daily_budget: automationParams.dailyBudgetCents,
+        budget_type: "DAILY",
+      },
+    }));
+  }, [automationParams, hydrated]);
 
   const setField = (section: string, key: string, value: any) => {
     setConfig((prev: any) => ({ ...prev, [section]: { ...prev[section], [key]: value } }));
@@ -280,7 +337,137 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
     } catch {}
   }, [selectedAd, hydrated]);
 
-  useEffect(() => { setHasLaunchedThisSegment(false); }, [selectedId, selectedAd]);
+  useEffect(() => {
+    if (!hydrated || !hasVariantLaunch) return;
+    const first = variantAds[0];
+    if (!first) return;
+    const isVideo = first.format === "Video";
+    const concept = first.concept || {};
+    const metadata =
+      (concept.metadata as Record<string, unknown>) ||
+      (concept as Record<string, unknown>);
+    setConfig((prev: any) => ({
+      ...prev,
+      ad: {
+        ...prev.ad,
+        media_type: isVideo ? "video" : "image",
+        type: isVideo ? "video" : "image",
+        name: (metadata.ad_name as string) || prev.ad?.name || "",
+        primary_text: (metadata.primary_text as string) || prev.ad?.primary_text || "",
+        headline: (metadata.headline as string) || prev.ad?.headline || "",
+        website_url: (metadata.destination_url as string) || prev.ad?.website_url || "",
+      },
+      link_data: first.mediaUrl,
+    }));
+  }, [variantAds, hasVariantLaunch, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || !hasMultiVariantLaunch) return;
+    const key = variantAds.map((v) => v.id).join(",");
+    if (key === variantCopyInitRef.current) return;
+    variantCopyInitRef.current = key;
+
+    const next: Record<string, VariantCopy> = {};
+    variantAds.forEach((variant, index) => {
+      const metadata = conceptFromVariant(variant);
+      next[variant.id] = {
+        name:
+          (metadata.ad_name as string) ||
+          (index === 0 ? config.ad?.name : "") ||
+          (index === 0 ? "Base variant" : `AI variant ${index}`),
+        primary_text:
+          (metadata.primary_text as string) ||
+          (index === 0 ? config.ad?.primary_text : "") ||
+          "",
+        description:
+          (metadata.ad_description as string) ||
+          (index === 0 ? config.ad?.description : "") ||
+          "",
+      };
+    });
+    setVariantCopyById(next);
+  }, [
+    variantAds,
+    hasMultiVariantLaunch,
+    hydrated,
+    config.ad?.name,
+    config.ad?.primary_text,
+    config.ad?.description,
+  ]);
+
+  const setVariantCopy = (variantId: string, field: keyof VariantCopy, value: string) => {
+    setVariantCopyById((prev) => ({
+      ...prev,
+      [variantId]: {
+        name: prev[variantId]?.name || "",
+        primary_text: prev[variantId]?.primary_text || "",
+        description: prev[variantId]?.description || "",
+        [field]: value,
+      },
+    }));
+    setHasLaunchedThisSegment(false);
+  };
+
+  const handleGenerateVariantCopy = async () => {
+    if (!hasMultiVariantLaunch) return;
+    const baseVariant = variantAds[0];
+    const baseCopy = variantCopyById[baseVariant.id];
+    if (!baseCopy?.name?.trim() || !baseCopy?.primary_text?.trim()) {
+      setCopyError("Fill in the base variant ad name and primary text first.");
+      return;
+    }
+
+    setGeneratingCopy(true);
+    setCopyError("");
+    try {
+      const targets = variantAds.slice(1).map((variant, index) => {
+        const metadata = conceptFromVariant(variant);
+        const concept = variant.concept || {};
+        return {
+          id: variant.id,
+          label: variantLabel(variant, index + 1),
+          angle: (concept.angle as string) || (metadata.angle as string) || undefined,
+          idea: (concept.idea as string) || (metadata.idea as string) || undefined,
+        };
+      });
+
+      const res = await fetch("/api/meta/automation/generate-ad-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          base: {
+            name: baseCopy.name,
+            primary_text: baseCopy.primary_text,
+            description: baseCopy.description,
+            headline: config.ad?.headline || "",
+          },
+          variants: targets,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate ad copy");
+
+      setVariantCopyById((prev) => {
+        const next = { ...prev };
+        for (const variant of variantAds.slice(1)) {
+          const generated = data.copies?.[variant.id];
+          if (!generated) continue;
+          next[variant.id] = {
+            name: generated.name || next[variant.id]?.name || "",
+            primary_text: generated.primary_text || next[variant.id]?.primary_text || "",
+            description: generated.description || next[variant.id]?.description || "",
+          };
+        }
+        return next;
+      });
+    } catch (err: unknown) {
+      setCopyError(err instanceof Error ? err.message : "Failed to generate ad copy");
+    } finally {
+      setGeneratingCopy(false);
+    }
+  };
+
+  useEffect(() => { setHasLaunchedThisSegment(false); }, [selectedId, selectedAd, variantAutomationId]);
 
   // Reset success banner when user navigates away from step 3 so the Launch button reappears on return
   useEffect(() => { if (step !== 3) { setLaunchSuccess(false); setHasLaunchedThisSegment(false); } }, [step]);
@@ -297,19 +484,90 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
           ...config.ad_set,
           age_min: Number(config.ad_set?.age_min) || 18,
           age_max: Number(config.ad_set?.age_max) || 65,
-          daily_budget: Number(config.ad_set?.daily_budget) || 5000,
+          daily_budget: Number(config.ad_set?.daily_budget) || (automationParams?.dailyBudgetCents ?? 5000),
           lifetime_budget: Number(config.ad_set?.lifetime_budget) || 50000,
         },
       };
+
+      const buildAdPayload = (variant: {
+        id?: string;
+        mediaUrl: string;
+        format: string;
+        concept?: Record<string, unknown>;
+      }, index: number) => {
+        const concept = variant.concept || {};
+        const metadata =
+          (concept.metadata as Record<string, unknown>) ||
+          (concept as Record<string, unknown>);
+        const perVariantCopy =
+          variant.id && hasMultiVariantLaunch ? variantCopyById[variant.id] : null;
+        const isVideo = variant.format === "Video";
+        return {
+          link_data: variant.mediaUrl,
+          ad: {
+            ...sanitizedConfig.ad,
+            id: Date.now() + index,
+            name:
+              perVariantCopy?.name?.trim() ||
+              (metadata.ad_name as string) ||
+              (concept.headline as string) ||
+              `${sanitizedConfig.ad?.name || "Ad"} ${index + 1}`,
+            media_type: isVideo ? "video" : "image",
+            type: isVideo ? "video" : "image",
+            headline:
+              (metadata.headline as string) ||
+              sanitizedConfig.ad?.headline ||
+              "",
+            primary_text:
+              perVariantCopy?.primary_text?.trim() ||
+              (metadata.primary_text as string) ||
+              sanitizedConfig.ad?.primary_text ||
+              "",
+            description:
+              perVariantCopy?.description?.trim() ||
+              (metadata.ad_description as string) ||
+              sanitizedConfig.ad?.description ||
+              "",
+            website_url:
+              (metadata.destination_url as string) ||
+              sanitizedConfig.ad?.website_url ||
+              "",
+            call_to_action_type: sanitizedConfig.ad?.call_to_action_type || "LEARN_MORE",
+          },
+        };
+      };
+
+      const adsPayload = hasVariantLaunch
+        ? variantAds.map((variant, index) => buildAdPayload(variant, index))
+        : undefined;
+
       const res = await fetch("/api/meta/launch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schema: sanitizedConfig, campaignId: selectedId || null }),
+        body: JSON.stringify({
+          schema: sanitizedConfig,
+          campaignId: selectedId || null,
+          ads: adsPayload,
+        }),
       });
       const text = await res.text();
       let data: any;
       try { data = JSON.parse(text); } catch { throw new Error(`Server error: ${text.slice(0, 100)}`); }
       if (res.ok) {
+        if (variantAutomationId) {
+          await fetch(`/api/meta/automation/${variantAutomationId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "finalize_launch",
+              schema: sanitizedConfig,
+              campaignId: data.campaignId || selectedId || null,
+              adSetId: data.adSetId || null,
+              adIds: data.adIds || (data.adId ? [data.adId] : []),
+              generation: 1,
+            }),
+          });
+        }
         setLaunchStep(5);
         setLaunchSuccess(true);
         setHasLaunchedThisSegment(true);
@@ -345,8 +603,17 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       }
     }
     if (s === 3) {
-      if (!config.ad?.name?.trim()) errs.push("Ad Name is required.");
-      if (!config.ad?.primary_text?.trim()) errs.push("Primary Text is required.");
+      if (hasMultiVariantLaunch) {
+        variantAds.forEach((variant, index) => {
+          const copy = variantCopyById[variant.id];
+          const label = variantLabel(variant, index);
+          if (!copy?.name?.trim()) errs.push(`Ad Name is required for ${label}.`);
+          if (!copy?.primary_text?.trim()) errs.push(`Primary Text is required for ${label}.`);
+        });
+      } else {
+        if (!config.ad?.name?.trim()) errs.push("Ad Name is required.");
+        if (!config.ad?.primary_text?.trim()) errs.push("Primary Text is required.");
+      }
       if (!config.ad?.headline?.trim()) errs.push("Headline is required.");
       const url = config.ad?.website_url?.trim();
       if (!url) {
@@ -389,7 +656,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       </div>
 
       {/* ── No Ad Selected Gate ── */}
-      {!selectedAd && (
+      {!activeAd && (
         <div style={{
           background: "#fff", borderRadius: 16, border: "2px dashed #bfdbfe",
           padding: "40px 32px", marginBottom: 20, textAlign: "center",
@@ -417,7 +684,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       )}
 
       {/* ── Stepper ── */}
-      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "20px 28px", marginBottom: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.04)", opacity: selectedAd ? 1 : 0.4, pointerEvents: selectedAd ? "auto" : "none" }}>
+      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "20px 28px", marginBottom: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.04)", opacity: activeAd ? 1 : 0.4, pointerEvents: activeAd ? "auto" : "none" }}>
         <div style={{ display: "flex", alignItems: "center" }}>
           {STEPS.map((s, i) => {
             const done = step > s.num;
@@ -451,7 +718,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       {/* ══════════════════════════════════════════════
           STEP 1 — CAMPAIGN
       ══════════════════════════════════════════════ */}
-      {step === 1 && selectedAd && (
+      {step === 1 && activeAd && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* Existing Campaigns */}
@@ -569,7 +836,7 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       {/* ══════════════════════════════════════════════
           STEP 2 — AD SET
       ══════════════════════════════════════════════ */}
-      {step === 2 && selectedAd && (
+      {step === 2 && activeAd && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "visible", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
@@ -721,43 +988,57 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
       {/* ══════════════════════════════════════════════
           STEP 3 — AD CREATIVE
       ══════════════════════════════════════════════ */}
-      {step === 3 && selectedAd && (
+      {step === 3 && activeAd && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* Select Approved Ad */}
+          {/* Select Approved Ad / Variant Set */}
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
             <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Selected Ad</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
+                {hasVariantLaunch ? "Variant set" : "Selected Ad"}
+              </div>
               <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>
-                {selectedAd ? "Ad selected from the Approval tab." : `Pick an approved creative. ${approvedAdsProp.length > 0 ? approvedAdsProp.length + " available" : ""}`}
+                {hasVariantLaunch
+                  ? `${variantAds.length} ads will launch together in one ad set.`
+                  : selectedAd
+                    ? "Ad selected from the Approval tab."
+                    : `Pick an approved creative. ${approvedAdsProp.length > 0 ? approvedAdsProp.length + " available" : ""}`}
               </div>
             </div>
             <div style={{ padding: "16px 24px" }}>
               {(() => {
-                // Show only the selected ad if one was chosen from Approval tab
-                const adsToShow = selectedAd ? [selectedAd] : approvedAdsProp;
+                const adsToShow = hasVariantLaunch
+                  ? variantAds.map((variant) => ({
+                      id: variant.id,
+                      text: variant.mediaUrl,
+                      format: variant.format,
+                      role: variant.role,
+                    }))
+                  : selectedAd
+                    ? [selectedAd]
+                    : approvedAdsProp;
                 if (adsToShow.length === 0) return (
                   <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13 }}>No approved ads yet. Go to the <b>Approval</b> tab to approve your ad creatives first.</div>
                 );
                 return (
-                <div style={{ display: "grid", gridTemplateColumns: selectedAd ? "repeat(auto-fill, minmax(200px, 280px))" : "repeat(auto-fill, minmax(130px, 1fr))", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: hasVariantLaunch || selectedAd ? "repeat(auto-fill, minmax(200px, 280px))" : "repeat(auto-fill, minmax(130px, 1fr))", gap: 12 }}>
                   {adsToShow.map((ad: any, adIdx: number) => {
                     const isVid = (ad.format || "").toLowerCase() === "video";
-                    // Use URL as the unique selector — IDs can be duplicated in the table
-                    const isSelected = selectedApprovedAd?.text === ad.text;
+                    const isSelected = hasVariantLaunch || selectedApprovedAd?.text === ad.text;
                     return (
                       <div key={`${ad.id}-${adIdx}`} onClick={() => {
+                        if (hasVariantLaunch) return;
                         setSelectedApprovedAd(ad);
                         setConfig((prev: any) => ({ ...prev, link_data: ad.text, ad: { ...prev.ad, media_type: isVid ? "video" : "image", type: isVid ? "video" : "image" } }));
                       }}
                         style={{
-                          borderRadius: 12, overflow: "hidden", cursor: "pointer", transition: "all 0.18s",
+                          borderRadius: 12, overflow: "hidden", cursor: hasVariantLaunch ? "default" : "pointer", transition: "all 0.18s",
                           border: isSelected ? "2.5px solid #2563eb" : "1.5px solid #e2e8f0",
                           boxShadow: isSelected ? "0 0 0 4px rgba(37,99,235,0.12)" : "0 1px 4px rgba(0,0,0,0.04)",
                           position: "relative",
                         }}
                       >
-                        {isSelected && (
+                        {(isSelected || hasVariantLaunch) && (
                           <div style={{ position: "absolute", top: 6, right: 6, zIndex: 2, width: 20, height: 20, borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800 }}>✓</div>
                         )}
                         <div style={{ background: "#0f172a", aspectRatio: "9/16", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
@@ -769,9 +1050,8 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
                         </div>
                         <div style={{ padding: "8px 8px 6px", background: "#fff" }}>
                           <div style={{ fontSize: 10, fontWeight: 700, color: isVid ? "#1d4ed8" : "#475569", display: "flex", alignItems: "center", gap: 3 }}>
-                            {isVid ? "🎬" : "🖼️"} {isVid ? "Video" : "Image"}
+                            {isVid ? "🎬" : "🖼️"} {ad.role === "base" ? "Base variant" : isVid ? "Video" : "Image"}
                           </div>
-                          <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 2 }}>{new Date(ad.time).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</div>
                         </div>
                       </div>
                     );
@@ -784,51 +1064,242 @@ export default function CampaignSetup({ onSelect, selectedId, selectedAd, approv
 
           {/* Ad Copy */}
           <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <SectionHeader title="Ad Copy & Identity" sub="Customize the text and CTA for your ad." />
+            <SectionHeader
+              title="Ad Copy & Identity"
+              sub={
+                hasMultiVariantLaunch
+                  ? "Each variant needs its own ad name, primary text, and description. Fill in the base variant, then generate the rest."
+                  : "Customize the text and CTA for your ad."
+              }
+            />
             <div style={{ padding: "20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-              {/* Ad Name */}
-              <Label label="Ad Name *">
-                <input value={config.ad?.name || ""} onChange={e => setField("ad", "name", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
-              </Label>
+              {hasMultiVariantLaunch ? (
+                <>
+                  {variantAds.map((variant, index) => {
+                    const copy = variantCopyById[variant.id] || {
+                      name: "",
+                      primary_text: "",
+                      description: "",
+                    };
+                    const isVideo = variant.format === "Video";
+                    const label = variantLabel(variant, index);
+                    return (
+                      <div
+                        key={variant.id}
+                        style={{
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          background: index === 0 ? "#f8fafc" : "#fff",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "12px 16px",
+                            borderBottom: "1px solid #eef2f7",
+                            background: "#fff",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 44,
+                              height: 56,
+                              borderRadius: 8,
+                              overflow: "hidden",
+                              background: "#0f172a",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isVideo ? (
+                              <video
+                                src={variant.mediaUrl}
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            ) : (
+                              <img
+                                src={variant.mediaUrl}
+                                alt=""
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{label}</div>
+                            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                              {index === 0
+                                ? "Write this first — other variants can be generated from it."
+                                : "Unique ad name, primary text, and description for this creative."}
+                            </div>
+                          </div>
+                        </div>
 
-              {/* Primary Text */}
-              <Label label="Primary Text">
-                <textarea value={config.ad?.primary_text || ""} onChange={e => setField("ad", "primary_text", e.target.value)}
-                  style={{ ...inputSt, minHeight: 88, resize: "vertical", lineHeight: 1.6, width: "100%", boxSizing: "border-box" }} />
-              </Label>
+                        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 12 }}>
+                          <Label label="Ad Name *">
+                            <input
+                              value={copy.name}
+                              onChange={(e) => setVariantCopy(variant.id, "name", e.target.value)}
+                              style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                            />
+                          </Label>
 
-              {/* Headline */}
-              <Label label="Headline">
-                <input value={config.ad?.headline || ""} onChange={e => setField("ad", "headline", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
-              </Label>
+                          <Label label="Primary Text *">
+                            <textarea
+                              value={copy.primary_text}
+                              onChange={(e) => setVariantCopy(variant.id, "primary_text", e.target.value)}
+                              style={{
+                                ...inputSt,
+                                minHeight: 88,
+                                resize: "vertical",
+                                lineHeight: 1.6,
+                                width: "100%",
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          </Label>
 
-              {/* CTA */}
-              <Label label="Call to Action">
-                <CustomSelect
-                  value={config.ad?.call_to_action_type || "LEARN_MORE"}
-                  onChange={v => setField("ad", "call_to_action_type", v)}
-                  options={[
-                    { value: "LEARN_MORE",  label: "Learn More" },
-                    { value: "SHOP_NOW",    label: "Shop Now" },
-                    { value: "BOOK_TRAVEL", label: "Book Now" },
-                    { value: "SIGN_UP",     label: "Sign Up" },
-                    { value: "CONTACT_US",  label: "Contact Us" },
-                    { value: "GET_QUOTE",   label: "Get Quote" },
-                    { value: "APPLY_NOW",   label: "Apply Now" },
-                    { value: "DOWNLOAD",    label: "Download" },
-                    { value: "SUBSCRIBE",   label: "Subscribe" },
-                    { value: "GET_OFFER",   label: "Get Offer" },
-                    { value: "ORDER_NOW",   label: "Order Now" },
-                    { value: "WATCH_MORE",  label: "Watch More" },
-                  ]}
-                />
-              </Label>
+                          <Label label="Ad Description">
+                            <input
+                              value={copy.description}
+                              onChange={(e) => setVariantCopy(variant.id, "description", e.target.value)}
+                              style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                            />
+                          </Label>
+                        </div>
+                      </div>
+                    );
+                  })}
 
-              {/* Ad Description */}
-              <Label label="Ad Description">
-                <input value={config.ad?.description || ""} onChange={e => setField("ad", "description", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
-              </Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={handleGenerateVariantCopy}
+                      disabled={generatingCopy}
+                      style={{
+                        alignSelf: "flex-start",
+                        padding: "10px 16px",
+                        borderRadius: 10,
+                        border: "1px solid #2563eb",
+                        background: generatingCopy ? "#eff6ff" : "#2563eb",
+                        color: generatingCopy ? "#2563eb" : "#fff",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: generatingCopy ? "wait" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      {generatingCopy ? <Spinner size={14} /> : null}
+                      {generatingCopy
+                        ? "Generating copy..."
+                        : `Generate ad copy for variants 2–${variantAds.length}`}
+                    </button>
+                    {copyError && (
+                      <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>{copyError}</div>
+                    )}
+                  </div>
+
+                  <div style={{ height: 1, background: "#e2e8f0", margin: "4px 0" }} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+                    Shared across all variants
+                  </div>
+
+                  <Label label="Headline *">
+                    <input
+                      value={config.ad?.headline || ""}
+                      onChange={(e) => setField("ad", "headline", e.target.value)}
+                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                    />
+                  </Label>
+
+                  <Label label="Call to Action">
+                    <CustomSelect
+                      value={config.ad?.call_to_action_type || "LEARN_MORE"}
+                      onChange={(v) => setField("ad", "call_to_action_type", v)}
+                      options={[
+                        { value: "LEARN_MORE", label: "Learn More" },
+                        { value: "SHOP_NOW", label: "Shop Now" },
+                        { value: "BOOK_TRAVEL", label: "Book Now" },
+                        { value: "SIGN_UP", label: "Sign Up" },
+                        { value: "CONTACT_US", label: "Contact Us" },
+                        { value: "GET_QUOTE", label: "Get Quote" },
+                        { value: "APPLY_NOW", label: "Apply Now" },
+                        { value: "DOWNLOAD", label: "Download" },
+                        { value: "SUBSCRIBE", label: "Subscribe" },
+                        { value: "GET_OFFER", label: "Get Offer" },
+                        { value: "ORDER_NOW", label: "Order Now" },
+                        { value: "WATCH_MORE", label: "Watch More" },
+                      ]}
+                    />
+                  </Label>
+                </>
+              ) : (
+                <>
+                  <Label label="Ad Name *">
+                    <input
+                      value={config.ad?.name || ""}
+                      onChange={(e) => setField("ad", "name", e.target.value)}
+                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                    />
+                  </Label>
+
+                  <Label label="Primary Text">
+                    <textarea
+                      value={config.ad?.primary_text || ""}
+                      onChange={(e) => setField("ad", "primary_text", e.target.value)}
+                      style={{
+                        ...inputSt,
+                        minHeight: 88,
+                        resize: "vertical",
+                        lineHeight: 1.6,
+                        width: "100%",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </Label>
+
+                  <Label label="Headline">
+                    <input
+                      value={config.ad?.headline || ""}
+                      onChange={(e) => setField("ad", "headline", e.target.value)}
+                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                    />
+                  </Label>
+
+                  <Label label="Call to Action">
+                    <CustomSelect
+                      value={config.ad?.call_to_action_type || "LEARN_MORE"}
+                      onChange={(v) => setField("ad", "call_to_action_type", v)}
+                      options={[
+                        { value: "LEARN_MORE", label: "Learn More" },
+                        { value: "SHOP_NOW", label: "Shop Now" },
+                        { value: "BOOK_TRAVEL", label: "Book Now" },
+                        { value: "SIGN_UP", label: "Sign Up" },
+                        { value: "CONTACT_US", label: "Contact Us" },
+                        { value: "GET_QUOTE", label: "Get Quote" },
+                        { value: "APPLY_NOW", label: "Apply Now" },
+                        { value: "DOWNLOAD", label: "Download" },
+                        { value: "SUBSCRIBE", label: "Subscribe" },
+                        { value: "GET_OFFER", label: "Get Offer" },
+                        { value: "ORDER_NOW", label: "Order Now" },
+                        { value: "WATCH_MORE", label: "Watch More" },
+                      ]}
+                    />
+                  </Label>
+
+                  <Label label="Ad Description">
+                    <input
+                      value={config.ad?.description || ""}
+                      onChange={(e) => setField("ad", "description", e.target.value)}
+                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
+                    />
+                  </Label>
+                </>
+              )}
 
               {/* Destination URL */}
               {(() => {

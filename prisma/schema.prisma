@@ -34,6 +34,8 @@ model Company {
   blogConfig          BlogConfig?
   blogCategories      BlogCategory[]
   blogJobs            BlogJob[]
+  adAutomationDefaults AdAutomationDefaults?
+  adAutomations        AdAutomation[]
 
   @@map("companies")
 }
@@ -529,6 +531,68 @@ model BlogJob {
   @@index([companyId, status])
   @@index([createdAt(sort: Desc)])
   @@map("blog_jobs")
+}
+
+model AdAutomationDefaults {
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  numVariants      Int      @default(3) @map("num_variants")
+  evalLengthDays   Int      @default(7) @map("eval_length_days")
+  dailyBudgetCents Int      @default(100) @map("daily_budget_cents")
+  winnerMetric     String   @default("objective_aware") @map("winner_metric")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("ad_automation_defaults")
+}
+
+model AdAutomation {
+  id                String    @id @default(cuid())
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  metaCampaignId    String?   @map("meta_campaign_id")
+  metaAdSetId       String?   @map("meta_ad_set_id")
+  baseAdMediaUrl    String    @map("base_ad_media_url")
+  baseConcept       Json      @default("{}") @map("base_concept")
+  numVariants       Int       @default(3) @map("num_variants")
+  evalLengthDays    Int       @default(7) @map("eval_length_days")
+  dailyBudgetCents  Int       @default(100) @map("daily_budget_cents")
+  automationEnabled Boolean   @default(false) @map("automation_enabled")
+  status            String    @default("generating")
+  generation        Int       @default(1)
+  nextEvaluationAt  DateTime? @map("next_evaluation_at")
+  launchSchema      Json?     @map("launch_schema")
+  error             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  variants AdVariant[]
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([status, nextEvaluationAt])
+  @@index([createdAt(sort: Desc)])
+  @@map("ad_automations")
+}
+
+model AdVariant {
+  id           String   @id @default(cuid())
+  automationId String   @map("automation_id")
+  automation   AdAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  generation   Int      @default(1)
+  metaAdId     String?  @map("meta_ad_id")
+  mediaUrl     String   @map("media_url")
+  format       String
+  concept      Json     @default("{}")
+  metrics      Json?
+  role         String   @default("challenger")
+  createdAt    DateTime @default(now())
+
+  @@index([automationId])
+  @@index([automationId, generation])
+  @@index([automationId, role])
+  @@map("ad_variants")
 }
 
 model AdminAuditLog {

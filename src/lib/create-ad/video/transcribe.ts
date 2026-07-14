@@ -29,7 +29,7 @@ export async function submitTranscription(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ audio_url: audioUrl }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!res.ok) {
@@ -52,7 +52,7 @@ export async function pollTranscription(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const res = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
       headers: { Authorization: apiKey },
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!res.ok) {

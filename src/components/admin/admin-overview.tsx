@@ -191,7 +191,7 @@ export function AdminOverview() {
           <div className="min-w-0 flex-1">
             <div className="font-medium text-zinc-900">Manage users</div>
             <div className="text-xs text-zinc-500">
-              {stats.companyAdminCount} company admins · {stats.memberCount} members
+              {stats.companyAdminCount} company admins · {stats.memberCount} company users
             </div>
           </div>
           <ArrowRight className="h-4 w-4 shrink-0 text-zinc-300 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-600" />
@@ -320,7 +320,7 @@ export function AdminOverview() {
                 tone="zinc"
               />
               <RoleBar
-                label="Members"
+                label="Company Users"
                 count={stats.memberCount}
                 total={stats.userCount}
                 tone="slate"

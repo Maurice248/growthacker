@@ -7,10 +7,16 @@ export type KieCreateTaskInput = {
   input: Record<string, unknown>;
 };
 
+export type KieRequestOptions = {
+  timeoutMs?: number;
+};
+
 export async function kieCreateTask(
   apiKey: string,
-  payload: KieCreateTaskInput
+  payload: KieCreateTaskInput,
+  options: KieRequestOptions = {}
 ): Promise<string> {
+  const timeoutMs = options.timeoutMs ?? 120_000;
   const res = await fetch(`${KIE_BASE}/jobs/createTask`, {
     method: 'POST',
     headers: {
@@ -18,7 +24,7 @@ export async function kieCreateTask(
       Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   const text = await res.text();
@@ -41,7 +47,12 @@ export async function kieCreateTask(
   return taskId;
 }
 
-export async function kieRecordInfo(apiKey: string, taskId: string): Promise<KieTaskResult> {
+export async function kieRecordInfo(
+  apiKey: string,
+  taskId: string,
+  options: KieRequestOptions = {}
+): Promise<KieTaskResult> {
+  const timeoutMs = options.timeoutMs ?? 90_000;
   const url = new URL(`${KIE_BASE}/jobs/recordInfo`);
   url.searchParams.set('taskId', taskId);
 
@@ -49,7 +60,7 @@ export async function kieRecordInfo(apiKey: string, taskId: string): Promise<Kie
     headers: {
       Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
     },
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   const text = await res.text();
@@ -96,9 +107,10 @@ export async function kieRecordInfo(apiKey: string, taskId: string): Promise<Kie
 
 export async function kiePollTasks(
   apiKey: string,
-  taskIds: string[]
+  taskIds: string[],
+  options: KieRequestOptions = {}
 ): Promise<KieTaskResult[]> {
-  return Promise.all(taskIds.map((taskId) => kieRecordInfo(apiKey, taskId)));
+  return Promise.all(taskIds.map((taskId) => kieRecordInfo(apiKey, taskId, options)));
 }
 
 export function kieAllComplete(results: KieTaskResult[]): boolean {

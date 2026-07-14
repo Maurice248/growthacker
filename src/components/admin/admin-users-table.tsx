@@ -236,7 +236,7 @@ export function AdminUsersTable({
                       <SelectContent>
                         <SelectItem value={APP_ADMIN_ROLE}>Platform Admin</SelectItem>
                         <SelectItem value={COMPANY_ADMIN_ROLE}>Company Admin</SelectItem>
-                        <SelectItem value={COMPANY_MEMBER_ROLE}>Member</SelectItem>
+                        <SelectItem value={COMPANY_MEMBER_ROLE}>Company User</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>

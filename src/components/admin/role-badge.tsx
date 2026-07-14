@@ -16,7 +16,7 @@ export function roleLabel(role: string): string {
       return 'Company Admin';
     case COMPANY_MEMBER_ROLE:
     case LEGACY_CLIENT_ROLE:
-      return 'Member';
+      return 'Company User';
     default:
       return role;
   }

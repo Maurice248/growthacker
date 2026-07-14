@@ -384,21 +384,25 @@ export async function POST(request: Request) {
   const { accessToken, adAccountId, pageId: configuredPageId } = meta;
 
   try {
-    const { schema, campaignId: existingCampaignId } = await request.json();
+    const body = await request.json();
+    const { schema, campaignId: existingCampaignId, ads: adsArray } = body;
 
     if (!schema) {
       return Response.json({ error: "Missing schema payload" }, { status: 400 });
     }
 
-    const { campaign, ad_set, ad, link_data } = schema;
+    const launchItems: Array<{ ad: Record<string, unknown>; link_data: string }> = Array.isArray(adsArray) && adsArray.length
+      ? adsArray.map((item: { ad?: Record<string, unknown>; link_data?: string }) => ({
+          ad: item.ad || schema.ad || {},
+          link_data: item.link_data || schema.link_data,
+        }))
+      : [{ ad: schema.ad || {}, link_data: schema.link_data }];
 
-    if (!link_data) {
-      return Response.json({ error: "Missing link_data (media URL)" }, { status: 400 });
+    if (!launchItems.length || launchItems.some((item) => !item.link_data)) {
+      return Response.json({ error: "Missing link_data (media URL) for one or more ads" }, { status: 400 });
     }
 
-    const isVideo =
-      (ad?.media_type || "").toLowerCase() === "video" ||
-      (ad?.type || "").toLowerCase() === "video";
+    const { campaign, ad_set } = schema;
 
     // ── Resolve config values ──
     let objective = campaign?.objective || "OUTCOME_TRAFFIC";
@@ -432,13 +436,8 @@ export async function POST(request: Request) {
     const ageMin          = ad_set?.age_min            || 18;
     const ageMax          = ad_set?.age_max            || 65;
     const gender          = ad_set?.gender             ?? 0; // 0=all,1=male,2=female
-    const dsaBeneficiary  = ad_set?.dsa_beneficiary   || ad?.facebook_page || DEFAULT_BRAND_NAME;
-    const dsaPayor        = ad_set?.dsa_payor          || ad?.facebook_page || DEFAULT_BRAND_NAME;
-    const adName          = ad?.name                  || "Ad";
-    const headline        = ad?.headline              || "";
-    const primaryText     = ad?.primary_text          || "";
-    const websiteUrl      = ad?.website_url           || DEFAULT_WEBSITE_URL;
-    const ctaType         = ad?.call_to_action_type   || "LEARN_MORE";
+    const dsaBeneficiary  = ad_set?.dsa_beneficiary   || schema.ad?.facebook_page || DEFAULT_BRAND_NAME;
+    const dsaPayor        = ad_set?.dsa_payor          || schema.ad?.facebook_page || DEFAULT_BRAND_NAME;
 
     // Clean geo_locations for Meta API
     let rawGeo = ad_set?.geo_locations || {
@@ -525,13 +524,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── Execute Concurrent Tasks: Media Upload & Page ID Fetch ──
-    const [mediaPayload, pageId] = await Promise.all([
-      uploadMedia(link_data, isVideo, accessToken, adAccountId),
-      fetchPageId(accessToken, configuredPageId)
-    ]);
+    // ── Execute Concurrent Tasks: Page ID Fetch ──
+    const pageId = await fetchPageId(accessToken, configuredPageId);
 
-    // ── Sequential Tasks: Campaign -> Ad Set -> Creative -> Ad ──
+    // ── Sequential Tasks: Campaign -> Ad Set -> Creative(s) -> Ad(s) ──
     const campaignId = await createCampaign(
       existingCampaignId, adAccountId, accessToken, campaignName, objective, 
       specialAdCats, isCbo, budgetType, dailyBudget, lifetimeBudget
@@ -543,20 +539,38 @@ export async function POST(request: Request) {
       targeting, dsaFields, optimizationGoal, promotedObject
     );
 
-    const creativeId = await createAdCreative(
-      adAccountId, accessToken, isVideo, pageId, mediaPayload, 
-      headline, primaryText, websiteUrl, ctaType, adName
-    );
+    const adIds: string[] = [];
+    for (const launchItem of launchItems) {
+      const ad = (launchItem.ad || {}) as Record<string, unknown>;
+      const link_data = launchItem.link_data;
+      const isVideo =
+        String(ad.media_type || "").toLowerCase() === "video" ||
+        String(ad.type || "").toLowerCase() === "video";
 
-    const adId = await createAd(
-      adAccountId, accessToken, adName, adSetId, creativeId, trackingSpecs
-    );
+      const mediaPayload = await uploadMedia(link_data, isVideo, accessToken, adAccountId);
+      const adName = String(ad.name || "Ad");
+      const headline = String(ad.headline || "");
+      const primaryText = String(ad.primary_text || "");
+      const websiteUrl = String(ad.website_url || DEFAULT_WEBSITE_URL);
+      const ctaType = String(ad.call_to_action_type || "LEARN_MORE");
+
+      const creativeId = await createAdCreative(
+        adAccountId, accessToken, isVideo, pageId, mediaPayload, 
+        headline, primaryText, websiteUrl, ctaType, adName
+      );
+
+      const adId = await createAd(
+        adAccountId, accessToken, adName, adSetId, creativeId, trackingSpecs
+      );
+      adIds.push(adId);
+    }
 
     return Response.json({
       success: true,
       campaignId,
       adSetId,
-      adId,
+      adId: adIds[0] || null,
+      adIds,
     });
   } catch (error) {
     console.error("Launch Error:", error);

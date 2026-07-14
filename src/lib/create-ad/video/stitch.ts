@@ -105,7 +105,7 @@ async function submitUploadPostJob(
       Authorization: formatUploadPostAuth(uploadPostToken),
     },
     body: JSON.stringify(concatBody),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(120_000),
   });
 
   if (!res.ok) {
@@ -120,7 +120,7 @@ async function submitUploadPostJob(
 async function pollUploadPostJob(
   uploadPostToken: string,
   jobId: string,
-  maxAttempts = 40,
+  maxAttempts = 60,
   intervalMs = 15_000
 ): Promise<Buffer> {
   const auth = formatUploadPostAuth(uploadPostToken);
@@ -128,7 +128,7 @@ async function pollUploadPostJob(
   for (let i = 0; i < maxAttempts; i++) {
     const res = await fetch(`https://api.upload-post.com/api/uploadposts/ffmpeg/jobs/${jobId}`, {
       headers: { Authorization: auth, 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(90_000),
     });
 
     if (!res.ok) {

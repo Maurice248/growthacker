@@ -320,7 +320,7 @@ export function CompanyDetailPanel({ companyId }: { companyId: string }) {
       )}
 
       <div>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">Company members</h2>
+        <h2 className="mb-4 text-lg font-semibold text-slate-900">Company Users</h2>
         <AdminUsersTable companyFilter={companyId} showCompanyColumn={false} />
       </div>
     </div>

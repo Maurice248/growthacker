@@ -11,7 +11,7 @@ function createPrismaClient() {
 }
 
 function isStalePrismaClient(client: PrismaClient): boolean {
-  return !('socialStudioConfig' in (client as unknown as Record<string, unknown>));
+  return !('adAutomation' in (client as unknown as Record<string, unknown>));
 }
 
 function getPrismaClient() {

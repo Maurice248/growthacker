@@ -1,476 +1,878 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { Card, Badge, SectionTitle, EmptyState, Spinner } from "./components";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Card, Badge, SectionTitle, Spinner } from "./components";
 
-const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
-const CHART_COLORS = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#db2777"];
-
-type AdInsights = {
+type VariantMetrics = {
   spend?: string;
-  impressions?: string;
-  reach?: string;
   clicks?: string;
-  inline_link_click_ctr?: string;
   cpc?: string;
-  cpm?: string;
-  leads?: string;
-  linkClicks?: string;
+  ctr?: string;
 };
 
-type AdRow = {
+type VariantRow = {
   id: string;
-  name: string;
-  effective_status: string;
-  thumbnail?: string;
-  campaignId: string;
-  campaignName: string;
-  adsetId: string;
-  adsetName: string;
-  insights: AdInsights;
+  generation: number;
+  mediaUrl: string;
+  format: string;
+  role: string;
+  metaAdId?: string | null;
+  metrics?: VariantMetrics | null;
+  createdAt?: string;
 };
 
-type AdsetGroup = {
-  adsetId: string;
-  adsetName: string;
-  campaignId: string;
-  campaignName: string;
-  ads: AdRow[];
+type AutomationRow = {
+  id: string;
+  status: string;
+  generation: number;
+  numVariants: number;
+  evalLengthDays: number;
+  dailyBudgetCents: number;
+  automationEnabled: boolean;
+  metaCampaignId?: string | null;
+  metaAdSetId?: string | null;
+  nextEvaluationAt?: string | null;
+  error?: string | null;
+  variants: VariantRow[];
 };
 
-function truncateLabel(name: string, max = 18) {
-  if (name.length <= max) return name;
-  return `${name.slice(0, max - 1)}…`;
+function formatMoney(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
-function formatMoney(val: string | number | undefined) {
-  return `$${parseFloat(String(val || 0)).toFixed(2)}`;
+function formatMetricMoney(val?: string) {
+  return `$${parseFloat(val || "0").toFixed(2)}`;
 }
 
-function formatNum(val: string | number | undefined) {
-  return parseFloat(String(val || 0)).toLocaleString();
-}
-
-function formatPct(val: string | number | undefined) {
-  return `${parseFloat(String(val || 0)).toFixed(2)}%`;
-}
-
-function AdComparisonChart({ group }: { group: AdsetGroup }) {
-  const chartData = group.ads.map((ad) => ({
-    name: truncateLabel(ad.name),
-    fullName: ad.name,
-    Spend: parseFloat(ad.insights.spend || "0"),
-    Clicks: parseFloat(ad.insights.clicks || "0"),
-    Impressions: parseFloat(ad.insights.impressions || "0"),
-    CTR: parseFloat(ad.insights.inline_link_click_ctr || "0"),
-  }));
-
-  if (chartData.length === 0) return null;
-
-  return (
-    <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "14px 16px", background: "var(--surface)", borderBottom: "1px solid var(--border-light)" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{group.adsetName}</div>
-        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-          Campaign: {group.campaignName} · {group.ads.length} ad{group.ads.length !== 1 ? "s" : ""}
-        </div>
-      </div>
-      <div style={{ padding: "16px 12px 20px" }}>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
-            <YAxis tick={{ fontSize: 11, fill: "var(--text-muted)" }} />
-            <Tooltip
-              contentStyle={{
-                borderRadius: 10,
-                border: "1px solid var(--border)",
-                background: "var(--card-bg)",
-                fontSize: 12,
-              }}
-              formatter={(value: number, name: string) => {
-                if (name === "Spend") return [formatMoney(value), name];
-                if (name === "CTR") return [formatPct(value), name];
-                return [formatNum(value), name];
-              }}
-              labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""}
-            />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="Spend" fill="#2563eb" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Clicks" fill="#16a34a" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Impressions" fill="#d97706" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-
-        {chartData.length >= 2 && (
-          <div style={{ marginTop: 8, padding: "12px 14px", background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border-light)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 10 }}>
-              CTR Comparison
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {chartData
-                .slice()
-                .sort((a, b) => b.CTR - a.CTR)
-                .map((row, i) => {
-                  const maxCtr = Math.max(...chartData.map((r) => r.CTR), 0.01);
-                  const widthPct = Math.max(4, (row.CTR / maxCtr) * 100);
-                  return (
-                    <div key={row.fullName} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 120, fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>
-                        {truncateLabel(row.fullName, 16)}
-                      </div>
-                      <div style={{ flex: 1, height: 10, background: "var(--border-light)", borderRadius: 99, overflow: "hidden" }}>
-                        <div style={{ width: `${widthPct}%`, height: "100%", background: CHART_COLORS[i % CHART_COLORS.length], borderRadius: 99 }} />
-                      </div>
-                      <div style={{ width: 52, textAlign: "right", fontSize: 12, fontWeight: 700, color: CHART_COLORS[i % CHART_COLORS.length] }}>
-                        {formatPct(row.CTR)}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
+const ACTIVE_STATUSES = new Set(["evaluating", "generating"]);
+const DELETABLE_STATUSES = new Set(["pending_review", "generating", "error"]);
 
 export default function AdPerformance() {
-  const [days, setDays] = useState(7);
-  const [loading, setLoading] = useState(false);
+  const [automations, setAutomations] = useState<AutomationRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [launchingId, setLaunchingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<VariantRow | null>(null);
   const [error, setError] = useState("");
-  const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [rangeMeta, setRangeMeta] = useState<{ since: string; until: string } | null>(null);
-  const [filterCampaign, setFilterCampaign] = useState("all");
-  const [filterAdset, setFilterAdset] = useState("all");
+  const [feedback, setFeedback] = useState<{
+    automationId: string;
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  const fetchPerformance = useCallback(async (selectedDays: number) => {
-    setLoading(true);
-    setError("");
+  const fetchAutomations = useCallback(async () => {
     try {
-      const res = await fetch(`/api/meta/ad-performance?days=${selectedDays}`);
+      const res = await fetch("/api/meta/automation");
       const data = await res.json();
       if (res.ok) {
-        setCampaigns(data.campaigns || []);
-        setRangeMeta({ since: data.since, until: data.until });
+        setAutomations(data.automations || []);
+        setError("");
       } else {
-        setError(data.error || "Failed to fetch ad performance");
-        setCampaigns([]);
+        setError(data.error || "Failed to load automations");
       }
     } catch {
       setError("Failed to connect to API");
-      setCampaigns([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchPerformance(days);
-  }, [days, fetchPerformance]);
+    fetchAutomations();
+  }, [fetchAutomations]);
 
-  const allAds = useMemo<AdRow[]>(() => {
-    const rows: AdRow[] = [];
-    for (const campaign of campaigns) {
-      for (const adset of campaign.adsets || []) {
-        for (const ad of adset.ads || []) {
-          rows.push({
-            id: ad.id,
-            name: ad.name,
-            effective_status: ad.effective_status,
-            thumbnail: ad.creative?.thumbnail_url,
-            campaignId: campaign.id,
-            campaignName: campaign.name,
-            adsetId: adset.id,
-            adsetName: adset.name,
-            insights: ad.insights || {},
-          });
-        }
-      }
-    }
-    return rows;
-  }, [campaigns]);
-
-  const campaignOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    allAds.forEach((ad) => map.set(ad.campaignId, ad.campaignName));
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [allAds]);
-
-  const adsetOptions = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; campaignId: string }>();
-    allAds.forEach((ad) => {
-      if (filterCampaign === "all" || ad.campaignId === filterCampaign) {
-        map.set(ad.adsetId, { id: ad.adsetId, name: ad.adsetName, campaignId: ad.campaignId });
-      }
-    });
-    return Array.from(map.values());
-  }, [allAds, filterCampaign]);
+  const hasActiveJob = automations.some((a) => ACTIVE_STATUSES.has(a.status));
 
   useEffect(() => {
-    if (filterAdset !== "all" && !adsetOptions.some((a) => a.id === filterAdset)) {
-      setFilterAdset("all");
+    if (!hasActiveJob) return;
+    const timer = setInterval(fetchAutomations, 5000);
+    return () => clearInterval(timer);
+  }, [hasActiveJob, fetchAutomations]);
+
+  const toggleAutoLaunch = async (automationId: string, enabled: boolean) => {
+    setActionId(automationId);
+    try {
+      await fetch(`/api/meta/automation/${automationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ automationEnabled: enabled }),
+      });
+      await fetchAutomations();
+    } finally {
+      setActionId(null);
     }
-  }, [adsetOptions, filterAdset]);
+  };
 
-  const filteredAds = useMemo(() => {
-    return allAds.filter((ad) => {
-      if (filterCampaign !== "all" && ad.campaignId !== filterCampaign) return false;
-      if (filterAdset !== "all" && ad.adsetId !== filterAdset) return false;
-      return true;
-    });
-  }, [allAds, filterCampaign, filterAdset]);
+  const runEvaluation = async (automationId: string) => {
+    setActionId(automationId);
+    setError("");
+    try {
+      const res = await fetch(`/api/meta/automation/${automationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "evaluate" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Evaluation failed");
+      await fetchAutomations();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Evaluation failed");
+    } finally {
+      setActionId(null);
+    }
+  };
 
-  const adsetGroups = useMemo<AdsetGroup[]>(() => {
-    const groups = new Map<string, AdsetGroup>();
-    filteredAds.forEach((ad) => {
-      if (!groups.has(ad.adsetId)) {
-        groups.set(ad.adsetId, {
-          adsetId: ad.adsetId,
-          adsetName: ad.adsetName,
-          campaignId: ad.campaignId,
-          campaignName: ad.campaignName,
-          ads: [],
-        });
-      }
-      groups.get(ad.adsetId)!.ads.push(ad);
-    });
-    return Array.from(groups.values()).filter((g) => g.ads.length > 0);
-  }, [filteredAds]);
+  const launchReviewedVariants = async (automation: AutomationRow) => {
+    setLaunchingId(automation.id);
+    setActionId(automation.id);
+    setError("");
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/meta/automation/${automation.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "launch",
+          generation: automation.generation,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Launch failed");
+      setFeedback({
+        automationId: automation.id,
+        type: "success",
+        message: `Launched ${data.launched?.adIds?.length || automation.numVariants} ads to Meta. The loop is now running.`,
+      });
+      await fetchAutomations();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Launch failed";
+      setError(message);
+      setFeedback({
+        automationId: automation.id,
+        type: "error",
+        message,
+      });
+    } finally {
+      setLaunchingId(null);
+      setActionId(null);
+    }
+  };
 
-  const totals = useMemo(() => {
-    return filteredAds.reduce(
-      (acc, ad) => {
-        acc.spend += parseFloat(ad.insights.spend || "0");
-        acc.impressions += parseFloat(ad.insights.impressions || "0");
-        acc.clicks += parseFloat(ad.insights.clicks || "0");
-        acc.leads += parseFloat(ad.insights.leads || "0");
-        return acc;
-      },
-      { spend: 0, impressions: 0, clicks: 0, leads: 0 }
-    );
-  }, [filteredAds]);
+  const rejectVariant = async (automation: AutomationRow, variant: VariantRow) => {
+    if (
+      !window.confirm(
+        "Reject this variant and generate a replacement? The current ad will be removed."
+      )
+    ) {
+      return;
+    }
 
-  const avgCtr =
-    filteredAds.length > 0
-      ? filteredAds.reduce((sum, ad) => sum + parseFloat(ad.insights.inline_link_click_ctr || "0"), 0) /
-        filteredAds.length
-      : 0;
+    setRejectingId(variant.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/meta/automation/${automation.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reject_variant",
+          variantId: variant.id,
+          generation: automation.generation,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reject failed");
+      await fetchAutomations();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Reject failed");
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
+  const deleteAutomation = async (automation: AutomationRow) => {
+    const label = automation.metaAdSetId
+      ? `ad set ${automation.metaAdSetId}`
+      : "this automation loop";
+    if (
+      !window.confirm(
+        `Delete ${label}? This removes the loop from the dashboard only — any ads already on Meta are not affected.`
+      )
+    ) {
+      return;
+    }
+
+    setActionId(automation.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/meta/automation/${automation.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      await fetchAutomations();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setActionId(null);
+    }
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Filters row */}
-      <Card style={{ padding: 16 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-end" }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>
-              Date range
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {DAY_OPTIONS.map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDays(d)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 20,
-                    border: `1.5px solid ${days === d ? "var(--primary)" : "var(--border)"}`,
-                    background: days === d ? "var(--primary-light)" : "#fff",
-                    color: days === d ? "var(--primary)" : "var(--text-muted)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  {d === 1 ? "1 day" : `${d} days`}
-                </button>
-              ))}
-            </div>
-            {rangeMeta && (
-              <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 8 }}>
-                {rangeMeta.since} → {rangeMeta.until}
-              </div>
-            )}
-          </div>
-
-          <div style={{ minWidth: 180, flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>
-              Campaign
-            </div>
-            <select
-              value={filterCampaign}
-              onChange={(e) => {
-                setFilterCampaign(e.target.value);
-                setFilterAdset("all");
-              }}
-              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "#fff", fontSize: 13 }}
-            >
-              <option value="all">All campaigns</option>
-              {campaignOptions.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ minWidth: 180, flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>
-              Ad set
-            </div>
-            <select
-              value={filterAdset}
-              onChange={(e) => setFilterAdset(e.target.value)}
-              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "#fff", fontSize: 13 }}
-            >
-              <option value="all">All ad sets</option>
-              {adsetOptions.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <button
-            onClick={() => fetchPerformance(days)}
-            disabled={loading}
-            style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
-          >
-            {loading ? <Spinner size={12} /> : "↻"} Refresh
-          </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 960, margin: "0 auto" }}>
+      <div>
+        <SectionTitle>Automated Campaigns</SectionTitle>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -8, lineHeight: 1.6 }}>
+          Evaluates your running ad sets, picks the best performer, archives losers, and generates new variants.
+          Use the toggle to auto-launch new variants to Meta, or review them first before launching.
         </div>
-      </Card>
+      </div>
 
       {error && (
-        <Card style={{ background: "var(--red-light)", border: "1px solid var(--red-strong)" }}>
-          <div style={{ color: "var(--red-strong)", fontSize: 14 }}>{error}</div>
+        <Card style={{ background: "var(--red-light)", border: "1px solid var(--red-strong)", padding: 12 }}>
+          <div style={{ color: "var(--red-strong)", fontSize: 13 }}>{error}</div>
         </Card>
       )}
 
-      {loading && filteredAds.length === 0 && !error && (
-        <Card>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 20px", gap: 12 }}>
-            <Spinner size={28} color="var(--primary)" />
-            <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Loading ad performance from Meta…</div>
+      <Card style={{ padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>Your automation loops</div>
+          <button
+            type="button"
+            onClick={fetchAutomations}
+            disabled={loading}
+            style={secondaryBtn}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+
+        {loading && automations.length === 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 24, justifyContent: "center" }}>
+            <Spinner />
+            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading automations...</span>
           </div>
-        </Card>
-      )}
-
-      {!loading && filteredAds.length === 0 && !error && (
-        <Card>
-          <EmptyState title="No ads found" sub="Adjust filters or launch ads in Campaign Setup." />
-        </Card>
-      )}
-
-      {filteredAds.length > 0 && (
-        <>
-          {/* Summary KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-            {[
-              { label: "Total Spend", value: formatMoney(totals.spend), color: "var(--primary)" },
-              { label: "Impressions", value: formatNum(totals.impressions), color: "var(--text)" },
-              { label: "Clicks", value: formatNum(totals.clicks), color: "var(--green)" },
-              { label: "Avg CTR", value: formatPct(avgCtr), color: "var(--amber)" },
-              { label: "Leads", value: formatNum(totals.leads), color: "var(--green)" },
-              { label: "Ads tracked", value: String(filteredAds.length), color: "var(--text)" },
-            ].map((kpi) => (
-              <Card key={kpi.label} style={{ padding: "14px 16px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>{kpi.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: kpi.color, marginTop: 4 }}>{kpi.value}</div>
-              </Card>
-            ))}
+        ) : automations.length === 0 ? (
+          <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
+            No automated campaigns yet. Use <strong>Generate Ad Variants</strong> to create your first variant set,
+            launch it in <strong>Campaign Setup</strong>, then return here to manage the evaluation loop.
           </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {automations.map((automation) => {
+              const busy =
+                actionId === automation.id ||
+                launchingId === automation.id ||
+                ACTIVE_STATUSES.has(automation.status);
+              const cardFeedback =
+                feedback?.automationId === automation.id ? feedback : null;
+              const currentVariants = automation.variants.filter(
+                (v) => v.generation === automation.generation
+              );
+              const archived = automation.variants.filter((v) => v.role === "archived");
+              const winner = automation.variants.find((v) => v.role === "winner");
+              const canEvaluate =
+                automation.status === "running" && Boolean(automation.metaAdSetId);
+              const canLaunch =
+                automation.status === "pending_review" && currentVariants.length > 0;
+              const canDelete = DELETABLE_STATUSES.has(automation.status);
 
-          {/* Comparative charts by ad set */}
-          <div>
-            <SectionTitle style={{ marginBottom: 10 }}>Ad set comparison</SectionTitle>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
-              Side-by-side metrics for ads within the same campaign and ad set.
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {adsetGroups.map((group) => (
-                <AdComparisonChart key={group.adsetId} group={group} />
-              ))}
-            </div>
-          </div>
-
-          {/* All ads table */}
-          <Card style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ padding: "14px 16px", background: "var(--surface)", borderBottom: "1px solid var(--border-light)" }}>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>All ads</span>
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 900 }}>
-                <thead>
-                  <tr style={{ background: "var(--card-bg)" }}>
-                    {["Ad", "Campaign", "Ad set", "Status", "Spend", "Impr.", "Clicks", "CTR", "CPC", "Leads"].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: "10px 14px",
-                          textAlign: h === "Ad" || h === "Campaign" || h === "Ad set" || h === "Status" ? "left" : "right",
-                          fontWeight: 600,
-                          color: "var(--text-muted)",
-                          borderBottom: "1px solid var(--border)",
-                          fontSize: 11,
-                          textTransform: "uppercase",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAds.map((ad) => (
-                    <tr key={ad.id} style={{ borderBottom: "1px solid var(--border-light)" }}>
-                      <td style={{ padding: "10px 14px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ width: 36, height: 36, borderRadius: 6, background: "#000", overflow: "hidden", flexShrink: 0 }}>
-                            {ad.thumbnail ? (
-                              <img src={ad.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            ) : (
-                              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>🎬</div>
-                            )}
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{ad.name}</div>
-                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "monospace" }}>{ad.id}</div>
-                          </div>
+              return (
+                <div
+                  key={automation.id}
+                  style={{
+                    border: "1px solid var(--border-light)",
+                    borderRadius: 12,
+                    padding: 16,
+                    background: "var(--surface)",
+                  }}
+                >
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>
+                        Campaign {automation.metaCampaignId || "—"} · Ad set {automation.metaAdSetId || "—"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                        Generation {automation.generation} · {automation.numVariants} variants · evaluates every{" "}
+                        {automation.evalLengthDays} day{automation.evalLengthDays === 1 ? "" : "s"} ·{" "}
+                        {formatMoney(automation.dailyBudgetCents)}/day per ad
+                      </div>
+                      {automation.nextEvaluationAt && automation.status === "running" && (
+                        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
+                          Next scheduled evaluation: {new Date(automation.nextEvaluationAt).toLocaleString()}
                         </div>
-                      </td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-muted)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ad.campaignName}</td>
-                      <td style={{ padding: "10px 14px", color: "var(--text-muted)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ad.adsetName}</td>
-                      <td style={{ padding: "10px 14px" }}>
-                        <Badge
-                          text={ad.effective_status}
-                          color={ad.effective_status === "ACTIVE" ? "var(--green)" : "var(--amber)"}
-                          bg={ad.effective_status === "ACTIVE" ? "var(--green-light)" : "var(--amber-light)"}
-                        />
-                      </td>
-                      <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700 }}>{formatMoney(ad.insights.spend)}</td>
-                      <td style={{ padding: "10px 14px", textAlign: "right" }}>{formatNum(ad.insights.impressions)}</td>
-                      <td style={{ padding: "10px 14px", textAlign: "right" }}>{formatNum(ad.insights.clicks)}</td>
-                      <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--primary)", fontWeight: 700 }}>{formatPct(ad.insights.inline_link_click_ctr)}</td>
-                      <td style={{ padding: "10px 14px", textAlign: "right" }}>{formatMoney(ad.insights.cpc)}</td>
-                      <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--green)", fontWeight: 700 }}>{formatNum(ad.insights.leads)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
-      )}
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                      {canEvaluate && (
+                        <button
+                          type="button"
+                          onClick={() => runEvaluation(automation.id)}
+                          disabled={busy}
+                          style={primaryBtn}
+                        >
+                          {automation.status === "evaluating" || automation.status === "generating"
+                            ? "Evaluating..."
+                            : "Run evaluation now"}
+                        </button>
+                      )}
+                      {canLaunch && !automation.automationEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => launchReviewedVariants(automation)}
+                          disabled={busy}
+                          style={{
+                            ...primaryBtn,
+                            opacity: launchingId === automation.id ? 0.85 : 1,
+                          }}
+                        >
+                          {launchingId === automation.id ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                              <Spinner size={14} color="#fff" />
+                              Launching to Meta...
+                            </span>
+                          ) : (
+                            "Launch new variants to Meta"
+                          )}
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => deleteAutomation(automation)}
+                          disabled={actionId === automation.id}
+                          style={dangerBtn}
+                        >
+                          Delete loop
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12, alignItems: "center" }}>
+                    <Badge
+                      text={automation.status.replace(/_/g, " ")}
+                      color={
+                        automation.status === "running"
+                          ? "var(--green)"
+                          : automation.status === "pending_review"
+                            ? "var(--primary)"
+                            : "var(--amber)"
+                      }
+                      bg={
+                        automation.status === "running"
+                          ? "var(--green-light)"
+                          : automation.status === "pending_review"
+                            ? "var(--primary-light)"
+                            : "var(--amber-light)"
+                      }
+                    />
+                    {winner &&
+                      (automation.status === "pending_review" ||
+                        automation.status === "evaluating" ||
+                        automation.status === "generating") && (
+                      <Badge text="Winner selected" color="var(--green)" bg="var(--green-light)" />
+                    )}
+                    {automation.status === "pending_review" && (
+                      <Badge text="New variants ready" color="var(--primary)" bg="var(--primary-light)" />
+                    )}
+                  </div>
+
+                  {cardFeedback && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 12,
+                        borderRadius: 10,
+                        border:
+                          cardFeedback.type === "success"
+                            ? "1px solid var(--green)"
+                            : "1px solid var(--red-strong)",
+                        background:
+                          cardFeedback.type === "success"
+                            ? "var(--green-light)"
+                            : "var(--red-light)",
+                        fontSize: 12,
+                        color:
+                          cardFeedback.type === "success"
+                            ? "var(--green)"
+                            : "var(--red-strong)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {cardFeedback.message}
+                    </div>
+                  )}
+
+                  {automation.status === "generating" && (
+                    <GenerationProgressBar automation={automation} />
+                  )}
+
+                  {automation.status === "pending_review" && !automation.automationEnabled && (
+                    <div
+                      style={{
+                        marginTop: 14,
+                        padding: 12,
+                        borderRadius: 10,
+                        border: "1px solid var(--primary-light)",
+                        background: "var(--primary-light)",
+                        fontSize: 12,
+                        color: "var(--text)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <strong>Review before launch:</strong> Click a variant to preview it full-screen.
+                      Reject any challenger you do not want and a replacement will be generated.
+                      When you are happy with the set, click{" "}
+                      <strong>Launch new variants to Meta</strong>.
+                    </div>
+                  )}
+
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      marginTop: 14,
+                      padding: 12,
+                      borderRadius: 10,
+                      border: "1px solid var(--border-light)",
+                      background: "var(--card-bg)",
+                      cursor: busy ? "not-allowed" : "pointer",
+                      opacity: busy ? 0.7 : 1,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(automation.automationEnabled)}
+                      disabled={busy}
+                      onChange={(e) => toggleAutoLaunch(automation.id, e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Auto-launch new variants</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>
+                        When on, newly generated variants are launched to Meta automatically after each evaluation.
+                        When off, evaluation and generation still run — you review and launch manually.
+                      </div>
+                    </div>
+                  </label>
+
+                  {currentVariants.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--text-muted)" }}>
+                        Current generation (gen {automation.generation})
+                      </div>
+                      <VariantGrid
+                        variants={currentVariants}
+                        onOpen={setPreview}
+                        onReject={
+                          automation.status === "pending_review" && !automation.automationEnabled
+                            ? (variant) => rejectVariant(automation, variant)
+                            : undefined
+                        }
+                        rejectingId={rejectingId}
+                      />
+                    </div>
+                  )}
+
+                  {archived.length > 0 && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--text-muted)" }}>
+                        Archived after last evaluation ({archived.length})
+                      </div>
+                      <VariantGrid variants={archived} showMetrics onOpen={setPreview} />
+                    </div>
+                  )}
+
+                  {automation.error && (
+                    <div style={{ marginTop: 12, fontSize: 12, color: "var(--red-strong)" }}>
+                      {automation.error}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {preview && <VariantPreviewOverlay variant={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }
+
+function formatElapsed(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
+
+function GenerationProgressBar({ automation }: { automation: AutomationRow }) {
+  const currentGenVariants = automation.variants.filter(
+    (v) => v.generation === automation.generation && (v.role === "base" || v.role === "challenger")
+  );
+  const challengersNeeded = Math.max(0, automation.numVariants - 1);
+  const challengersDone = currentGenVariants.filter((v) => v.role === "challenger").length;
+  const baseReady = Boolean(currentGenVariants.find((v) => v.role === "base"));
+  const completedCount = challengersDone + (baseReady ? 1 : 0);
+  const isVideoBase = currentGenVariants.find((v) => v.role === "base")?.format === "Video";
+
+  const [challengerElapsedSec, setChallengerElapsedSec] = useState(0);
+  const [challengerStartedAt, setChallengerStartedAt] = useState(() => Date.now());
+
+  useEffect(() => {
+    setChallengerStartedAt(Date.now());
+    setChallengerElapsedSec(0);
+  }, [automation.generation]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setChallengerElapsedSec(Math.floor((Date.now() - challengerStartedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [challengerStartedAt]);
+
+  useEffect(() => {
+    if (challengersDone > 0) {
+      setChallengerStartedAt(Date.now());
+      setChallengerElapsedSec(0);
+    }
+  }, [challengersDone]);
+
+  const { progressPercent, progressLabel } = useMemo(() => {
+    const slotPercent = 100 / automation.numVariants;
+    const finishedPercent = (completedCount / automation.numVariants) * 100;
+    const estimatedSecPerChallenger = isVideoBase ? 420 : 90;
+    const hasActiveChallenger = challengersDone < challengersNeeded;
+    const inSlotPercent = hasActiveChallenger
+      ? slotPercent * Math.min(0.92, challengerElapsedSec / estimatedSecPerChallenger)
+      : 0;
+    const percent = Math.min(
+      hasActiveChallenger ? 99 : 100,
+      Math.round(Math.max(20, finishedPercent + inSlotPercent))
+    );
+
+    let label: string;
+    if (completedCount >= automation.numVariants) {
+      label = "All variants ready";
+    } else if (challengersDone === 0) {
+      label =
+        challengersNeeded === 0
+          ? "Preparing new variant set..."
+          : `Generating AI variant 1 of ${challengersNeeded}${
+              isVideoBase ? " — video variants may take several minutes" : ""
+            }`;
+    } else {
+      label = `Generating AI variant ${challengersDone + 1} of ${challengersNeeded} (${completedCount} of ${automation.numVariants} ready)`;
+    }
+
+    return { progressPercent: percent, progressLabel: label };
+  }, [
+    automation.numVariants,
+    completedCount,
+    challengersDone,
+    challengersNeeded,
+    challengerElapsedSec,
+    isVideoBase,
+  ]);
+
+  return (
+    <Card
+      style={{
+        marginTop: 14,
+        border: "1px solid var(--primary-light)",
+        background: "var(--primary-light)",
+        padding: 14,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Spinner />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
+              Generating new variants
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{progressLabel}</div>
+          </div>
+        </div>
+        {challengerElapsedSec > 0 && (
+          <div style={{ fontSize: 11, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+            Elapsed {formatElapsed(challengerElapsedSec)}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }}>
+        <span>{completedCount} of {automation.numVariants} variants ready</span>
+        <span>{progressPercent}%</span>
+      </div>
+
+      <div
+        style={{
+          height: 10,
+          borderRadius: 999,
+          background: "rgba(255,255,255,0.7)",
+          border: "1px solid var(--border-light)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.max(progressPercent, 4)}%`,
+            borderRadius: 999,
+            background: "linear-gradient(90deg, var(--primary), #60a5fa)",
+            transition: "width 1s linear",
+            boxShadow: progressPercent < 100 ? "0 0 8px rgba(59,130,246,0.35)" : "none",
+          }}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function VariantPreviewOverlay({
+  variant,
+  onClose,
+}: {
+  variant: VariantRow;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const isVideo = variant.format === "Video";
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "rgba(0,0,0,0.85)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          border: "none",
+          background: "rgba(255,255,255,0.15)",
+          color: "#fff",
+          borderRadius: 8,
+          padding: "8px 14px",
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        Close
+      </button>
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: "90vw",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        {isVideo ? (
+          <video
+            src={variant.mediaUrl}
+            controls
+            autoPlay
+            playsInline
+            style={{
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              borderRadius: 12,
+              background: "#000",
+            }}
+          />
+        ) : (
+          <img
+            src={variant.mediaUrl}
+            alt=""
+            style={{
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              objectFit: "contain",
+              borderRadius: 12,
+            }}
+          />
+        )}
+        <Badge
+          text={variant.role}
+          color="var(--primary)"
+          bg="var(--primary-light)"
+        />
+      </div>
+    </div>
+  );
+}
+
+function VariantGrid({
+  variants,
+  showMetrics = false,
+  onOpen,
+  onReject,
+  rejectingId,
+}: {
+  variants: VariantRow[];
+  showMetrics?: boolean;
+  onOpen?: (variant: VariantRow) => void;
+  onReject?: (variant: VariantRow) => void;
+  rejectingId?: string | null;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+        gap: 10,
+      }}
+    >
+      {variants.map((variant) => {
+        const canReject = onReject && variant.role === "challenger";
+        const isRejecting = rejectingId === variant.id;
+
+        return (
+          <div
+            key={variant.id}
+            style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}
+          >
+            <button
+              type="button"
+              onClick={() => onOpen?.(variant)}
+              disabled={!onOpen}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                cursor: onOpen ? "pointer" : "default",
+              }}
+            >
+              <div style={{ aspectRatio: "9/16", background: "#0f172a", position: "relative" }}>
+                {variant.format === "Video" ? (
+                  <video
+                    src={variant.mediaUrl}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+                  />
+                ) : (
+                  <img
+                    src={variant.mediaUrl}
+                    alt=""
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                )}
+              </div>
+            </button>
+            <div style={{ padding: 8 }}>
+              <Badge
+                text={variant.role}
+                color={
+                  variant.role === "winner"
+                    ? "var(--green)"
+                    : variant.role === "archived"
+                      ? "var(--text-muted)"
+                      : "var(--primary)"
+                }
+                bg={
+                  variant.role === "winner"
+                    ? "var(--green-light)"
+                    : variant.role === "archived"
+                      ? "var(--surface)"
+                      : "var(--primary-light)"
+                }
+              />
+              {showMetrics && variant.metrics && (
+                <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.5 }}>
+                  Spend {formatMetricMoney(variant.metrics.spend)}
+                  <br />
+                  Clicks {variant.metrics.clicks || "0"}
+                  {variant.metrics.ctr ? ` · CTR ${variant.metrics.ctr}%` : ""}
+                </div>
+              )}
+              {canReject && (
+                <button
+                  type="button"
+                  onClick={() => onReject(variant)}
+                  disabled={Boolean(rejectingId)}
+                  style={{
+                    marginTop: 8,
+                    width: "100%",
+                    padding: "6px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--red-strong)",
+                    background: "#fff",
+                    color: "var(--red-strong)",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: rejectingId ? "not-allowed" : "pointer",
+                    opacity: rejectingId && !isRejecting ? 0.5 : 1,
+                  }}
+                >
+                  {isRejecting ? "Regenerating..." : "Reject & regenerate"}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const primaryBtn: CSSProperties = {
+  padding: "8px 14px",
+  borderRadius: 8,
+  border: "none",
+  background: "var(--primary)",
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const secondaryBtn: CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "#fff",
+  fontSize: 12,
+  cursor: "pointer",
+};
+
+const dangerBtn: CSSProperties = {
+  padding: "8px 14px",
+  borderRadius: 8,
+  border: "1px solid var(--red-strong)",
+  background: "#fff",
+  color: "var(--red-strong)",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+};

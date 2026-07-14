@@ -23,7 +23,7 @@ export async function generateElevenLabsAudio(
       model_id: 'eleven_flash_v2_5',
       voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.5 },
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(120_000),
   });
 
   if (!res.ok) {
