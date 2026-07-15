@@ -268,10 +268,6 @@ export async function startVariantGeneration(input: {
     include: { variants: true },
   });
 
-  void runVariantGeneration(automation.id).catch((err) => {
-    console.error('[meta-automation/generate]', automation.id, err);
-  });
-
   return automation;
 }
 

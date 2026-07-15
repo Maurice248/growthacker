@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requireApiCompanyId } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 import { getMetaCredentialsForRequest } from '@/lib/meta-credentials';
@@ -143,13 +143,17 @@ export async function POST(request: Request, context: RouteContext) {
         );
       }
 
-      void evaluateAutomation(id).catch(async (err: unknown) => {
-        const message = err instanceof Error ? err.message : 'Evaluation failed';
-        console.error('[meta/automation/evaluate]', id, err);
-        await prisma.adAutomation.update({
-          where: { id },
-          data: { status: 'error', error: message },
-        });
+      after(async () => {
+        try {
+          await evaluateAutomation(id);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Evaluation failed';
+          console.error('[meta/automation/evaluate]', id, err);
+          await prisma.adAutomation.update({
+            where: { id },
+            data: { status: 'error', error: message },
+          });
+        }
       });
 
       return NextResponse.json({ success: true, status: 'evaluating' });
@@ -226,13 +230,17 @@ export async function POST(request: Request, context: RouteContext) {
         return NextResponse.json({ error: 'Challenger variant not found' }, { status: 404 });
       }
 
-      void regenerateSingleVariant(id, variantId).catch(async (err: unknown) => {
-        const message = err instanceof Error ? err.message : 'Variant regeneration failed';
-        console.error('[meta/automation/reject_variant]', id, variantId, err);
-        await prisma.adAutomation.update({
-          where: { id },
-          data: { status: 'error', error: message },
-        });
+      after(async () => {
+        try {
+          await regenerateSingleVariant(id, variantId);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Variant regeneration failed';
+          console.error('[meta/automation/reject_variant]', id, variantId, err);
+          await prisma.adAutomation.update({
+            where: { id },
+            data: { status: 'error', error: message },
+          });
+        }
       });
 
       return NextResponse.json({ success: true, status: 'generating' });

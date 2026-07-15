@@ -1,9 +1,9 @@
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requireApiCompanyId } from '@/lib/api-auth';
-import { startVariantGeneration } from '@/lib/meta-automation/generate';
+import { runVariantGeneration, startVariantGeneration } from '@/lib/meta-automation/generate';
 
 export async function POST(request: Request) {
   try {
@@ -23,6 +23,14 @@ export async function POST(request: Request) {
       evalLengthDays,
       dailyBudgetCents,
       automationEnabled: Boolean(body.automationEnabled),
+    });
+
+    after(async () => {
+      try {
+        await runVariantGeneration(automation.id);
+      } catch (err) {
+        console.error('[meta/automation/generate-variants]', automation.id, err);
+      }
     });
 
     return NextResponse.json({ automation });
