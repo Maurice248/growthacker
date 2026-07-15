@@ -54,5 +54,11 @@ export function shouldShowInApprovalQueue(row: {
   return true;
 }
 
+/** Normalize media URLs for cross-table comparison (Supabase row vs Prisma variant). */
+export function normalizeAdMediaUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  return url.trim().replace(/\/$/, "");
+}
+
 export const DEFAULT_WEBSITE_URL = "https://www.tenantreport.ai";
 export const DEFAULT_BRAND_NAME = "Tenant Report AI";

@@ -1022,7 +1022,6 @@ export default function Dashboard() {
   const [scheduleDates, setScheduleDates] = useState({});
 
   // ── Ad Videos state ──
-  const [adVideosRefreshKey, setAdVideosRefreshKey] = useState(Date.now());
   const [adVideosLoading, setAdVideosLoading] = useState(true); // true on mount so skeleton shows until first load
 
   // ── Supabase reports state ──
@@ -1657,6 +1656,7 @@ export default function Dashboard() {
     // Fetch via server API (service role) — anon key cannot read your_name_table or list storage
     let dbData = [];
     const storageLookup = new Map();
+    const automationExcludedFilenames = new Set<string>();
     try {
       const res = await fetch("/api/ads");
       const payload = await res.json();
@@ -1664,6 +1664,9 @@ export default function Dashboard() {
         console.error("Database fetch error:", payload.error || res.statusText);
       } else {
         dbData = payload.rows || [];
+        (payload.automationExcludedFilenames || []).forEach((name: string) => {
+          if (name) automationExcludedFilenames.add(name);
+        });
         Object.entries(payload.storageLookup || {}).forEach(([name, info]) => {
           storageLookup.set(name, info);
         });
@@ -1686,6 +1689,9 @@ export default function Dashboard() {
 
       const fileName = getStorageFileName(normalizedText);
       const storageInfo = fileName ? storageLookup.get(fileName) : undefined;
+
+      // Skip variant / automated-campaign challengers (reviewed in their own tabs)
+      if (fileName && automationExcludedFilenames.has(fileName)) return;
 
       // Skip rows whose file was deleted from Supabase storage
       if (hasStorageIndex && fileName && !storageInfo) {
@@ -1782,7 +1788,6 @@ export default function Dashboard() {
     }
 
     setAdVideosLoading(false);
-    setAdVideosRefreshKey(Date.now());
   }, [addSbToast]);
 
   function startAdCompletionPolling(genStart: number) {
@@ -2519,6 +2524,7 @@ export default function Dashboard() {
     }
     setIsSavingAd(false);
   }
+
 
 
 
@@ -6312,275 +6318,238 @@ export default function Dashboard() {
           )}
 
           {/* ── AD PREVIEWS ── */}
-          {(() => {
-            const adIds = [1, 2, 3, 4, 5]; // Mapping to Ad 1-3, Image 1-2
-            return (
-              <div style={{ marginTop: 24 }}>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5" style={{ marginBottom: 12 }}>
-                  <SectionTitle style={{ marginBottom: 0 }}>Ad Previews — Dynamic Table</SectionTitle>
-                  <button
-                    onClick={handleRefreshAdVideos}
-                    disabled={adVideosLoading}
-                    type="button"
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
-                      padding: "10px 24px", borderRadius: "var(--radius-md)",
-                      border: "0.5px solid var(--border)", background: "var(--surface)",
-                      color: "var(--text)", fontSize: 13, fontWeight: 600,
-                      cursor: adVideosLoading ? "not-allowed" : "pointer",
-                      fontFamily: "inherit", opacity: adVideosLoading ? 0.6 : 1,
-                      transition: "all 0.2s",
-                      boxShadow: "var(--shadow-sm)"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
-                  >
-                    <span style={{
-                      display: "inline-block",
-                      fontSize: 16,
-                      animation: adVideosLoading ? "spin 1s linear infinite" : "none"
-                    }}>↻</span>
-                    {adVideosLoading ? "Refreshing..." : "Refresh Previews"}
-                  </button>
+          <div style={{ marginTop: 24 }}>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5" style={{ marginBottom: 12 }}>
+              <SectionTitle style={{ marginBottom: 0 }}>Ad Previews — Dynamic Table</SectionTitle>
+              <button
+                onClick={handleRefreshAdVideos}
+                disabled={adVideosLoading}
+                type="button"
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, justifyContent: "center",
+                  padding: "10px 24px", borderRadius: "var(--radius-md)",
+                  border: "0.5px solid var(--border)", background: "var(--surface)",
+                  color: "var(--text)", fontSize: 13, fontWeight: 600,
+                  cursor: adVideosLoading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", opacity: adVideosLoading ? 0.6 : 1,
+                  transition: "all 0.2s",
+                  boxShadow: "var(--shadow-sm)"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
+              >
+                <span style={{
+                  display: "inline-block",
+                  fontSize: 16,
+                  animation: adVideosLoading ? "spin 1s linear infinite" : "none"
+                }}>↻</span>
+                {adVideosLoading ? "Refreshing..." : "Refresh Previews"}
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {pendingAds.length === 0 ? (
+                <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: 14, background: "var(--surface)", borderRadius: "var(--radius-lg)", border: "1px dashed var(--border)" }}>
+                  No pending ads to preview.
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  {/* HELPER FOR RENDERING CARDS */}
-                  {(() => {
-                    const renderCard = (latestEntry) => {
-                      const url = latestEntry?.text || "";
-                      const isVideo = (latestEntry?.format || "").toLowerCase() === "video";
-                      const adKey = latestEntry?.id + "_" + latestEntry?.time;
-                      const mediaMissing = missingMediaKeys.has(adKey);
-
-                      const id = latestEntry?.id || "Unknown";
-                      let label = isVideo ? `Video Ad ${id}` : `Image Ad ${id}`;
-
-                      const markMediaMissing = () => {
-                        setMissingMediaKeys((prev) => new Set(prev).add(adKey));
-                      };
-
-                      return (
-                        <Card key={adKey} style={{ padding: 12, height: "100%" }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                            {label}
-                          </div>
-                          <div style={{
-                            background: "#000",
-                            borderRadius: "var(--radius-md)",
-                            aspectRatio: "9/16",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            overflow: "hidden",
-                            boxShadow: "inset 0 0 40px rgba(0,0,0,0.5)"
-                          }}>
-                            {isAdApproved(latestEntry?.Approved) ? (
-                              <div style={{ fontSize: 13, color: "#fff", fontWeight: 700, textAlign: "center", padding: 20 }}>
-                                ✓ Approved
-                              </div>
-                            ) : mediaMissing ? (
-                              <div style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600, textAlign: "center", padding: 20, lineHeight: 1.5 }}>
-                                Media no longer in Supabase storage
-                              </div>
-                            ) : !url ? (
-                              <div style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "center", padding: 10 }}>
-                                Waiting for {label} link...
-                              </div>
-                            ) : isVideo ? (
-                              <video
-                                key={url}
-                                src={url}
-                                controls
-                                autoPlay={false}
-                                onError={markMediaMissing}
-                                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                              />
-                            ) : (
-                              <img
-                                key={url}
-                                src={url}
-                                alt={label}
-                                onError={markMediaMissing}
-                                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                              />
-                            )}
-                          </div>
-
-                          {mediaMissing && (
-                            <div style={{ marginTop: 12 }}>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteStaleAd(latestEntry)}
-                                disabled={removingId === adKey}
-                                style={{
-                                  width: "100%", padding: "8px 0", borderRadius: "var(--radius-md)",
-                                  border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c",
-                                  fontSize: 11, fontWeight: 700, cursor: removingId === adKey ? "not-allowed" : "pointer",
-                                  opacity: removingId === adKey ? 0.7 : 1, fontFamily: "inherit",
-                                }}
-                              >
-                                {removingId === adKey ? "Removing..." : "Remove stale entry"}
-                              </button>
-                            </div>
-                          )}
-
-                          {url && !isAdApproved(latestEntry?.Approved) && !mediaMissing && (
-                            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                              <button
-                                onClick={() => setSelectedAdForDetails(latestEntry)}
-                                style={{
-                                  flex: 1, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center",
-                                  gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
-                                  border: "1px solid var(--border)", background: "var(--surface)",
-                                  color: "var(--text)", fontSize: 11, fontWeight: 600, transition: "all 0.15s",
-                                  cursor: "pointer", fontFamily: "inherit"
-                                }}
-                                onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-hover)"}
-                                onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface)"}
-                              >
-                                ↗ Full View
-                              </button>
-                              <button
-                                onClick={() => handleApproveAd(latestEntry)}
-                                disabled={isAdApproved(latestEntry?.Approved) || approvingId === (latestEntry?.id + "_" + latestEntry?.time)}
-                                style={{
-                                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                                  gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
-                                  border: "none",
-                                  background: isAdApproved(latestEntry?.Approved) ? "var(--green-light)" : "var(--primary)",
-                                  color: isAdApproved(latestEntry?.Approved) ? "var(--green)" : "#fff",
-                                  fontSize: 11, fontWeight: 600,
-                                  cursor: isAdApproved(latestEntry?.Approved) ? "default" : "pointer",
-                                  opacity: approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? 0.7 : 1,
-                                  transition: "all 0.15s"
-                                }}
-                              >
-                                {approvingId === (latestEntry?.id + "_" + latestEntry?.time) ? (
-                                  <Spinner size={10} />
-                                ) : isAdApproved(latestEntry?.Approved) ? (
-                                  "✓ Approved"
-                                ) : (
-                                  "✓ Approve"
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </Card>
-                      );
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-0 sm:px-4" style={{ maxWidth: "1100px", margin: "0 auto" }}>
+                  {pendingAds.map((latestEntry) => {
+                    const url = latestEntry?.text || "";
+                    const isVideo = (latestEntry?.format || "").toLowerCase() === "video";
+                    const adKey = latestEntry?.id + "_" + latestEntry?.time;
+                    const mediaMissing = missingMediaKeys.has(adKey);
+                    const id = latestEntry?.id || "Unknown";
+                    const label = isVideo ? `Video Ad ${id}` : `Image Ad ${id}`;
+                    const markMediaMissing = () => {
+                      setMissingMediaKeys((prev) => new Set(prev).add(adKey));
                     };
 
-                    if (pendingAds.length === 0) {
-                      return (
-                        <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: 14, background: "var(--surface)", borderRadius: "var(--radius-lg)", border: "1px dashed var(--border)" }}>
-                          No pending ads to preview.
-                        </div>
-                      );
-                    }
-
                     return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-0 sm:px-4" style={{
-                        maxWidth: "1100px",
-                        margin: "0 auto"
-                      }}>
-                        {pendingAds.map(ad => (
-                          <div key={ad.id + "_" + ad.time}>
-                            {renderCard(ad)}
+                      <Card key={adKey} style={{ padding: 12, height: "100%" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          {label}
+                        </div>
+                        <div style={{
+                          background: "#000",
+                          borderRadius: "var(--radius-md)",
+                          aspectRatio: "9/16",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                          boxShadow: "inset 0 0 40px rgba(0,0,0,0.5)"
+                        }}>
+                          {isAdApproved(latestEntry?.Approved) ? (
+                            <div style={{ fontSize: 13, color: "#fff", fontWeight: 700, textAlign: "center", padding: 20 }}>
+                              ✓ Approved
+                            </div>
+                          ) : mediaMissing ? (
+                            <div style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600, textAlign: "center", padding: 20, lineHeight: 1.5 }}>
+                              Media no longer in Supabase storage
+                            </div>
+                          ) : !url ? (
+                            <div style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "center", padding: 10 }}>
+                              Waiting for {label} link...
+                            </div>
+                          ) : isVideo ? (
+                            <video
+                              key={url}
+                              src={url}
+                              controls
+                              autoPlay={false}
+                              onError={markMediaMissing}
+                              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                            />
+                          ) : (
+                            <img
+                              key={url}
+                              src={url}
+                              alt={label}
+                              onError={markMediaMissing}
+                              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                            />
+                          )}
+                        </div>
+
+                        {mediaMissing && (
+                          <div style={{ marginTop: 12 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStaleAd(latestEntry)}
+                              disabled={removingId === adKey}
+                              style={{
+                                width: "100%", padding: "8px 0", borderRadius: "var(--radius-md)",
+                                border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c",
+                                fontSize: 11, fontWeight: 700, cursor: removingId === adKey ? "not-allowed" : "pointer",
+                                opacity: removingId === adKey ? 0.7 : 1, fontFamily: "inherit",
+                              }}
+                            >
+                              {removingId === adKey ? "Removing..." : "Remove stale entry"}
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-
-                  {/* ── CUSTOM MEDIA UPLOAD ── */}
-                  <div style={{
-                    marginTop: 32, padding: 24, borderRadius: "var(--radius-lg)",
-                    background: "var(--surface)", border: "2px dashed #000",
-                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12
-                  }}>
-                    <SectionTitle style={{ marginBottom: 4, fontSize: 16 }}>Or Upload Your Own Media</SectionTitle>
-                    <div style={{ fontSize: 12, color: "var(--text-dim)", textAlign: "center", maxWidth: 400 }}>
-                      Skip the AI generation and upload your own video or image. It will go directly to the Approved section.
-                    </div>
-
-                    <div style={{ marginTop: 8, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                      <label style={{
-                        padding: "10px 20px", borderRadius: "var(--radius-md)",
-                        background: "var(--card-bg)", border: "1px solid var(--border)",
-                        color: "var(--text)", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                        display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
-                        opacity: customUploadLoading ? 0.6 : 1
-                      }}>
-                        {customUploadLoading ? (
-                          <><Spinner size={14} color="var(--primary)" /> Uploading...</>
-                        ) : (
-                          <><span>+</span> Choose File to Upload</>
                         )}
-                        <input
-                          type="file"
-                          accept="video/*,image/*"
-                          style={{ display: "none" }}
-                          disabled={customUploadLoading}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
 
-                            setCustomUploadLoading(true);
-                            setCustomUploadError("");
-
-                            try {
-                              const ext = file.name.split('.').pop();
-                              const fileName = `${new Date().toISOString().replace(/[:.]/g, '-')}_${Math.floor(Math.random()*10000)}.${ext}`;
-                              const isVideo = file.type.startsWith("video/");
-                              const format = isVideo ? "Video" : "Image";
-
-                              // Step 1: Get presigned upload URL from server (bypasses 4MB Next.js body limit)
-                              const urlRes = await fetch("/api/upload-url", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ fileName, contentType: file.type }),
-                              });
-                              const urlData = await urlRes.json();
-                              if (!urlRes.ok || urlData.error) throw new Error(urlData.error || "Failed to get upload URL");
-
-                              // Step 2: Upload file DIRECTLY to Supabase (browser → Supabase, no size limit)
-                              const uploadRes = await fetch(urlData.signedUrl, {
-                                method: "PUT",
-                                headers: { "Content-Type": file.type, "x-upsert": "true" },
-                                body: file,
-                              });
-                              if (!uploadRes.ok) throw new Error(`Storage upload failed (${uploadRes.status})`);
-
-                              // Step 3: Insert DB record via lightweight endpoint
-                              const recordRes = await fetch("/api/upload-ad-record", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ publicUrl: urlData.publicUrl, format }),
-                              });
-                              const record = await recordRes.json();
-                              if (!recordRes.ok || record.error) throw new Error(record.error || "DB insert failed");
-
-                              await fetchAdTableLinks();
-                              setTab("approval");
-                              addSbToast("Media uploaded and approved! Check the Approval tab.", "success");
-                            } catch (err: any) {
-                              setCustomUploadError(err.message || "Upload failed");
-                              console.error(err);
-                            } finally {
-                              setCustomUploadLoading(false);
-                              e.target.value = "";
-                            }
-                          }}
-                        />
-                      </label>
-                      {customUploadError && (
-                        <div style={{ fontSize: 12, color: "var(--red-error)" }}>{customUploadError}</div>
-                      )}
-                    </div>
-                  </div>
+                        {url && !isAdApproved(latestEntry?.Approved) && !mediaMissing && (
+                          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                            <button
+                              onClick={() => setSelectedAdForDetails(latestEntry)}
+                              style={{
+                                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                                gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
+                                border: "1px solid var(--border)", background: "var(--surface)",
+                                color: "var(--text)", fontSize: 11, fontWeight: 600,
+                                cursor: "pointer", fontFamily: "inherit"
+                              }}
+                            >
+                              ↗ Full View
+                            </button>
+                            <button
+                              onClick={() => handleApproveAd(latestEntry)}
+                              disabled={approvingId === adKey}
+                              style={{
+                                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                                gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
+                                border: "none", background: "var(--primary)", color: "#fff",
+                                fontSize: 11, fontWeight: 600,
+                                cursor: approvingId === adKey ? "not-allowed" : "pointer",
+                                opacity: approvingId === adKey ? 0.7 : 1,
+                              }}
+                            >
+                              {approvingId === adKey ? <Spinner size={10} /> : "✓ Approve"}
+                            </button>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
                 </div>
+              )}
+
+              {/* ── CUSTOM MEDIA UPLOAD ── */}
+              <div style={{
+                marginTop: 32, padding: 24, borderRadius: "var(--radius-lg)",
+                background: "var(--surface)", border: "2px dashed #000",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12
+              }}>
+                <SectionTitle style={{ marginBottom: 4, fontSize: 16 }}>Or Upload Your Own Media</SectionTitle>
+              <div style={{ fontSize: 12, color: "var(--text-dim)", textAlign: "center", maxWidth: 400 }}>
+                Skip the AI generation and upload your own video or image. It will go directly to the Approved section.
               </div>
-            );
-          })()}
+
+              <div style={{ marginTop: 8, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <label style={{
+                  padding: "10px 20px", borderRadius: "var(--radius-md)",
+                  background: "var(--card-bg)", border: "1px solid var(--border)",
+                  color: "var(--text)", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                  opacity: customUploadLoading ? 0.6 : 1
+                }}>
+                  {customUploadLoading ? (
+                    <><Spinner size={14} color="var(--primary)" /> Uploading...</>
+                  ) : (
+                    <><span>+</span> Choose File to Upload</>
+                  )}
+                  <input
+                    type="file"
+                    accept="video/*,image/*"
+                    style={{ display: "none" }}
+                    disabled={customUploadLoading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      setCustomUploadLoading(true);
+                      setCustomUploadError("");
+
+                      try {
+                        const ext = file.name.split('.').pop();
+                        const fileName = `${new Date().toISOString().replace(/[:.]/g, '-')}_${Math.floor(Math.random()*10000)}.${ext}`;
+                        const isVideo = file.type.startsWith("video/");
+                        const format = isVideo ? "Video" : "Image";
+
+                        const urlRes = await fetch("/api/upload-url", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ fileName, contentType: file.type }),
+                        });
+                        const urlData = await urlRes.json();
+                        if (!urlRes.ok || urlData.error) throw new Error(urlData.error || "Failed to get upload URL");
+
+                        const uploadRes = await fetch(urlData.signedUrl, {
+                          method: "PUT",
+                          headers: { "Content-Type": file.type, "x-upsert": "true" },
+                          body: file,
+                        });
+                        if (!uploadRes.ok) throw new Error(`Storage upload failed (${uploadRes.status})`);
+
+                        const recordRes = await fetch("/api/upload-ad-record", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ publicUrl: urlData.publicUrl, format }),
+                        });
+                        const record = await recordRes.json();
+                        if (!recordRes.ok || record.error) throw new Error(record.error || "DB insert failed");
+
+                        await fetchAdTableLinks();
+                        setTab("approval");
+                        addSbToast("Media uploaded and approved! Check the Approval tab.", "success");
+                      } catch (err: any) {
+                        setCustomUploadError(err.message || "Upload failed");
+                        console.error(err);
+                      } finally {
+                        setCustomUploadLoading(false);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                </label>
+                {customUploadError && (
+                  <div style={{ fontSize: 12, color: "var(--red-error)" }}>{customUploadError}</div>
+                )}
+              </div>
+            </div>
+            </div>
+          </div>
         </div>
       )}
 

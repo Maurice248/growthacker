@@ -13,7 +13,8 @@ export async function finalizeImageAds(
   tokens: CreateAdTokens,
   items: FinalizeImageInput[],
   reportData: ReportData,
-  adsConfig: unknown
+  adsConfig: unknown,
+  options: { skipTableInsert?: boolean } = {}
 ) {
   const results = [];
 
@@ -46,18 +47,23 @@ export async function finalizeImageAds(
       destination_url: '',
     };
 
-    const uploaded = await uploadImageAd(companyId, imageBuffer, {
-      ad_id: meta.ad_id,
-      ad_type: meta.ad_type,
-      ad_name: meta.ad_name,
-      primary_text: meta.primary_text,
-      headline: meta.headline,
-      ad_description: meta.ad_description,
-      destination_url: meta.destination_url,
-      title: concept.title,
-      cta: concept.cta,
-      prompt: concept.prompt,
-    });
+    const uploaded = await uploadImageAd(
+      companyId,
+      imageBuffer,
+      {
+        ad_id: meta.ad_id,
+        ad_type: meta.ad_type,
+        ad_name: meta.ad_name,
+        primary_text: meta.primary_text,
+        headline: meta.headline,
+        ad_description: meta.ad_description,
+        destination_url: meta.destination_url,
+        title: concept.title,
+        cta: concept.cta,
+        prompt: concept.prompt,
+      },
+      { skipTableInsert: options.skipTableInsert }
+    );
 
     results.push({
       id: concept.id,

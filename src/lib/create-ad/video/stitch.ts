@@ -168,6 +168,7 @@ export async function stitchAndUploadVideo(
     audioDuration?: number | null;
     fullScript?: string;
     itemId?: number;
+    skipTableInsert?: boolean;
   } = {}
 ) {
   const uploadPostToken = requireToken(tokens, 'uploadPost', 'Upload Post API token');
@@ -197,7 +198,8 @@ export async function stitchAndUploadVideo(
           destination_url: meta.destination_url,
         }
       : {},
-    options.fullScript
+    options.fullScript,
+    { skipTableInsert: options.skipTableInsert }
   );
 
   return { ...uploaded, metadata: meta, jobId };

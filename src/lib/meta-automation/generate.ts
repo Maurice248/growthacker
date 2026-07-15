@@ -20,6 +20,9 @@ import { fetchBaseAdConcept } from './base-ad';
 import { generateVariantConcept } from './prompts';
 import type { BaseAdConcept } from './types';
 
+/** Used by Generate Ad Variants + automated campaign regeneration — not Create Ad previews. */
+const VARIANT_UPLOAD_OPTIONS = { skipTableInsert: true } as const;
+
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -78,7 +81,8 @@ async function generateImageVariant(
     tokens,
     [{ concept, task: pollResults[0] }],
     { variant_of: baseConcept.mediaUrl },
-    { totalAds: 1, items: [concept] }
+    { totalAds: 1, items: [concept] },
+    VARIANT_UPLOAD_OPTIONS
   );
 
   const result = finalized[0];
@@ -160,6 +164,7 @@ async function generateVideoVariant(
         audioKey: prompts.audioKey,
         fullScript: variantConcept.idea,
         itemId: item.id,
+        ...VARIANT_UPLOAD_OPTIONS,
       }
     )
   );

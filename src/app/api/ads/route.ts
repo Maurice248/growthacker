@@ -3,6 +3,10 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { shouldShowInApprovalQueue } from '@/lib/legacy-brand';
+import {
+  getAutomationExcludedMedia,
+  isAutomationGeneratedMedia,
+} from '@/lib/meta-automation/excluded-media';
 import { prisma } from '@/lib/prisma';
 import { requireApiCompanyId } from '@/lib/api-auth';
 
@@ -45,9 +49,19 @@ export async function GET() {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const filteredRows = (rows || []).filter((row) => shouldShowInApprovalQueue(row));
+    const excludedAutomationMedia = await getAutomationExcludedMedia(companyId);
 
-    return NextResponse.json({ rows: filteredRows, storageLookup });
+    const filteredRows = (rows || []).filter(
+      (row) =>
+        shouldShowInApprovalQueue(row) &&
+        !isAutomationGeneratedMedia(row.text, excludedAutomationMedia)
+    );
+
+    return NextResponse.json({
+      rows: filteredRows,
+      storageLookup,
+      automationExcludedFilenames: [...excludedAutomationMedia.filenames],
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch ads';
     return NextResponse.json({ error: message }, { status: 500 });

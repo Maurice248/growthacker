@@ -105,20 +105,28 @@ export async function insertAdTableRow(row: AdTableInsert) {
   return data;
 }
 
+export type AdUploadOptions = {
+  /** When true, upload to storage only — skip your_name_table (e.g. variant automation). */
+  skipTableInsert?: boolean;
+};
+
 export async function uploadImageAd(
   companyId: string,
   imageBuffer: Buffer,
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>,
+  options: AdUploadOptions = {}
 ) {
   const bucket = await pickAdBucket(companyId);
   const filename = timestampedFilename('png');
   const { publicUrl } = await uploadToStorage(bucket, filename, imageBuffer, 'image/png');
-  const row = await insertAdTableRow({
-    companyId,
-    text: publicUrl,
-    format: 'Image',
-    jsonData: metadata,
-  });
+  const row = options.skipTableInsert
+    ? null
+    : await insertAdTableRow({
+        companyId,
+        text: publicUrl,
+        format: 'Image',
+        jsonData: metadata,
+      });
   return { publicUrl, row, bucket, filename };
 }
 
@@ -126,19 +134,22 @@ export async function uploadVideoAd(
   companyId: string,
   videoBuffer: Buffer,
   metadata: Record<string, unknown>,
-  story?: string
+  story?: string,
+  options: AdUploadOptions = {}
 ) {
   const bucket = await pickAdBucket(companyId);
   const filename = timestampedFilename('mp4');
   const { publicUrl } = await uploadToStorage(bucket, filename, videoBuffer, 'video/mp4');
-  const row = await insertAdTableRow({
-    companyId,
-    text: publicUrl,
-    format: 'Video',
-    jsonData: metadata,
-    story,
-    idCount: 1,
-  });
+  const row = options.skipTableInsert
+    ? null
+    : await insertAdTableRow({
+        companyId,
+        text: publicUrl,
+        format: 'Video',
+        jsonData: metadata,
+        story,
+        idCount: 1,
+      });
   return { publicUrl, row, bucket, filename };
 }
 
