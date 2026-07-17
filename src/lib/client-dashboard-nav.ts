@@ -2,7 +2,6 @@ import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
   BarChart3,
-  ClipboardCheck,
   FileText,
   History,
   LayoutDashboard,
@@ -40,10 +39,9 @@ export const CLIENT_TOP_TABS: ClientNavItem[] = [
 export const CLIENT_META_ADS_TABS: ClientNavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'create', label: 'Create Ad', icon: WandSparkles },
-  { id: 'approval', label: 'Approval', icon: ClipboardCheck },
   { id: 'variants', label: 'Generate Ad Variants', icon: Sparkles },
   { id: 'campaigns', label: 'Campaign Setup', icon: Settings2 },
-  { id: 'live_campaigns', label: 'Running Campaign', icon: TrendingUp },
+  { id: 'live_campaigns', label: 'Campaign monitor', icon: TrendingUp },
   { id: 'ad_performance', label: 'Automated Campaigns', icon: Activity },
   { id: 'reports', label: 'Reports', icon: PieChart },
 ];
@@ -146,7 +144,6 @@ const MAIN_APP_TABS = new Set([
   'analysis',
   'overview',
   'create',
-  'approval',
   'variants',
   'campaigns',
   'live_campaigns',

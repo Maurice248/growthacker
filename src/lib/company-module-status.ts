@@ -126,7 +126,6 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
     'analysis',
     'overview',
     'create',
-    'approval',
     'variants',
     'campaigns',
     'live_campaigns',

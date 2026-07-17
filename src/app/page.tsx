@@ -32,7 +32,6 @@ import {
   LayoutDashboard,
   BarChart3,
   WandSparkles,
-  ClipboardCheck,
   Settings2,
   TrendingUp,
   Activity,
@@ -162,10 +161,9 @@ const TABS = [
   { id: "analysis", label: "Ads Lab", icon: BarChart3 },
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "create", label: "Create Ad", icon: WandSparkles },
-  { id: "approval", label: "Approval", icon: ClipboardCheck },
   { id: "variants", label: "Generate Ad Variants", icon: Sparkles },
   { id: "campaigns", label: "Campaign Setup", icon: Settings2 },
-  { id: "live_campaigns", label: "Running Campaign", icon: TrendingUp },
+  { id: "live_campaigns", label: "Campaign monitor", icon: TrendingUp },
   { id: "ad_performance", label: "Automated Campaigns", icon: Activity },
   { id: "reports", label: "Reports", icon: PieChart },
 ];
@@ -189,7 +187,7 @@ const NEWSLETTER_TABS = [
 
 const NEWSLETTER_TAB_IDS = new Set(NEWSLETTER_TABS.map((t) => t.id));
 
-const META_ADS_IDS = new Set(["overview", "create", "approval", "variants", "campaigns", "live_campaigns", "ad_performance", "reports"]);
+const META_ADS_IDS = new Set(["overview", "create", "variants", "campaigns", "live_campaigns", "ad_performance", "reports"]);
 
 const OUTREACH_FUTURE_TABS = [
   { id: "cold-dm", label: "Cold DM", icon: MessageSquare },
@@ -314,6 +312,68 @@ const normalizeSupabaseUrl = (url) => {
 function isAdApproved(approved: unknown): boolean {
   return approved === true || approved === "true";
 }
+
+/** Explicitly marked unapproved (user clicked Unapprove or row was set to false). */
+function isAdExplicitlyUnapproved(approved: unknown): boolean {
+  return approved === false || approved === "false" || approved === "False" || approved === "0";
+}
+
+function getAdJsonRecord(jsonData: any) {
+  if (!jsonData || typeof jsonData !== "object") return {};
+  return jsonData.ad || jsonData.ads?.[0] || jsonData;
+}
+
+function getAdDescription(jsonData: any): string {
+  const record = getAdJsonRecord(jsonData);
+  return String(record.primary_text || jsonData?.primary_text || "").trim();
+}
+
+function isStorageMediaUrl(url: unknown): boolean {
+  if (!url || typeof url !== "string") return false;
+  return url.includes("/storage/v1/object/") || /\.(png|jpe?g|webp|gif|mp4|mov|webm)(\?|$)/i.test(url.split("/").pop() || "");
+}
+
+function getAdDestinationUrl(jsonData: any): string {
+  const record = getAdJsonRecord(jsonData);
+  const candidates = [
+    record.destination_url,
+    record.website_url,
+    jsonData?.destination_url,
+    jsonData?.ad?.destination_url,
+    jsonData?.ad?.website_url,
+    jsonData?.ads?.[0]?.destination_url,
+  ];
+  for (const candidate of candidates) {
+    const value = String(candidate || "").trim();
+    if (value && !isStorageMediaUrl(value)) return value;
+  }
+  const legacyLink = String(jsonData?.link_data || "").trim();
+  if (legacyLink && !isStorageMediaUrl(legacyLink)) return legacyLink;
+  return "";
+}
+
+function getAdSourcePrompt(ad: any, jsonData: any): string {
+  const story = String(ad?.story || "").trim();
+  if (story) return story;
+
+  const record = getAdJsonRecord(jsonData);
+  const prompt = String(record.prompt || jsonData?.prompt || "").trim();
+  if (prompt) return prompt;
+
+  const idea = String(record.idea || jsonData?.idea || "").trim();
+  if (idea) return idea;
+
+  return "";
+}
+
+const SELECT_ARROW_STYLE = {
+  appearance: "none" as const,
+  WebkitAppearance: "none" as const,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 12px center",
+  paddingRight: 34,
+};
 
 function getStorageFileName(url: unknown): string {
   if (!url || typeof url !== "string") return "";
@@ -838,6 +898,7 @@ export default function Dashboard() {
   useEffect(() => { if (tab === "blog-management") setTab("blog-post"); }, [tab, setTab]);
   useEffect(() => { if (tab === "social-dash") setTab("social-creator-studio"); }, [tab, setTab]);
   useEffect(() => { if (tab === "social-automation") setTab("social-overview"); }, [tab, setTab]);
+  useEffect(() => { if (tab === "approval") setTab("create"); }, [tab, setTab]);
 
 
   // Analysis state — status and data persist across refresh
@@ -985,9 +1046,6 @@ export default function Dashboard() {
 
   // Campaigns
   const [campaigns, setCampaigns] = useState([]);
-  const [stoppedIds, setStoppedIds] = useState([]);
-  const [stopStatus, setStopStatus] = useState("idle");
-  // idle | stopping | stopped | error
 
   // Report
   const [reportStatus, setReportStatus] = useState("idle");
@@ -1016,7 +1074,6 @@ export default function Dashboard() {
   const [scheduledAds, setScheduledAds] = useState([]);
   const [approvedAds, setApprovedAds] = useState([]);
   const [rejectedAds, setRejectedAds] = useState([]);
-  const [approvalFilter, setApprovalFilter] = useState("all");
   const [adCardStatuses, setAdCardStatuses] = useState({});
   const [schedulePickerOpen, setSchedulePickerOpen] = useState(null);
   const [scheduleDates, setScheduleDates] = useState({});
@@ -1186,11 +1243,16 @@ export default function Dashboard() {
   });
   const [createTabConfigOpen, setCreateTabConfigOpen] = useState(false);
   const [pendingAds, setPendingAds] = useState([]);
+  const [pendingAdsCount, setPendingAdsCount] = useState(0);
   const [adTableLinks, setAdTableLinks] = useState({});
   // Stores { "1": { text: "...", format: "Video", Approved: bool }, ... }
   const [allApprovedAds, setAllApprovedAds] = useState([]);
+  const [allPreviewAds, setAllPreviewAds] = useState([]);
   const [approvingId, setApprovingId] = useState(null);
+  const [unapprovingId, setUnapprovingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);
+  const [previewMediaFilter, setPreviewMediaFilter] = useState("all");
+  const [previewStatusFilter, setPreviewStatusFilter] = useState("");
   const [missingMediaKeys, setMissingMediaKeys] = useState<Set<string>>(() => new Set());
   const [selectedAdForDetails, setSelectedAdForDetails] = useState(null);
   const [workflowStatus, setWorkflowStatus] = useLocalStorage("app_workflow_status", "");
@@ -1328,6 +1390,10 @@ export default function Dashboard() {
         { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
       ]
     });
+  }
+
+  function closeCreateTabConfig() {
+    setCreateTabConfigOpen(false);
   }
 
   const addSbToast = useCallback((message, type = "success") => {
@@ -1677,6 +1743,7 @@ export default function Dashboard() {
 
     const latest = {};
     const approvedList = [];
+    const allAdsList = [];
     const validPending = [];
     const hasStorageIndex = storageLookup.size > 0;
     let hiddenMissingMedia = 0;
@@ -1702,6 +1769,7 @@ export default function Dashboard() {
       // We prioritize the database record. If storageLookup found it, we use the storage URL.
       const finalUrl = storageInfo ? storageInfo.publicUrl : normalizedText;
       const entry = { ...row, originalText: row.text, text: finalUrl };
+      allAdsList.push(entry);
 
       if (isAdApproved(row.Approved)) {
         approvedList.push(entry);
@@ -1732,9 +1800,11 @@ export default function Dashboard() {
     const topImages = batchPending.filter(a => (a.format || "").toLowerCase() !== "video").slice(0, 2);
 
     setPendingAds([...topVideos, ...topImages]);
+    setPendingAdsCount(validPending.length);
 
     setAdTableLinks(latest);
     setAllApprovedAds(approvedList);
+    setAllPreviewAds(allAdsList.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()));
     setMissingMediaKeys(new Set());
 
     if (hiddenMissingMedia > 0) {
@@ -2367,15 +2437,31 @@ export default function Dashboard() {
       }
 
       const itemId = prev.items[idx].id;
+      const preservedIdea = currentItem.idea || "";
       // Clear generated ideas and pending state for this item on type switch
       setSentIdeaIds(s => { const n = { ...s }; delete n[itemId]; return n; });
       setGeneratedIdeas(g => { const n = { ...g }; delete n[itemId]; return n; });
 
       const newItems = [...prev.items];
       if (type === "video") {
-        newItems[idx] = { id: itemId, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" };
+        newItems[idx] = {
+          id: itemId,
+          type: "video",
+          duration: currentItem.duration || "28 seconds",
+          audioStyle: currentItem.audioStyle || "Background Music",
+          videoStyle: currentItem.videoStyle || "Bold & Colorful",
+          language: currentItem.language || "English",
+          idea: preservedIdea,
+          character: currentItem.character || "male",
+          voiceId: currentItem.voiceId || "rTOopItG6FIkKMIVxsl5",
+        };
       } else {
-        newItems[idx] = { id: itemId, type: "image", imageStyle: "Bold & Colorful", idea: "" };
+        newItems[idx] = {
+          id: itemId,
+          type: "image",
+          imageStyle: currentItem.imageStyle || "Bold & Colorful",
+          idea: normalizeIdeaForAdType(preservedIdea, "image"),
+        };
       }
       const vCount = newItems.filter(x => x.type === "video").length;
       const iCount = newItems.filter(x => x.type === "image").length;
@@ -2415,6 +2501,11 @@ export default function Dashboard() {
       if (data.rowsAffected === 0) {
         throw new Error("No matching ad record found to approve");
       }
+      setAllPreviewAds((prev) =>
+        prev.map((ad) =>
+          ad.id === row.id && ad.time === row.time ? { ...ad, Approved: "true" } : ad
+        )
+      );
       addSbToast("Ad approved successfully!");
       await fetchAdTableLinks();
     } catch (error) {
@@ -2423,6 +2514,44 @@ export default function Dashboard() {
     }
 
     setApprovingId(null);
+  }
+
+  async function handleUnapproveAd(row) {
+    if (!row) return;
+    setUnapprovingId(row.id + "_" + row.time);
+
+    try {
+      const res = await fetch("/api/ads/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: row.originalText || row.text,
+          approved: false,
+          id: row.id,
+          time: row.time,
+          format: row.format,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Unapprove failed");
+      }
+      if (data.rowsAffected === 0) {
+        throw new Error("No matching ad record found to unapprove");
+      }
+      setAllPreviewAds((prev) =>
+        prev.map((ad) =>
+          ad.id === row.id && ad.time === row.time ? { ...ad, Approved: "false" } : ad
+        )
+      );
+      addSbToast("Ad unapproved.");
+      await fetchAdTableLinks();
+    } catch (error) {
+      console.error("Unapprove error:", error);
+      addSbToast(`Unapprove failed: ${error.message || "Unknown error"}`, "error");
+    }
+
+    setUnapprovingId(null);
   }
 
   async function handleRemoveApprovedAd(ad) {
@@ -2490,38 +2619,87 @@ export default function Dashboard() {
     if (!ad) return;
     setIsSavingAd(true);
 
-    const oldJson = typeof ad["json data"] === "string" ? JSON.parse(ad["json data"]) : (ad["json data"] || {});
+    try {
+      const oldJson = typeof ad["json data"] === "string" ? JSON.parse(ad["json data"]) : (ad["json data"] || {});
+      const oldAd = getAdJsonRecord(oldJson);
+      const description = editingAdData.primaryText ?? getAdDescription(oldJson);
+      const adName = editingAdData.adName || oldAd.name || oldAd.ad_name || "Untitled Ad";
+      const headline = editingAdData.headline || oldAd.headline || "No headline provided.";
+      const ctaType = editingAdData.ctaType || oldAd.call_to_action_type || "WATCH_MORE";
+      const destinationUrl =
+        editingAdData.linkData?.trim() ||
+        getAdDestinationUrl(oldJson) ||
+        profileData.destinationUrl ||
+        DEFAULT_WEBSITE_URL ||
+        "";
+      const mediaLink = (() => {
+        const legacy = String(oldJson.link_data || "").trim();
+        if (legacy && isStorageMediaUrl(legacy)) return legacy;
+        return ad.text || ad.originalText || legacy || "";
+      })();
+      const campaignName = editingAdData.campaignName || oldJson.campaign?.name || "Untitled Campaign";
 
-    // Construct the new schema
-    const updatedJsonData = {
-      campaign: {
-        name: editingAdData.campaignName || (oldJson.campaign?.name || "Untitled Campaign")
-      },
-      ad: {
-        id: oldJson.ad?.id || oldJson.ads?.[0]?.id || Date.now(),
-        name: editingAdData.adName || (oldJson.ad?.name || oldJson.ads?.[0]?.name || "Untitled Ad"),
-        type: oldJson.ad?.type || oldJson.ads?.[0]?.type || "video",
-        headline: editingAdData.headline || (oldJson.ad?.headline || oldJson.ads?.[0]?.headline || "No headline provided."),
-        primary_text: editingAdData.primaryText ?? (oldJson.ad?.primary_text || oldJson.ads?.[0]?.primary_text || ""),
-        call_to_action_type: editingAdData.ctaType || (oldJson.ad?.call_to_action_type || oldJson.ads?.[0]?.call_to_action_type || "WATCH_MORE"),
-        website_url: editingAdData.linkData || (oldJson.ad?.website_url || oldJson.link_data || ad.text || "")
-      },
-      link_data: editingAdData.linkData || (oldJson.link_data || ad.text || "")
-    };
+      const updatedJsonData = {
+        ...oldJson,
+        campaign: {
+          ...(oldJson.campaign || {}),
+          name: campaignName,
+        },
+        ad: {
+          ...(oldJson.ad || {}),
+          id: oldJson.ad?.id || oldJson.ads?.[0]?.id || oldAd.ad_id || Date.now(),
+          name: adName,
+          ad_name: adName,
+          type: oldJson.ad?.type || oldJson.ads?.[0]?.ad_type || oldAd.ad_type || "video",
+          headline,
+          primary_text: description,
+          call_to_action_type: ctaType,
+          website_url: destinationUrl,
+          destination_url: destinationUrl,
+        },
+        link_data: mediaLink,
+        ad_name: adName,
+        headline,
+        primary_text: description,
+        destination_url: destinationUrl,
+      };
 
-    const { error } = await supabase
-      .from("your_name_table")
-      .update({ "json data": JSON.stringify(updatedJsonData) })
-      .match({ id: ad.id, time: ad.time });
+      if (Array.isArray(oldJson.ads) && oldJson.ads.length > 0) {
+        updatedJsonData.ads = oldJson.ads.map((item, index) =>
+          index === 0
+            ? {
+                ...item,
+                ad_name: adName,
+                headline,
+                primary_text: description,
+                destination_url: destinationUrl,
+              }
+            : item
+        );
+      }
 
-    if (error) {
-      console.error("Save error:", error);
-      addSbToast("Failed to save changes", "error");
-    } else {
+      const res = await fetch("/api/ads", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: ad.id,
+          time: ad.time,
+          jsonData: updatedJsonData,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Save failed");
+      }
+
       addSbToast("Changes saved successfully!");
       setIsEditingAd(false);
       await fetchAdTableLinks();
+    } catch (error) {
+      console.error("Save error:", error);
+      addSbToast(`Failed to save changes: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
+
     setIsSavingAd(false);
   }
 
@@ -4166,8 +4344,9 @@ export default function Dashboard() {
       {tab === "overview" && (() => {
         // Compute dynamic top statistics
         const activeCampaigns = metaCampaignInsights.filter(c => c.effective_status === 'ACTIVE').length;
+        const pausedCampaigns = metaCampaignInsights.filter(c => c.effective_status === 'PAUSED').length;
         const totalCampaignsRendered = activeCampaigns || campaigns.length; // fallback
-        const pendingAuthCount = (adData?.ad_scripts || []).filter(a => getAdStatus(a.id) === "pending").length;
+        const pendingAuthCount = pendingAdsCount;
 
         // Determine Top Performer
         let topPerformer = null;
@@ -4198,14 +4377,14 @@ export default function Dashboard() {
                 bg="var(--primary-light)"
               />
               <MetricCard
-                label="Market Intel"
+                label="REPORTS"
                 value={sbRows.length}
                 sub="Available reports"
                 color="var(--green)"
                 bg="var(--green-light)"
               />
               <MetricCard
-                label="Pending approval"
+                label="AD PENDING APPROVAL"
                 value={pendingAuthCount}
                 sub={pendingAuthCount > 0 ? "Action needed" : "All clear"}
                 color={pendingAuthCount > 0 ? "var(--red)" : "var(--amber)"}
@@ -4213,9 +4392,9 @@ export default function Dashboard() {
                 dot={pendingAuthCount > 0}
               />
               <MetricCard
-                label="Stopped"
-                value={stoppedIds.length}
-                sub="This session"
+                label="CAMPAIGN STOPPED"
+                value={pausedCampaigns}
+                sub="Paused in Meta"
                 color="var(--text-muted)"
                 bg="var(--surface)"
               />
@@ -4223,10 +4402,9 @@ export default function Dashboard() {
 
             {/* Dash Body Panels */}
             <div
-              className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4"
+              className="grid grid-cols-1 gap-4"
             >
-              {/* Left Column */}
-              <div className="overview-left-col" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
                 {/* Account Health Window */}
                 <Card className="account-health-card" style={{ background: "linear-gradient(135deg, #f8fafc, #eff6ff)", border: "1px solid #bfdbfe", padding: "20px 24px" }}>
@@ -4279,65 +4457,69 @@ export default function Dashboard() {
                   )}
                 </Card>
 
-              </div>
-
-              {/* Right Column: Quick Actions */}
-              <div className="overview-right-col" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <Card>
-                  <SectionTitle>Quick Actions</SectionTitle>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                    }}
-                  >
-                    {[
-                      ["Run competitor analysis", () => setTab("analysis"), "◎", "Assess competitive blind spots in the market."],
-                      ["Create new ad setup", () => setTab("create"), "◈", "Generate scripts and creative logic using AI."],
-                      ["Review approvals queue", () => setTab("approval"), "◉", "Finalize ad creatives and prepare launch configurations."],
-                      ["Monitor live tracking", () => setTab("reports"), "◧", "Review granular performance tables inside Reports."],
-                    ].map(([label, fn, icon, sub]: any, i) => (
-                      <button
-                        key={i}
-                        onClick={fn}
-                        style={{
-                          padding: "12px 16px",
-                          borderRadius: "var(--radius-md)",
-                          border: "1px solid var(--border)",
-                          background: "#fff",
-                          color: "var(--text)",
-                          cursor: "pointer",
-                          textAlign: "left",
-                          fontFamily: "inherit",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          transition: "all 0.15s",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = "var(--surface-hover)";
-                          e.currentTarget.style.borderColor = "var(--primary-light)";
-                          e.currentTarget.style.transform = "translateX(2px)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "#fff";
-                          e.currentTarget.style.borderColor = "var(--border)";
-                          e.currentTarget.style.transform = "translateX(0)";
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 600, fontSize: 13, color: "var(--primary-strong)" }}>
-                            <span style={{ fontSize: 14 }}>{icon}</span> {label}
-                          </div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, marginLeft: 24 }}>{sub}</div>
-                        </div>
-                        <span style={{ opacity: 0.4, paddingLeft: 10 }}>→</span>
-                      </button>
-                    ))}
+                {/* Live Campaigns */}
+                <Card style={{ border: "1px solid #bfdbfe", background: "#f8fafc" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                    <SectionTitle style={{ margin: 0, color: "var(--primary)" }}>Live Campaigns</SectionTitle>
+                    <Badge text={`${activeCampaigns} active`} color="var(--primary)" bg="var(--primary-light)" />
                   </div>
+
+                  {metaReportsLoading && metaCampaignInsights.length === 0 ? (
+                    <div style={{ padding: "24px 0", display: "flex", justifyContent: "center" }}>
+                      <Spinner size={20} />
+                    </div>
+                  ) : metaCampaignInsights.filter(c => c.effective_status === "ACTIVE").length === 0 ? (
+                    <div style={{ padding: "20px 0", fontSize: 13, color: "var(--text-muted)" }}>
+                      No live campaigns are currently running.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {metaCampaignInsights
+                        .filter(c => c.effective_status === "ACTIVE")
+                        .map(c => {
+                          const ins = c.insights || {};
+                          return (
+                            <div
+                              key={c.id}
+                              style={{
+                                background: "#fff",
+                                borderRadius: "var(--radius-md)",
+                                border: "1px solid var(--border-light)",
+                                padding: "14px 16px",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {c.name}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                                    {c.objective?.replace(/_/g, " ") || "Campaign"}
+                                  </div>
+                                </div>
+                                <Badge text="ACTIVE" color="var(--green)" bg="var(--green-light)" />
+                              </div>
+                              <div className="flex flex-col sm:flex-row gap-4 lg:gap-5">
+                                <div>
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Spend</div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>${parseFloat(ins.spend || 0).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>CTR (Link)</div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--primary)" }}>{parseFloat(ins.inline_link_click_ctr || 0).toFixed(2)}%</div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Conversions</div>
+                                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--green)" }}>{ins.leads || 0}</div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
                 </Card>
+
               </div>
 
             </div>
@@ -5681,7 +5863,6 @@ export default function Dashboard() {
                                     disabled={sentIdeaIds[item.id] || !item.idea?.trim()}
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
-                                      // Require idea/storyboard text
                                       if (!item.idea?.trim()) {
                                         addSbToast("Please enter a Script / Storyboard Idea first.", "error");
                                         return;
@@ -5801,10 +5982,14 @@ export default function Dashboard() {
                               <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>Image Description / Prompt</div>
-                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && item.idea?.trim() && <button
-                                    disabled={sentIdeaIds[item.id]}
+                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && <button
+                                    disabled={sentIdeaIds[item.id] || !item.idea?.trim()}
                                     onClick={async () => {
                                       if (sentIdeaIds[item.id]) return;
+                                      if (!item.idea?.trim()) {
+                                        addSbToast("Please enter an Image Description / Prompt first.", "error");
+                                        return;
+                                      }
                                       setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
                                       addSbToast(`Generating Image ${idx + 1} ideas...`);
                                       try {
@@ -5842,12 +6027,12 @@ export default function Dashboard() {
                                     }}
                                     style={{
                                       padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "none",
-                                      background: sentIdeaIds[item.id] ? "#fde68a" : "linear-gradient(135deg, #b45309, #d97706)",
+                                      background: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "#94a3b8" : "linear-gradient(135deg, #b45309, #d97706)",
                                       color: "#fff", fontSize: 10, fontWeight: 700,
-                                      cursor: sentIdeaIds[item.id] ? "not-allowed" : "pointer",
+                                      cursor: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "not-allowed" : "pointer",
                                       transition: "all 0.2s", textTransform: "uppercase",
-                                      opacity: sentIdeaIds[item.id] ? 0.7 : 1,
-                                      boxShadow: sentIdeaIds[item.id] ? "none" : "0 3px 10px rgba(217,119,6,0.4)"
+                                      opacity: (sentIdeaIds[item.id] || !item.idea?.trim()) ? 0.6 : 1,
+                                      boxShadow: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "none" : "0 3px 10px rgba(217,119,6,0.4)"
                                     }}
                                   >
                                     {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
@@ -6080,7 +6265,10 @@ export default function Dashboard() {
                           })()}
                         </div>
                       </div>
-                    ) : (() => {
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                    {(() => {
                       const allIdeasFilled = (createTabAdsConfig.items || []).every((item: any) => item.idea?.trim());
                       const ideaGenerating = Object.values(sentIdeaIds).some(Boolean);
                       return (!allIdeasFilled || ideaGenerating) ? (
@@ -6206,6 +6394,38 @@ export default function Dashboard() {
                       </div>
                       );
                     })()}
+                        </div>
+                        {!generationActive && adStatus !== "generating" && adStatus !== "waiting" && !imageGenerating && (
+                          <button
+                            type="button"
+                            onClick={closeCreateTabConfig}
+                            style={{
+                              padding: "10px 20px",
+                              borderRadius: "var(--radius-md)",
+                              border: "1.5px solid #e2e8f0",
+                              background: "#fff",
+                              color: "#64748b",
+                              fontSize: 13,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                              flexShrink: 0,
+                              transition: "background 0.15s, border-color 0.15s",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "#f8fafc";
+                              e.currentTarget.style.borderColor = "#cbd5e1";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "#fff";
+                              e.currentTarget.style.borderColor = "#e2e8f0";
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    )}
 
 
                     {adStatus === "error" && (
@@ -6346,28 +6566,97 @@ export default function Dashboard() {
                 {adVideosLoading ? "Refreshing..." : "Refresh Previews"}
               </button>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              {pendingAds.length === 0 ? (
-                <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: 14, background: "var(--surface)", borderRadius: "var(--radius-lg)", border: "1px dashed var(--border)" }}>
-                  No pending ads to preview.
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", background: "#e2e8f0", borderRadius: 8, padding: 2, gap: 1 }}>
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "video", label: "Videos" },
+                    { value: "image", label: "Image" },
+                  ].map((f) => (
+                    <button
+                      key={f.value}
+                      type="button"
+                      onClick={() => setPreviewMediaFilter(f.value)}
+                      style={{
+                        padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                        fontFamily: "inherit", fontSize: 13, fontWeight: 700, transition: "all 0.15s",
+                        background: previewMediaFilter === f.value ? "#1e293b" : "transparent",
+                        color: previewMediaFilter === f.value ? "#fff" : "#475569",
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
                 </div>
-              ) : (
+                <select
+                  value={previewStatusFilter}
+                  onChange={(e) => setPreviewStatusFilter(e.target.value)}
+                  style={{
+                    padding: "8px 12px", borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border)", backgroundColor: "var(--surface)",
+                    color: "var(--text)", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                    minWidth: 160, cursor: "pointer",
+                    ...SELECT_ARROW_STYLE,
+                  }}
+                >
+                  <option value="">No selection</option>
+                  <option value="unapproved">Unapprove</option>
+                  <option value="approved">Approve</option>
+                </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {(() => {
+                const filteredPreviewAds = allPreviewAds.filter((ad) => {
+                  const isVideo = (ad.format || "").toLowerCase() === "video";
+                  if (previewMediaFilter === "video" && !isVideo) return false;
+                  if (previewMediaFilter === "image" && isVideo) return false;
+                  if (previewStatusFilter === "approved" && !isAdApproved(ad.Approved)) return false;
+                  if (previewStatusFilter === "unapproved" && !isAdExplicitlyUnapproved(ad.Approved)) return false;
+                  return true;
+                });
+
+                if (filteredPreviewAds.length === 0) {
+                  return (
+                    <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)", fontSize: 14, background: "var(--surface)", borderRadius: "var(--radius-lg)", border: "1px dashed var(--border)" }}>
+                      No ads match the current filters.
+                    </div>
+                  );
+                }
+
+                return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-0 sm:px-4" style={{ maxWidth: "1100px", margin: "0 auto" }}>
-                  {pendingAds.map((latestEntry) => {
+                  {filteredPreviewAds.map((latestEntry) => {
                     const url = latestEntry?.text || "";
                     const isVideo = (latestEntry?.format || "").toLowerCase() === "video";
                     const adKey = latestEntry?.id + "_" + latestEntry?.time;
                     const mediaMissing = missingMediaKeys.has(adKey);
+                    const approved = isAdApproved(latestEntry?.Approved);
+                    const explicitlyUnapproved = isAdExplicitlyUnapproved(latestEntry?.Approved);
                     const id = latestEntry?.id || "Unknown";
                     const label = isVideo ? `Video Ad ${id}` : `Image Ad ${id}`;
                     const markMediaMissing = () => {
                       setMissingMediaKeys((prev) => new Set(prev).add(adKey));
                     };
+                    const actionBtnStyle = {
+                      width: "100%", padding: "8px 0", borderRadius: "var(--radius-md)",
+                      fontSize: 11, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+                    };
 
                     return (
                       <Card key={adKey} style={{ padding: 12, height: "100%" }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                          {label}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            {label}
+                          </div>
+                          {approved ? (
+                            <span style={{ fontSize: 10, fontWeight: 800, color: "var(--green)", background: "var(--green-light)", padding: "2px 8px", borderRadius: 20 }}>
+                              Approved
+                            </span>
+                          ) : explicitlyUnapproved ? (
+                            <span style={{ fontSize: 10, fontWeight: 800, color: "#b45309", background: "#fffbeb", padding: "2px 8px", borderRadius: 20, border: "1px solid #fde68a" }}>
+                              Unapproved
+                            </span>
+                          ) : null}
                         </div>
                         <div style={{
                           background: "#000",
@@ -6379,11 +6668,7 @@ export default function Dashboard() {
                           overflow: "hidden",
                           boxShadow: "inset 0 0 40px rgba(0,0,0,0.5)"
                         }}>
-                          {isAdApproved(latestEntry?.Approved) ? (
-                            <div style={{ fontSize: 13, color: "#fff", fontWeight: 700, textAlign: "center", padding: 20 }}>
-                              ✓ Approved
-                            </div>
-                          ) : mediaMissing ? (
+                          {mediaMissing ? (
                             <div style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600, textAlign: "center", padding: 20, lineHeight: 1.5 }}>
                               Media no longer in Supabase storage
                             </div>
@@ -6418,10 +6703,10 @@ export default function Dashboard() {
                               onClick={() => handleDeleteStaleAd(latestEntry)}
                               disabled={removingId === adKey}
                               style={{
-                                width: "100%", padding: "8px 0", borderRadius: "var(--radius-md)",
+                                ...actionBtnStyle,
                                 border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c",
-                                fontSize: 11, fontWeight: 700, cursor: removingId === adKey ? "not-allowed" : "pointer",
-                                opacity: removingId === adKey ? 0.7 : 1, fontFamily: "inherit",
+                                cursor: removingId === adKey ? "not-allowed" : "pointer",
+                                opacity: removingId === adKey ? 0.7 : 1,
                               }}
                             >
                               {removingId === adKey ? "Removing..." : "Remove stale entry"}
@@ -6429,41 +6714,81 @@ export default function Dashboard() {
                           </div>
                         )}
 
-                        {url && !isAdApproved(latestEntry?.Approved) && !mediaMissing && (
-                          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAdForDetails(latestEntry)}
+                            disabled={!url}
+                            style={{
+                              ...actionBtnStyle,
+                              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                              border: "1px solid var(--border)", background: "var(--surface)",
+                              color: "var(--text)", opacity: url ? 1 : 0.5,
+                              cursor: url ? "pointer" : "not-allowed",
+                            }}
+                          >
+                            ↗ Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveApprovedAd(latestEntry)}
+                            disabled={removingId === adKey}
+                            style={{
+                              ...actionBtnStyle,
+                              border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c",
+                              cursor: removingId === adKey ? "not-allowed" : "pointer",
+                              opacity: removingId === adKey ? 0.7 : 1,
+                            }}
+                          >
+                            {removingId === adKey ? "Deleting..." : "Delete"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUnapproveAd(latestEntry)}
+                            disabled={unapprovingId === adKey}
+                            style={{
+                              ...actionBtnStyle,
+                              border: "1px solid #fde68a", background: "#fffbeb", color: "#b45309",
+                              cursor: unapprovingId === adKey ? "not-allowed" : "pointer",
+                              opacity: unapprovingId === adKey ? 0.7 : 1,
+                            }}
+                          >
+                            {unapprovingId === adKey ? "Unapproving..." : "Unapprove"}
+                          </button>
+                          {approved ? (
                             <button
-                              onClick={() => setSelectedAdForDetails(latestEntry)}
+                              type="button"
+                              onClick={() => { setLaunchAdCandidate(latestEntry); setTab("campaigns"); }}
                               style={{
-                                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                                gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
-                                border: "1px solid var(--border)", background: "var(--surface)",
-                                color: "var(--text)", fontSize: 11, fontWeight: 600,
-                                cursor: "pointer", fontFamily: "inherit"
+                                ...actionBtnStyle,
+                                border: "none", background: "linear-gradient(135deg, var(--primary), #6366f1)", color: "#fff",
                               }}
                             >
-                              ↗ Full View
+                              Send to Campaign Setup
                             </button>
+                          ) : (
                             <button
+                              type="button"
                               onClick={() => handleApproveAd(latestEntry)}
-                              disabled={approvingId === adKey}
+                              disabled={!url || mediaMissing || approvingId === adKey}
                               style={{
-                                flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-                                gap: 6, padding: "8px 0", borderRadius: "var(--radius-md)",
+                                ...actionBtnStyle,
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                                 border: "none", background: "var(--primary)", color: "#fff",
-                                fontSize: 11, fontWeight: 600,
-                                cursor: approvingId === adKey ? "not-allowed" : "pointer",
-                                opacity: approvingId === adKey ? 0.7 : 1,
+                                cursor: !url || mediaMissing || approvingId === adKey ? "not-allowed" : "pointer",
+                                opacity: !url || mediaMissing || approvingId === adKey ? 0.7 : 1,
                               }}
                             >
-                              {approvingId === adKey ? <Spinner size={10} /> : "✓ Approve"}
+                              {approvingId === adKey ? <Spinner size={10} /> : "Approve"}
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </Card>
                     );
                   })}
                 </div>
-              )}
+                );
+              })()}
 
               {/* ── CUSTOM MEDIA UPLOAD ── */}
               <div style={{
@@ -6473,7 +6798,7 @@ export default function Dashboard() {
               }}>
                 <SectionTitle style={{ marginBottom: 4, fontSize: 16 }}>Or Upload Your Own Media</SectionTitle>
               <div style={{ fontSize: 12, color: "var(--text-dim)", textAlign: "center", maxWidth: 400 }}>
-                Skip the AI generation and upload your own video or image. It will go directly to the Approved section.
+                Skip the AI generation and upload your own video or image. It will appear in Ad Previews below.
               </div>
 
               <div style={{ marginTop: 8, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -6531,8 +6856,7 @@ export default function Dashboard() {
                         if (!recordRes.ok || record.error) throw new Error(record.error || "DB insert failed");
 
                         await fetchAdTableLinks();
-                        setTab("approval");
-                        addSbToast("Media uploaded and approved! Check the Approval tab.", "success");
+                        addSbToast("Media uploaded! Approve it in Ad Previews below.", "success");
                       } catch (err: any) {
                         setCustomUploadError(err.message || "Upload failed");
                         console.error(err);
@@ -6550,218 +6874,6 @@ export default function Dashboard() {
             </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════
-          APPROVAL
-      ═══════════════════════════════════════════════════════ */}
-      {tab === "approval" && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ paddingBottom: 40 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                <SectionTitle style={{ marginBottom: 0 }}>Ad Approval Queue</SectionTitle>
-                {/* Filter pills — left side, next to title */}
-                <div style={{ display: "flex", background: "#e2e8f0", borderRadius: 8, padding: 2, gap: 1 }}>
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "video", label: "🎬 Video" },
-                    { value: "image", label: "🖼️ Image" },
-                  ].map(f => (
-                    <button
-                      key={f.value}
-                      onClick={() => setApprovalFilter(f.value)}
-                      style={{
-                        padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
-                        fontFamily: "inherit", fontSize: 13, fontWeight: 700, transition: "all 0.15s",
-                        background: approvalFilter === f.value ? "#1e293b" : "transparent",
-                        color: approvalFilter === f.value ? "#fff" : "#475569",
-                      }}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                Review and launch your final approved creatives from the database.
-              </div>
-            </div>
-            <div style={{ background: "var(--green-light)", padding: "8px 16px", borderRadius: "var(--radius-md)", border: "1px solid var(--green)", display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 18 }}>✓</span>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--green)", textTransform: "uppercase" }}>Approved</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "var(--green)" }}>{allApprovedAds.length}</div>
-              </div>
-            </div>
-          </div>
-
-          {allApprovedAds.length === 0 && adVideosLoading ? (
-            /* Skeleton loading cards */
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-              {[1,2,3,4].map(n => (
-                <div key={n} style={{ background: "#fff", borderRadius: 14, padding: 12, border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                    <div className="skeleton" style={{ width: 56, height: 20, borderRadius: 20 }} />
-                    <div className="skeleton" style={{ flex: 1, height: 12, borderRadius: 6 }} />
-                  </div>
-                  <div className="skeleton" style={{ width: "100%", aspectRatio: "9/16", borderRadius: 10 }} />
-                  <div className="skeleton" style={{ width: "100%", height: 34, borderRadius: 8 }} />
-                  <div className="skeleton" style={{ width: "100%", height: 34, borderRadius: 8 }} />
-                </div>
-              ))}
-            </div>
-          ) : allApprovedAds.length === 0 ? null : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 40, maxWidth: "1200px", margin: "0 auto" }}>
-              {(() => {
-                const renderApprovalCard = (ad) => {
-                  const isVid = (ad.format || "").toLowerCase() === "video";
-                  const isMobileCard = typeof window !== "undefined" && window.innerWidth <= 768;
-                  const adDate = new Date(ad.time);
-                  const dateStr = `${adDate.getDate()}/${adDate.getMonth()+1}`;
-                  const timeStr = adDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                  return (
-                    <Card key={`${ad.id}_${ad.time}`} style={{ padding: isMobileCard ? 8 : 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                      {/* Header */}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, flexWrap: "wrap" }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em",
-                          padding: "2px 7px", borderRadius: 20,
-                          color: isVid ? "var(--primary)" : "var(--amber)",
-                          background: isVid ? "var(--primary-light)" : "var(--amber-light)",
-                          border: `1px solid ${isVid ? "var(--primary-mid)" : "#fde68a"}`,
-                          flexShrink: 0
-                        }}>
-                          {isVid ? "🎬" : "🖼️"} {isVid ? "Video" : "Image"}
-                        </span>
-                        <span style={{ fontSize: 9, color: "var(--text-dim)", fontWeight: 500, lineHeight: 1.2, textAlign: "right" }}>
-                          {dateStr}<br/>{timeStr}
-                        </span>
-                      </div>
-
-                      {/* Media */}
-                      <div style={{
-                        background: "#000", borderRadius: 10,
-                        aspectRatio: "9/16", overflow: "hidden",
-                        boxShadow: "var(--shadow-sm)", flexShrink: 0
-                      }}>
-                        {isVid ? (
-                          <video src={ad.text} controls autoPlay={false} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                        ) : (
-                          <img src={ad.text} alt="Ad" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "auto" }}>
-                        <button
-                          onClick={() => setSelectedAdForDetails(ad)}
-                          style={{
-                            fontSize: isMobileCard ? 10 : 11, fontWeight: 700, padding: isMobileCard ? "7px 4px" : "9px 10px",
-                            borderRadius: 8, border: "1px solid var(--border)", color: "var(--text)",
-                            background: "var(--surface)", cursor: "pointer", fontFamily: "inherit",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 4, transition: "all 0.15s"
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = "var(--surface-hover)"}
-                          onMouseLeave={e => e.currentTarget.style.background = "var(--surface)"}
-                        >↗ Details</button>
-                        <button
-                          onClick={() => handleRemoveApprovedAd(ad)}
-                          disabled={removingId === (ad.id + "_" + ad.time)}
-                          style={{
-                            fontSize: isMobileCard ? 10 : 11, fontWeight: 700, padding: isMobileCard ? "7px 4px" : "9px 10px",
-                            borderRadius: 8, border: "1px solid #fecaca", color: "#b91c1c",
-                            background: "#fef2f2", cursor: removingId === (ad.id + "_" + ad.time) ? "not-allowed" : "pointer",
-                            fontFamily: "inherit", opacity: removingId === (ad.id + "_" + ad.time) ? 0.7 : 1,
-                          }}
-                        >{removingId === (ad.id + "_" + ad.time) ? "Removing..." : "Remove"}</button>
-                        <button
-                          onClick={() => { setLaunchAdCandidate(ad); setTab("campaigns"); }}
-                          style={{
-                            border: "none", borderRadius: 8, padding: isMobileCard ? "7px 4px" : "9px 10px",
-                            background: "linear-gradient(135deg, var(--primary), #6366f1)",
-                            color: "#fff", fontSize: isMobileCard ? 10 : 12, fontWeight: 700,
-                            cursor: "pointer", textAlign: "center", transition: "transform 0.1s",
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.transform = "scale(1.02)"}
-                          onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-                        >{isMobileCard ? "Launch →" : "Launch to Facebook →"}</button>
-                      </div>
-                    </Card>
-                  );
-                };
-
-                const sorted = [...allApprovedAds].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-                const videos = sorted.filter(ad => (ad.format || "").toLowerCase() === "video");
-                const images = sorted.filter(ad => (ad.format || "").toLowerCase() !== "video");
-                const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
-
-                // Mobile: 2 cols; Desktop: 4 cols
-                const gridCols = isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)";
-                const gridGap = isMobile ? 10 : 16;
-
-                if (approvalFilter === "video") {
-                  return (
-                    <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: gridGap }}>
-                      {videos.map(renderApprovalCard)}
-                    </div>
-                  );
-                }
-                if (approvalFilter === "image") {
-                  return (
-                    <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: gridGap }}>
-                      {images.map(renderApprovalCard)}
-                    </div>
-                  );
-                }
-
-                // "All" view
-                if (isMobile) {
-                  // Mobile: stack videos then images in single column
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                      {videos.length > 0 && (
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>🎬 Videos ({videos.length})</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-                            {videos.map(renderApprovalCard)}
-                          </div>
-                        </div>
-                      )}
-                      {images.length > 0 && (
-                        <div>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>🖼️ Images ({images.length})</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-                            {images.map(renderApprovalCard)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-
-                // Desktop: left 2 cols videos | separator | right 2 cols images
-                return (
-                  <div style={{ display: "flex", gap: 0 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <SectionTitle style={{ marginBottom: 12, fontSize: 14 }}>Approved Videos</SectionTitle>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-                        {videos.map(renderApprovalCard)}
-                      </div>
-                    </div>
-                    <div style={{ width: 2, background: "#0f172a", margin: "0 24px", borderRadius: 2, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <SectionTitle style={{ marginBottom: 12, fontSize: 14 }}>Approved Images</SectionTitle>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-                        {images.map(renderApprovalCard)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
         </div>
       )}
 
@@ -6807,7 +6919,7 @@ export default function Dashboard() {
         <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: 16, paddingTop: 8 }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
             <div>
-              <SectionTitle style={{ marginBottom: 4 }}>Running Campaigns</SectionTitle>
+              <SectionTitle style={{ marginBottom: 4 }}>Campaign monitor</SectionTitle>
               <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
                 Monitor and control your live Meta Ads.
               </div>
@@ -7848,11 +7960,13 @@ export default function Dashboard() {
         const adId = selectedAdForDetails.id;
         const adTime = selectedAdForDetails.time;
 
+        const currentAdInPreview = allPreviewAds.find((x) => x.id === adId && x.time === adTime);
         const currentAdInCreate = adTableLinks[adId];
         const currentAdInApproved = allApprovedAds.find(x => x.id === adId && x.time === adTime);
 
         // Prioritize live status from state
-        const ad = (currentAdInCreate?.time === adTime ? currentAdInCreate : null)
+        const ad = currentAdInPreview
+          || (currentAdInCreate?.time === adTime ? currentAdInCreate : null)
           || currentAdInApproved
           || selectedAdForDetails;
 
@@ -7864,6 +7978,9 @@ export default function Dashboard() {
 
         const isVid = (ad.format || "").toLowerCase() === "video";
         const isMobileModal = typeof window !== "undefined" && window.innerWidth <= 768;
+        const destinationUrl = getAdDestinationUrl(jsonData) || profileData.destinationUrl || "";
+        const sourcePrompt = getAdSourcePrompt(ad, jsonData);
+        const firstAd = getAdJsonRecord(jsonData);
 
         return (
           <div
@@ -7900,14 +8017,14 @@ export default function Dashboard() {
                     <button
                       onClick={() => {
                         setIsEditingAd(true);
-                        const firstAd = jsonData.ad || jsonData.ads?.[0] || {};
+                        const firstAd = getAdJsonRecord(jsonData);
                         setEditingAdData({
                           campaignName: jsonData.campaign?.name || "Untitled Campaign",
-                          adName: firstAd.name || "Untitled Ad",
+                          adName: firstAd.name || firstAd.ad_name || "Untitled Ad",
                           headline: firstAd.headline || "No headline provided.",
-                          primaryText: firstAd.primary_text || "",
+                          primaryText: getAdDescription(jsonData),
                           ctaType: firstAd.call_to_action_type || "WATCH_MORE",
-                          linkData: jsonData.link_data || ad.text || ""
+                          linkData: getAdDestinationUrl(jsonData) || profileData.destinationUrl || DEFAULT_WEBSITE_URL || "",
                         });
                       }}
                       style={{ padding: "7px 16px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#fff", color: "#2563eb", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
@@ -7962,7 +8079,7 @@ export default function Dashboard() {
                         <input value={editingAdData.adName} onChange={(e) => setEditingAdData({ ...editingAdData, adName: e.target.value })}
                           style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, fontWeight: 600, outline: "none", boxSizing: "border-box" }} />
                       ) : (
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{jsonData.ad?.name || jsonData.ads?.[0]?.name || "Untitled Ad"}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{firstAd.name || firstAd.ad_name || "Untitled Ad"}</div>
                       )}
                     </div>
                   </div>
@@ -7974,16 +8091,16 @@ export default function Dashboard() {
                       <textarea value={editingAdData.headline} onChange={(e) => setEditingAdData({ ...editingAdData, headline: e.target.value })}
                         style={{ width: "100%", minHeight: 72, padding: "10px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, lineHeight: 1.6, outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }} />
                     ) : (
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", lineHeight: 1.6, padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
-                        {jsonData.ad?.headline || jsonData.ads?.[0]?.headline || jsonData.description || "No headline provided."}
-                      </div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", lineHeight: 1.6, padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                          {firstAd.headline || "No headline provided."}
+                        </div>
                     )}
                   </div>
 
-                  {/* Primary Text */}
-                  {(isEditingAd || jsonData.ad?.primary_text || jsonData.ads?.[0]?.primary_text) && (
+                  {/* Description */}
+                  {(isEditingAd || getAdDescription(jsonData)) && (
                     <div>
-                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Primary Text</div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Description</div>
                       {isEditingAd ? (
                         <textarea
                           value={editingAdData.primaryText || ""}
@@ -7993,7 +8110,7 @@ export default function Dashboard() {
                         />
                       ) : (
                         <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
-                          {jsonData.ad?.primary_text || jsonData.ads?.[0]?.primary_text}
+                          {getAdDescription(jsonData) || "No description provided."}
                         </div>
                       )}
                     </div>
@@ -8007,8 +8124,8 @@ export default function Dashboard() {
                         <select value={editingAdData.ctaType} onChange={(e) => {
                           const newCta = e.target.value;
                           const suggestions: Record<string, string> = { WHATSAPP_MESSAGE: "+10000000000", CONTACT_US: `${DEFAULT_WEBSITE_URL}/contact`, MESSAGE_PAGE: `${DEFAULT_WEBSITE_URL}/contact` };
-                          setEditingAdData({ ...editingAdData, ctaType: newCta, linkData: suggestions[newCta] || DEFAULT_WEBSITE_URL });
-                        }} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, fontWeight: 600, outline: "none" }}>
+                          setEditingAdData({ ...editingAdData, ctaType: newCta, linkData: suggestions[newCta] || editingAdData.linkData || profileData.destinationUrl || DEFAULT_WEBSITE_URL });
+                        }} style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", backgroundColor: "#fff", fontSize: 13, fontWeight: 600, outline: "none", boxSizing: "border-box", cursor: "pointer", ...SELECT_ARROW_STYLE }}>
                           <option value="WATCH_MORE">Watch More</option>
                           <option value="LEARN_MORE">Learn More</option>
                           <option value="BOOK_NOW">Book Now</option>
@@ -8022,21 +8139,51 @@ export default function Dashboard() {
                         </select>
                       ) : (
                         <div style={{ display: "inline-flex", alignItems: "center", padding: "6px 14px", background: "#eff6ff", color: "#1d4ed8", borderRadius: 20, fontSize: 12, fontWeight: 700, border: "1px solid #bfdbfe" }}>
-                          {(jsonData.ad?.call_to_action_type || jsonData.ads?.[0]?.call_to_action_type || "WATCH_MORE").replace(/_/g, " ")}
+                          {(firstAd.call_to_action_type || "WATCH_MORE").replace(/_/g, " ")}
                         </div>
                       )}
                     </div>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>Destination URL</div>
                       {isEditingAd ? (
-                        <input value={editingAdData.linkData} onChange={(e) => setEditingAdData({ ...editingAdData, linkData: e.target.value })}
-                          style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
-                      ) : (
-                        <a href={jsonData.link_data || jsonData.ad?.website_url || ad.text} target="_blank" rel="noopener noreferrer"
-                          style={{ fontSize: 13, color: "#2563eb", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-                          {jsonData.ad?.website_url || jsonData.link_data ? (jsonData.ad?.website_url || jsonData.link_data) : "View media ↗"}
+                        <input
+                          value={editingAdData.linkData}
+                          onChange={(e) => setEditingAdData({ ...editingAdData, linkData: e.target.value })}
+                          placeholder="https://your-website.com"
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1.5px solid #2563eb", background: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                        />
+                      ) : destinationUrl ? (
+                        <a
+                          href={destinationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: 13, color: "#2563eb", fontWeight: 600, textDecoration: "none",
+                            display: "block", lineHeight: 1.5, wordBreak: "break-all",
+                            padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0",
+                          }}
+                        >
+                          {destinationUrl}
                         </a>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.5, padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px dashed #e2e8f0" }}>
+                          Not set — click Edit to add your landing page URL
+                        </div>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Source Prompt */}
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                      Source Prompt
+                    </div>
+                    <div style={{
+                      fontSize: 13, color: sourcePrompt ? "#475569" : "#94a3b8", lineHeight: 1.7,
+                      padding: "12px 14px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0",
+                      whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 220, overflowY: "auto",
+                    }}>
+                      {sourcePrompt || "No source prompt saved for this ad."}
                     </div>
                   </div>
 
@@ -8081,26 +8228,32 @@ export default function Dashboard() {
                         <button
                           style={{
                             flex: 1, padding: "12px",
-                            background: isAdApproved(ad.Approved) ? "var(--green-light)" : "var(--primary)",
+                            background: isAdApproved(ad.Approved) ? "linear-gradient(135deg, var(--primary), #6366f1)" : "var(--primary)",
                             border: "none",
                             borderRadius: "var(--radius-md)",
-                            color: isAdApproved(ad.Approved) ? "var(--green)" : "#fff",
+                            color: "#fff",
                             fontWeight: 700, fontSize: 13,
-                            cursor: isAdApproved(ad.Approved) ? "default" : "pointer",
+                            cursor: isAdApproved(ad.Approved) || approvingId === (ad.id + "_" + ad.time) ? (isAdApproved(ad.Approved) ? "pointer" : "not-allowed") : "pointer",
                             opacity: approvingId === (ad.id + "_" + ad.time) ? 0.7 : 1,
                             transition: "all 0.2s"
                           }}
-                          disabled={isAdApproved(ad.Approved) || approvingId === (ad.id + "_" + ad.time)}
+                          disabled={approvingId === (ad.id + "_" + ad.time) || (!isAdApproved(ad.Approved) && !ad.text)}
                           onClick={async () => {
+                            if (isAdApproved(ad.Approved)) {
+                              setLaunchAdCandidate(ad);
+                              setSelectedAdForDetails(null);
+                              setTab("campaigns");
+                              return;
+                            }
                             await handleApproveAd(ad);
                           }}
                         >
                           {approvingId === (ad.id + "_" + ad.time) ? (
                             <Spinner size={12} />
                           ) : isAdApproved(ad.Approved) ? (
-                            "✓ Approved"
+                            "Send to Campaign Setup"
                           ) : (
-                            "✓ Approve Ad"
+                            "Approve"
                           )}
                         </button>
                       </>

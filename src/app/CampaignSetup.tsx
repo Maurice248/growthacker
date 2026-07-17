@@ -286,7 +286,7 @@ export default function CampaignSetup({
     try { localStorage.setItem(STORE_SEL_AD, JSON.stringify(selectedApprovedAd)); } catch {}
   }, [selectedApprovedAd, hydrated]);
 
-  // Apply selectedAd from Approval tab — sets media URL + type, and auto-fills ad copy from "json data" column
+  // Apply selectedAd from Create Ad tab — sets media URL + type, and auto-fills ad copy from "json data" column
   useEffect(() => {
     if (!selectedAd) return;
     if (!hydrated) return;
@@ -318,11 +318,32 @@ export default function CampaignSetup({
         media_type: isVideo ? "video" : "image",
         type: isVideo ? "video" : "image",
         // Auto-fill from "json data" — fallback to empty string if not present
-        name: adMeta.ad_name || DEFAULT_CONFIG.ad.name || "",
-        primary_text: adMeta.primary_text || DEFAULT_CONFIG.ad.primary_text || "",
-        headline: adMeta.headline || DEFAULT_CONFIG.ad.headline || "",
-        description: adMeta.ad_description || DEFAULT_CONFIG.ad.description || "",
-        website_url: adMeta.destination_url || DEFAULT_CONFIG.ad.website_url || "",
+        name: adMeta.ad?.name || adMeta.ad_name || adMeta.ads?.[0]?.ad_name || DEFAULT_CONFIG.ad.name || "",
+        primary_text:
+          adMeta.ad?.primary_text ||
+          adMeta.primary_text ||
+          adMeta.ads?.[0]?.primary_text ||
+          DEFAULT_CONFIG.ad.primary_text ||
+          "",
+        headline:
+          adMeta.ad?.headline ||
+          adMeta.headline ||
+          adMeta.ads?.[0]?.headline ||
+          DEFAULT_CONFIG.ad.headline ||
+          "",
+        description:
+          adMeta.ad?.ad_description ||
+          adMeta.ad_description ||
+          adMeta.ads?.[0]?.ad_description ||
+          DEFAULT_CONFIG.ad.description ||
+          "",
+        website_url:
+          adMeta.ad?.website_url ||
+          adMeta.ad?.destination_url ||
+          adMeta.destination_url ||
+          adMeta.ads?.[0]?.destination_url ||
+          DEFAULT_CONFIG.ad.website_url ||
+          "",
       },
       link_data: selectedAd.text || "",
     };
@@ -665,15 +686,15 @@ export default function CampaignSetup({
           <div style={{ width: 64, height: 64, borderRadius: 20, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 16px" }}>🎯</div>
           <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", margin: "0 0 8px" }}>Select an Ad First</h3>
           <p style={{ fontSize: 13, color: "#475569", margin: "0 0 24px", lineHeight: 1.7, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-            Before setting up a campaign, go to the <strong>Approval</strong> tab and click <strong>"Launch to Facebook Ads Manager →"</strong> on the ad you want to run.
+            Before setting up a campaign, go to the <strong>Create Ad</strong> tab, approve an ad in <strong>Ad Previews</strong>, then click <strong>&ldquo;Send to Campaign Setup&rdquo;</strong>.
           </p>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#f1f5f9", borderRadius: 10, fontSize: 13, color: "#475569", fontWeight: 600 }}>
-              <span>1️⃣</span> Go to <strong>Approval</strong> tab
+              <span>1️⃣</span> Go to <strong>Create Ad</strong> tab
             </div>
             <span style={{ color: "#cbd5e1", fontSize: 18 }}>→</span>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#f1f5f9", borderRadius: 10, fontSize: 13, color: "#475569", fontWeight: 600 }}>
-              <span>2️⃣</span> Click <strong>Launch to Facebook →</strong>
+              <span>2️⃣</span> Click <strong>Send to Campaign Setup</strong>
             </div>
             <span style={{ color: "#cbd5e1", fontSize: 18 }}>→</span>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#eff6ff", borderRadius: 10, fontSize: 13, color: "#1d4ed8", fontWeight: 700, border: "1px solid #bfdbfe" }}>
@@ -1001,7 +1022,7 @@ export default function CampaignSetup({
                 {hasVariantLaunch
                   ? `${variantAds.length} ads will launch together in one ad set.`
                   : selectedAd
-                    ? "Ad selected from the Approval tab."
+                    ? "Ad selected from Create Ad."
                     : `Pick an approved creative. ${approvedAdsProp.length > 0 ? approvedAdsProp.length + " available" : ""}`}
               </div>
             </div>
@@ -1018,7 +1039,7 @@ export default function CampaignSetup({
                     ? [selectedAd]
                     : approvedAdsProp;
                 if (adsToShow.length === 0) return (
-                  <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13 }}>No approved ads yet. Go to the <b>Approval</b> tab to approve your ad creatives first.</div>
+                  <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13 }}>No approved ads yet. Go to the <b>Create Ad</b> tab and approve a creative in Ad Previews first.</div>
                 );
                 return (
                 <div style={{ display: "grid", gridTemplateColumns: hasVariantLaunch || selectedAd ? "repeat(auto-fill, minmax(200px, 280px))" : "repeat(auto-fill, minmax(130px, 1fr))", gap: 12 }}>

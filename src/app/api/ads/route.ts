@@ -43,7 +43,7 @@ export async function GET() {
 
     const { data: rows, error } = await supabase
       .from('your_name_table')
-      .select('id, text, time, format, Approved, "json data", company_id')
+      .select('id, text, time, format, Approved, "json data", story, company_id')
       .eq('company_id', companyId)
       .order('time', { ascending: false });
 
@@ -123,6 +123,46 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: true, rowsAffected: result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to remove ad';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const companyId = await requireApiCompanyId();
+    if (companyId instanceof NextResponse) return companyId;
+
+    const { id, time, jsonData } = await req.json();
+    if (!id || !time) {
+      return NextResponse.json({ error: 'id and time are required' }, { status: 400 });
+    }
+    if (jsonData == null) {
+      return NextResponse.json({ error: 'jsonData is required' }, { status: 400 });
+    }
+
+    const supabase = getServiceClient();
+    const payload =
+      typeof jsonData === 'string' ? jsonData : JSON.stringify(jsonData);
+
+    const { data, error } = await supabase
+      .from('your_name_table')
+      .update({ 'json data': payload })
+      .eq('company_id', companyId)
+      .eq('id', id)
+      .eq('time', time)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json({ error: 'No matching ad record found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update ad';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -1345,10 +1345,6 @@ pre {
 
 /* ── Overview mobile tweaks ── */
 @media (max-width: 768px) {
-  /* Show Quick Actions first on mobile */
-  .overview-right-col { order: -1; }
-  .overview-left-col  { order: 0; }
-
   /* Compact metric ribbon on mobile */
   .overview-metric-grid > div {
     padding: 12px 10px !important;
@@ -1362,10 +1358,6 @@ pre {
     padding: 14px 14px !important;
   }
 
-  /* Quick Actions: compact items */
-  .quick-action-item {
-    padding: 10px 12px !important;
-  }
 }
 
 /* Previous Runs: always visible on desktop, toggle-controlled on mobile */
