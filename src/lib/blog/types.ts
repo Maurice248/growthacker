@@ -43,6 +43,7 @@ export type BlogContext = {
   positioning: string;
   painPoints: string;
   competitors: string;
+  icpBlog: string;
   openAiModel: string;
   postStatus: string;
   imageSize: string;

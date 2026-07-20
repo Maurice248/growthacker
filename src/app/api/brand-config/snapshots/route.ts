@@ -40,6 +40,10 @@ export async function POST(req: NextRequest) {
     icp_meta_ads: body.icp_meta_ads ?? '',
     icp_newsletter: body.icp_newsletter ?? '',
     icp_outreach: body.icp_outreach ?? '',
+    icp_cold_dm: body.icp_cold_dm ?? '',
+    icp_cold_call: body.icp_cold_call ?? '',
+    icp_cold_sms: body.icp_cold_sms ?? '',
+    icp_blog: body.icp_blog ?? '',
   };
 
   const result = await createCompanyBrandSnapshot(companyId, label, fields);

@@ -18,6 +18,10 @@ export const EMPTY_BRAND_PROFILE: BrandProfileData = {
   icpMetaAds: '',
   icpNewsletter: '',
   icpOutreach: '',
+  icpColdDm: '',
+  icpColdCall: '',
+  icpColdSms: '',
+  icpBlog: '',
   destinationUrl: '',
 };
 
@@ -32,6 +36,10 @@ function rowToApi(config: {
   icpMetaAds: string;
   icpNewsletter: string;
   icpOutreach: string;
+  icpColdDm: string;
+  icpColdCall: string;
+  icpColdSms: string;
+  icpBlog: string;
   destinationUrl: string;
 }) {
   return {
@@ -45,6 +53,10 @@ function rowToApi(config: {
     icp_meta_ads: config.icpMetaAds,
     icp_newsletter: config.icpNewsletter,
     icp_outreach: config.icpOutreach,
+    icp_cold_dm: config.icpColdDm,
+    icp_cold_call: config.icpColdCall,
+    icp_cold_sms: config.icpColdSms,
+    icp_blog: config.icpBlog,
     destination_url: config.destinationUrl,
   };
 }
@@ -61,6 +73,10 @@ function snapshotToApi(snapshot: {
   icpMetaAds: string;
   icpNewsletter: string;
   icpOutreach: string;
+  icpColdDm: string;
+  icpColdCall: string;
+  icpColdSms: string;
+  icpBlog: string;
   contentHash: string;
   label: string | null;
   createdAt: Date;
@@ -77,6 +93,10 @@ function snapshotToApi(snapshot: {
     icp_meta_ads: snapshot.icpMetaAds,
     icp_newsletter: snapshot.icpNewsletter,
     icp_outreach: snapshot.icpOutreach,
+    icp_cold_dm: snapshot.icpColdDm,
+    icp_cold_call: snapshot.icpColdCall,
+    icp_cold_sms: snapshot.icpColdSms,
+    icp_blog: snapshot.icpBlog,
     content_hash: snapshot.contentHash,
     label: snapshot.label,
     created_at: snapshot.createdAt.toISOString(),
@@ -116,6 +136,10 @@ export async function updateCompanyBrandConfig(companyId: string, body: BrandCon
       icpMetaAds: body.icp_meta_ads ?? '',
       icpNewsletter: body.icp_newsletter ?? '',
       icpOutreach: body.icp_outreach ?? '',
+      icpColdDm: body.icp_cold_dm ?? '',
+      icpColdCall: body.icp_cold_call ?? '',
+      icpColdSms: body.icp_cold_sms ?? '',
+      icpBlog: body.icp_blog ?? '',
       destinationUrl: body.destination_url ?? '',
     },
   });
@@ -161,6 +185,10 @@ export async function createCompanyBrandSnapshot(
       icpMetaAds: fields.icp_meta_ads ?? '',
       icpNewsletter: fields.icp_newsletter ?? '',
       icpOutreach: fields.icp_outreach ?? '',
+      icpColdDm: fields.icp_cold_dm ?? '',
+      icpColdCall: fields.icp_cold_call ?? '',
+      icpColdSms: fields.icp_cold_sms ?? '',
+      icpBlog: fields.icp_blog ?? '',
       contentHash,
       label,
     },
@@ -189,6 +217,10 @@ export async function updateCompanyBrandSnapshot(
       icpMetaAds: fields.icp_meta_ads ?? '',
       icpNewsletter: fields.icp_newsletter ?? '',
       icpOutreach: fields.icp_outreach ?? '',
+      icpColdDm: fields.icp_cold_dm ?? '',
+      icpColdCall: fields.icp_cold_call ?? '',
+      icpColdSms: fields.icp_cold_sms ?? '',
+      icpBlog: fields.icp_blog ?? '',
       contentHash,
     },
   });

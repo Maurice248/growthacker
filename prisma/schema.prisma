@@ -90,6 +90,10 @@ model CompanyBrandConfig {
   icpMetaAds       String   @default("") @map("icp_meta_ads")
   icpNewsletter    String   @default("") @map("icp_newsletter")
   icpOutreach      String   @default("") @map("icp_outreach")
+  icpColdDm        String   @default("") @map("icp_cold_dm")
+  icpColdCall      String   @default("") @map("icp_cold_call")
+  icpColdSms       String   @default("") @map("icp_cold_sms")
+  icpBlog          String   @default("") @map("icp_blog")
   destinationUrl   String   @default("") @map("destination_url")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -112,6 +116,10 @@ model CompanyBrandSnapshot {
   icpMetaAds       String             @default("") @map("icp_meta_ads")
   icpNewsletter    String             @default("") @map("icp_newsletter")
   icpOutreach      String             @default("") @map("icp_outreach")
+  icpColdDm        String             @default("") @map("icp_cold_dm")
+  icpColdCall      String             @default("") @map("icp_cold_call")
+  icpColdSms       String             @default("") @map("icp_cold_sms")
+  icpBlog          String             @default("") @map("icp_blog")
   contentHash      String             @map("content_hash")
   label            String?
   createdAt        DateTime           @default(now()) @map("created_at")

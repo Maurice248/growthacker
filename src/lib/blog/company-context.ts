@@ -49,6 +49,7 @@ export function formatBlogBrandBlock(ctx: BlogContext): string {
     ctx.positioning ? `Positioning: ${ctx.positioning}` : null,
     ctx.painPoints ? `Pain Points: ${ctx.painPoints}` : null,
     ctx.competitors ? `Competitors: ${ctx.competitors}` : null,
+    ctx.icpBlog ? `Target Audience (Blog): ${ctx.icpBlog}` : null,
     ctx.destinationUrl ? `Website: ${ctx.destinationUrl}` : null,
   ].filter(Boolean);
 
@@ -137,6 +138,7 @@ export async function resolveBlogContext(companyId: string): Promise<BlogContext
     positioning: brandResult?.positioning ?? '',
     painPoints: brandResult?.painPoints ?? '',
     competitors: brandResult?.competitors ?? '',
+    icpBlog: brandResult?.icp_blog ?? '',
     openAiModel: config.openAiModel,
     postStatus: config.postStatus,
     imageSize: config.imageSize,

@@ -153,6 +153,10 @@ const DEFAULT_BRAND_CONFIG = {
   icpMetaAds: "",
   icpNewsletter: "",
   icpOutreach: "",
+  icpColdDm: "",
+  icpColdCall: "",
+  icpColdSms: "",
+  icpBlog: "",
   destinationUrl: "",
 };
 
@@ -1116,6 +1120,7 @@ export default function Dashboard() {
   const [profileId, setProfileId] = useState<string>("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileSectionsExpanded, setProfileSectionsExpanded] = useState(true);
   const [brandSnapshots, setBrandSnapshots] = useState<any[]>([]);
   const [brandSnapshotsModalOpen, setBrandSnapshotsModalOpen] = useState(false);
   const [loadingBrandSnapshots, setLoadingBrandSnapshots] = useState(false);
@@ -1589,13 +1594,20 @@ export default function Dashboard() {
         return;
       }
 
-      if (activeBrandSnapshot.data) return;
+      const freshData = snapshotToProfile(snapshot);
+      const cachedPayload = activeBrandSnapshot.data
+        ? profileToDb({ ...DEFAULT_BRAND_CONFIG, ...activeBrandSnapshot.data })
+        : null;
+      const freshPayload = profileToDb(freshData);
+      if (cachedPayload && JSON.stringify(cachedPayload) === JSON.stringify(freshPayload)) {
+        return;
+      }
 
       setActiveBrandSnapshot({
         ...activeBrandSnapshot,
         label: snapshot.label || activeBrandSnapshot.label,
         created_at: snapshot.created_at,
-        data: snapshotToProfile(snapshot),
+        data: freshData,
       });
       return;
     }
@@ -1634,11 +1646,22 @@ export default function Dashboard() {
   ]);
 
   const displayProfileData = useMemo(() => {
-    if (isEditingProfile) return profileData;
-    if (isActiveSavedTemplate) {
-      return { ...DEFAULT_BRAND_CONFIG, ...activeBrandSnapshot.data };
+    let base;
+    if (isEditingProfile) {
+      base = profileData;
+    } else if (isActiveSavedTemplate) {
+      base = { ...DEFAULT_BRAND_CONFIG, ...activeBrandSnapshot.data };
+    } else {
+      base = profileData;
     }
-    return profileData;
+
+    const merged = { ...base };
+    for (const { key } of BRAND_ICP_FIELDS) {
+      if (!merged[key]?.trim() && profileData[key]?.trim()) {
+        merged[key] = profileData[key];
+      }
+    }
+    return merged;
   }, [isEditingProfile, isActiveSavedTemplate, activeBrandSnapshot?.data, profileData]);
 
   const handleStartEditingProfile = () => {
@@ -6579,7 +6602,7 @@ export default function Dashboard() {
                   {[
                     { value: "all", label: "All" },
                     { value: "video", label: "Videos" },
-                    { value: "image", label: "Image" },
+                    { value: "image", label: "images" },
                   ].map((f) => (
                     <button
                       key={f.value}
@@ -6596,21 +6619,26 @@ export default function Dashboard() {
                     </button>
                   ))}
                 </div>
-                <select
-                  value={previewStatusFilter}
-                  onChange={(e) => setPreviewStatusFilter(e.target.value)}
-                  style={{
-                    padding: "8px 12px", borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--border)", backgroundColor: "var(--surface)",
-                    color: "var(--text)", fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-                    minWidth: 160, cursor: "pointer",
-                    ...SELECT_ARROW_STYLE,
-                  }}
-                >
-                  <option value="">No selection</option>
-                  <option value="unapproved">Unapprove</option>
-                  <option value="approved">Approve</option>
-                </select>
+                <div style={{ display: "flex", background: "#e2e8f0", borderRadius: 8, padding: 2, gap: 1 }}>
+                  {[
+                    { value: "approved", label: "Approved" },
+                    { value: "unapproved", label: "Unapproved" },
+                  ].map((f) => (
+                    <button
+                      key={f.value}
+                      type="button"
+                      onClick={() => setPreviewStatusFilter((prev) => (prev === f.value ? "" : f.value))}
+                      style={{
+                        padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                        fontFamily: "inherit", fontSize: 13, fontWeight: 700, transition: "all 0.15s",
+                        background: previewStatusFilter === f.value ? "#1e293b" : "transparent",
+                        color: previewStatusFilter === f.value ? "#fff" : "#475569",
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {(() => {
@@ -7613,15 +7641,38 @@ export default function Dashboard() {
                 style={{ display: "flex", alignItems: "center", gap: 7, background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer", marginRight: "auto", boxShadow: "0 2px 8px rgba(37,99,235,0.25)" }}
               >
                 <History size={15} color="#fff" />
-                Saved Templates{brandSnapshots.length ? ` (${brandSnapshots.length})` : ""}
+                Templates{brandSnapshots.length ? ` (${brandSnapshots.length})` : ""}
               </button>
               {!isEditingProfile ? (
-                <button
-                  onClick={handleStartEditingProfile}
-                  style={{ display: "flex", alignItems: "center", gap: 7, background: "#fff", color: "#2563EB", border: "1.5px solid #2563EB", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-                >
-                  ✏️ Edit
-                </button>
+                <>
+                  <button
+                    onClick={handleStartEditingProfile}
+                    style={{ display: "flex", alignItems: "center", gap: 7, background: "#fff", color: "#2563EB", border: "1.5px solid #2563EB", borderRadius: 10, padding: "8px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProfileSectionsExpanded((v) => !v)}
+                    title={profileSectionsExpanded ? "Collapse all sections" : "Expand all sections"}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "5px 10px",
+                      borderRadius: 8,
+                      background: "#F1F5F9",
+                      border: "1px solid #E2E8F0",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", letterSpacing: "0.04em" }}>
+                      {profileSectionsExpanded ? "Collapse All" : "Expand All"}
+                    </span>
+                    <AnalysisResultToggle expanded={profileSectionsExpanded} darkText />
+                  </button>
+                </>
               ) : (
                 <>
                   <button
@@ -7651,7 +7702,7 @@ export default function Dashboard() {
 
           {/* Brand Strategy Section */}
           <div style={{ background: "#fff", borderRadius: 20, border: isActiveSavedTemplate && !isEditingProfile ? "1.5px solid #2563EB" : "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: isActiveSavedTemplate && !isEditingProfile ? "#EFF6FF" : "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: isActiveSavedTemplate && !isEditingProfile ? "#EFF6FF" : "#F8FAFC", borderBottom: profileSectionsExpanded ? "1px solid #E2E8F0" : "none" }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Megaphone size={20} color="#2563EB" />
               </div>
@@ -7664,7 +7715,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            {[
+            {profileSectionsExpanded && [
               { key: "productsAndServices", label: "Products & Services", iconEl: <Tag size={16} color="#059669" />, iconBg: "#ECFDF5" },
               { key: "valueProposition", label: "Value Proposition", iconEl: <Gem size={16} color="#0D9488" />, iconBg: "#F0FDFA" },
               { key: "brandVoice", label: "Brand Voice", iconEl: <MessageSquare size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
@@ -7704,19 +7755,23 @@ export default function Dashboard() {
 
           {/* ICP Fields Section */}
           <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 24px", background: "#F8FAFC", borderBottom: profileSectionsExpanded ? "1px solid #E2E8F0" : "none" }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Users size={20} color="#2563EB" />
               </div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#2563EB" }}>ICP Fields (Separate Per Workflow)</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#2563EB" }}>ICP Fields for Modules</div>
                 <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>Define your ideal customer profile for targeted communication</div>
               </div>
             </div>
-            {[
+            {profileSectionsExpanded && [
               { key: "icpMetaAds", label: "ICP - Meta Ads", iconEl: <LayoutGrid size={16} color="#059669" />, iconBg: "#ECFDF5" },
               { key: "icpNewsletter", label: "ICP - Newsletter", iconEl: <Mail size={16} color="#7C3AED" />, iconBg: "#F5F3FF" },
               { key: "icpOutreach", label: "ICP - Cold Email", iconEl: <Send size={16} color="#2563EB" />, iconBg: "#EFF6FF" },
+              { key: "icpColdDm", label: "ICP - Cold DM", iconEl: <MessageSquare size={16} color="#DB2777" />, iconBg: "#FDF2F8" },
+              { key: "icpColdCall", label: "ICP - Cold Call", iconEl: <Phone size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
+              { key: "icpColdSms", label: "ICP - Cold SMS", iconEl: <Smartphone size={16} color="#0891B2" />, iconBg: "#ECFEFF" },
+              { key: "icpBlog", label: "ICP - Blog", iconEl: <PenLine size={16} color="#9333EA" />, iconBg: "#FAF5FF" },
             ].map((f, i, arr) => (
               <div key={f.key} className="profile-field-row" style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
