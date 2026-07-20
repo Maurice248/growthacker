@@ -958,6 +958,8 @@ export default function Dashboard() {
     return sections;
   }, [analysisData]);
 
+  const hasAnalysisResultCards = visibleAnalysisSections.length > 0;
+
   const allAnalysisSectionsExpanded = useMemo(() => {
     const resultsExpanded =
       visibleAnalysisSections.length === 0 ||
@@ -4599,7 +4601,11 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={toggleAllAnalysisSections}
-                title={allAnalysisSectionsExpanded ? "Collapse all sections" : "Expand all sections"}
+                title={
+                  allAnalysisSectionsExpanded
+                    ? hasAnalysisResultCards ? "Collapse all sections" : "Collapse section"
+                    : hasAnalysisResultCards ? "Expand all sections" : "Expand section"
+                }
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -4613,7 +4619,9 @@ export default function Dashboard() {
                 }}
               >
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#0F172A", letterSpacing: "0.04em" }}>
-                  {allAnalysisSectionsExpanded ? "Collapse All" : "Expand All"}
+                  {allAnalysisSectionsExpanded
+                    ? hasAnalysisResultCards ? "Collapse All" : "Collapse"
+                    : hasAnalysisResultCards ? "Expand All" : "Expand"}
                 </span>
                 <AnalysisResultToggle expanded={allAnalysisSectionsExpanded} darkText />
               </button>
