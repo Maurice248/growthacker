@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { ViewAsCompanyButton } from '@/components/admin/view-as-company-button';
 import { AdminUsersTable } from '@/components/admin/admin-users-table';
 import { HealthScoreBadge } from '@/components/admin/admin-status-badge';
+import { CompanyModuleAccessPanel } from '@/components/admin/company-module-access-panel';
 import { cn } from '@/lib/utils';
 
 type HealthFactor = {
@@ -41,7 +42,7 @@ type CompanyDetail = {
   onboardingCompletedAt: string | null;
   createdAt: string;
   integrationsConfigured: boolean;
-  moduleStatuses: Array<{ id: string; label: string; configured: boolean }>;
+  moduleStatuses: Array<{ id: string; label: string; configured: boolean; enabled?: boolean }>;
   hasBrandConfig: boolean;
   brandConfigUpdatedAt: string | null;
   pendingInvites: Array<{ id: string; email: string; role: string; expiresAt: string }>;
@@ -222,8 +223,12 @@ export function CompanyDetailPanel({ companyId }: { companyId: string }) {
               </p>
               <div className="flex flex-wrap gap-2">
                 {company.moduleStatuses.map((m) => (
-                  <Badge key={m.id} variant={m.configured ? 'default' : 'outline'}>
+                  <Badge
+                    key={m.id}
+                    variant={m.enabled === false ? 'outline' : m.configured ? 'default' : 'outline'}
+                  >
                     {m.label}
+                    {m.enabled === false ? ' (disabled)' : m.configured ? '' : ' (needs keys)'}
                   </Badge>
                 ))}
               </div>
@@ -318,6 +323,19 @@ export function CompanyDetailPanel({ companyId }: { companyId: string }) {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Module access</CardTitle>
+          <CardDescription>
+            Enable or disable product modules for this company. Disabled modules are hidden from
+            their client dashboard sidebar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CompanyModuleAccessPanel companyId={companyId} onSaved={load} />
+        </CardContent>
+      </Card>
 
       <div>
         <h2 className="mb-4 text-lg font-semibold text-slate-900">Company Users</h2>

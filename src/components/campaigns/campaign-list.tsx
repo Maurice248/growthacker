@@ -71,7 +71,7 @@ export function CampaignList() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <Mail className="h-4 w-4 text-[#0077b6]" />
+          <Mail className="h-4 w-4 text-[#003049]" />
           Campaign History ({data.length})
         </CardTitle>
       </CardHeader>

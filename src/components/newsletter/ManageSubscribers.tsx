@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EditorialPageHeader } from "@/components/editorial/editorial-layout";
 import "./newsletter.css";
 
 type Subscriber = {
@@ -14,6 +15,48 @@ type Subscriber = {
   createdAt: string;
 };
 
+type ParsedRow = {
+  email: string;
+  firstName: string;
+  lastName: string;
+  serviceType: string;
+};
+
+function parseBulkCsv(text: string): { rows: ParsedRow[]; skipped: number } {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const rows: ParsedRow[] = [];
+  let skipped = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i === 0 && /^email[\s,|]/i.test(line)) continue;
+
+    const parts = line.includes("\t")
+      ? line.split("\t")
+      : line.split(",").map((part) => part.trim().replace(/^"|"$/g, ""));
+
+    const [email = "", firstName = "", lastName = "", serviceType = ""] = parts;
+
+    if (!email.includes("@")) {
+      skipped += 1;
+      continue;
+    }
+
+    rows.push({
+      email,
+      firstName,
+      lastName,
+      serviceType,
+    });
+  }
+
+  return { rows, skipped };
+}
+
 export default function ManageSubscribers() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [email, setEmail] = useState("");
@@ -22,7 +65,10 @@ export default function ManageSubscribers() {
   const [serviceType, setServiceType] = useState("");
   const [bulkText, setBulkText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
+  const [importMessage, setImportMessage] = useState("");
 
   const load = () => {
     setLoading(true);
@@ -39,50 +85,80 @@ export default function ManageSubscribers() {
   }, []);
 
   const handleAdd = async () => {
-    if (!email.trim()) return;
-    setMessage("");
-    const res = await fetch("/api/newsletter/subscribers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, firstName, lastName, serviceType }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setMessage(json.error || "Failed to add subscriber");
+    if (!email.trim()) {
+      setMessage("Enter an email address.");
       return;
     }
-    setEmail("");
-    setFirstName("");
-    setLastName("");
-    setServiceType("");
-    load();
+    setAdding(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/newsletter/subscribers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, firstName, lastName, serviceType }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setMessage(json.error || "Failed to add subscriber");
+        return;
+      }
+      setEmail("");
+      setFirstName("");
+      setLastName("");
+      setServiceType("");
+      setMessage("Subscriber added.");
+      load();
+    } catch {
+      setMessage("Failed to add subscriber");
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleBulkImport = async () => {
-    const lines = bulkText
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (!lines.length) return;
-
-    const rows = lines.map((line) => {
-      const [em, fn = "", ln = "", st = ""] = line.split(",").map((p) => p.trim());
-      return { email: em, firstName: fn, lastName: ln, serviceType: st };
-    });
-
-    const res = await fetch("/api/newsletter/subscribers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subscribers: rows }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setMessage(json.error || "Import failed");
+    const trimmed = bulkText.trim();
+    if (!trimmed) {
+      setImportMessage("Paste one or more CSV rows before importing.");
       return;
     }
-    setBulkText("");
-    setMessage(`Imported ${json.imported ?? 0} subscribers`);
-    load();
+
+    const { rows, skipped } = parseBulkCsv(trimmed);
+    if (rows.length === 0) {
+      setImportMessage(
+        skipped > 0
+          ? "No valid rows found. Use email,firstName,lastName,serviceType — one subscriber per line."
+          : "Paste subscriber rows in CSV format — one line per person."
+      );
+      return;
+    }
+
+    setImporting(true);
+    setImportMessage("");
+    try {
+      const res = await fetch("/api/newsletter/subscribers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscribers: rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setImportMessage(json.error || "Import failed");
+        return;
+      }
+
+      setBulkText("");
+      const imported = json.imported ?? rows.length;
+      setImportMessage(
+        skipped > 0
+          ? `Imported ${imported} subscriber${imported === 1 ? "" : "s"} (${skipped} invalid row${skipped === 1 ? "" : "s"} skipped).`
+          : `Imported ${imported} subscriber${imported === 1 ? "" : "s"}.`
+      );
+      load();
+    } catch {
+      setImportMessage("Import failed — check your connection and try again.");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -96,55 +172,112 @@ export default function ManageSubscribers() {
 
   return (
     <div className="nl-root">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Subscribers</h1>
-        <p className="mt-1 text-gray-500">Manage per-company newsletter subscribers.</p>
-      </div>
+      <EditorialPageHeader
+        eyebrow="Newsletter"
+        title="Subscribers"
+        subtitle="Manage per-company newsletter subscribers."
+        className="mb-10"
+      />
 
       <div className="nl-grid nl-grid-2">
-        <div className="nl-panel nl-panel-body flex flex-col gap-4">
-          <h3 className="nl-panel-title">Add Subscriber</h3>
-          <input className="nl-input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <input className="nl-input" placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-            <input className="nl-input" placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-          </div>
-          <input className="nl-input" placeholder="Service type" value={serviceType} onChange={(e) => setServiceType(e.target.value)} />
-          <button onClick={handleAdd} className="nl-btn-primary">Add Subscriber</button>
-
-          <h3 className="nl-panel-title mt-4">Bulk Import (CSV)</h3>
-          <textarea
-            className="nl-textarea"
-            rows={5}
-            placeholder="email,firstName,lastName,serviceType"
-            value={bulkText}
-            onChange={(e) => setBulkText(e.target.value)}
+        <div>
+          <h3 className="nl-section-title">Add Subscriber</h3>
+          <input
+            className="nl-input"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
-          <button onClick={handleBulkImport} className="nl-btn-primary">Import</button>
-          {message && <p className="text-sm text-gray-600">{message}</p>}
+          <div className="grid grid-cols-2 gap-5">
+            <input
+              className="nl-input"
+              placeholder="First name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+            <input
+              className="nl-input"
+              placeholder="Last name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+            />
+          </div>
+          <input
+            className="nl-input"
+            placeholder="Service type"
+            value={serviceType}
+            onChange={(e) => setServiceType(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={adding}
+            className="nl-btn-primary mt-5"
+          >
+            {adding ? "Adding…" : "Add subscriber"}
+          </button>
+          {message && <p className="mt-3 text-sm text-[#4A5A64]">{message}</p>}
+
+          <h3 className="nl-section-title mt-8">Bulk Import · CSV</h3>
+          <p className="mb-3 text-[13px] leading-relaxed text-[#8C8474]">
+            Paste many subscribers at once — one person per line, comma-separated:
+            email, first name, last name, service type. You can include the header row; it will be skipped.
+          </p>
+          <textarea
+            className="nl-textarea nl-textarea-box"
+            rows={5}
+            placeholder={"email,firstName,lastName,serviceType\ntenant@example.com,Jane,Doe,Tenant Reports"}
+            value={bulkText}
+            onChange={(e) => {
+              setBulkText(e.target.value);
+              if (importMessage) setImportMessage("");
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleBulkImport}
+            disabled={importing || !bulkText.trim()}
+            className="nl-btn-ghost mt-5"
+          >
+            {importing ? "Importing…" : "Import"}
+          </button>
+          {importMessage && (
+            <p
+              className={`mt-3 text-sm ${
+                importMessage.startsWith("Imported") ? "text-[#4A5A64]" : "text-[#C1121F]"
+              }`}
+            >
+              {importMessage}
+            </p>
+          )}
         </div>
 
-        <div className="nl-panel flex flex-col min-h-[400px]">
+        <div>
           <div className="nl-panel-header">
             <h3 className="nl-panel-title">Subscriber List</h3>
-            <span className="nl-count-badge">{subscribers.length}</span>
+            <span className="nl-count-meta">{subscribers.length} subscribers</span>
           </div>
-          <div className="flex-1 p-4 overflow-y-auto">
+
+          <div className="min-h-[280px]">
             {loading ? (
-              <p className="text-gray-500 text-sm">Loading...</p>
+              <div className="nl-chart-empty">Loading…</div>
             ) : subscribers.length === 0 ? (
-              <p className="text-gray-400 text-sm">No subscribers yet.</p>
+              <div className="nl-chart-empty">No subscribers yet</div>
             ) : (
-              <div className="flex flex-col gap-2">
+              <div>
                 {subscribers.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2">
+                  <div key={s.id} className="nl-subscriber-row">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{s.email}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="truncate text-[15px] font-bold text-[var(--primary)]">{s.email}</p>
+                      <p className="text-[13px] text-[#8C8474]">
                         {[s.firstName, s.lastName].filter(Boolean).join(" ") || "—"} · {s.status}
                       </p>
                     </div>
-                    <button onClick={() => handleDelete(s.id)} className="text-xs text-red-600 font-bold uppercase">
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(s.id)}
+                      className="nl-svc-remove shrink-0"
+                    >
                       Remove
                     </button>
                   </div>

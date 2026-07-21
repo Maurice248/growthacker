@@ -2,10 +2,12 @@
 
 import { FormEvent, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialField,
+} from '@/app/components';
+import { EditorialSectionHeader, editorialPillButtonClass } from '@/components/editorial/editorial-layout';
 
 export function ChangePasswordForm() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -49,76 +51,64 @@ export function ChangePasswordForm() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Password</CardTitle>
-        <CardDescription>Update your login password.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {success}
-          </div>
-        )}
+    <section className="mt-10">
+      <EditorialSectionHeader title="Password" />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current password</Label>
-            <Input
-              id="currentPassword"
-              type="password"
+      {error && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-[var(--red)]">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-[#38678A]">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {success}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <EditorialDefinitionList>
+          <EditorialDefinitionRow label="Current password">
+            <EditorialField
               value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="newPassword">New password</Label>
-            <Input
-              id="newPassword"
+              onChange={setCurrentPassword}
               type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
+              placeholder="••••••••"
+              style={{ maxWidth: 320 }}
             />
-          </div>
+          </EditorialDefinitionRow>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm new password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-            />
-          </div>
-
-          <Button type="submit" disabled={saving}>
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              'Update password'
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          <EditorialDefinitionRow label="New password" isLast>
+            <div className="flex flex-wrap items-baseline gap-8">
+              <EditorialField
+                value={newPassword}
+                onChange={setNewPassword}
+                type="password"
+                placeholder="New password"
+                style={{ flex: 1, minWidth: 180 }}
+              />
+              <EditorialField
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                type="password"
+                placeholder="Confirm new password"
+                style={{ flex: 1, minWidth: 180 }}
+              />
+              <button type="submit" disabled={saving} className={editorialPillButtonClass}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating…
+                  </>
+                ) : (
+                  'Update password'
+                )}
+              </button>
+            </div>
+          </EditorialDefinitionRow>
+        </EditorialDefinitionList>
+      </form>
+    </section>
   );
 }

@@ -2,11 +2,13 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialField,
+} from '@/app/components';
+import { EditorialSectionHeader, editorialPillButtonClass } from '@/components/editorial/editorial-layout';
 
 type SecretField = { set: boolean; masked: string };
 
@@ -43,17 +45,6 @@ const emptyForm = {
   wordpressUsername: '',
   wordpressAppPassword: '',
 };
-
-function SecretHint({ field }: { field: SecretField }) {
-  if (!field.set) {
-    return <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">Not configured</p>;
-  }
-  return (
-    <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">
-      Saved: <span className="font-mono">{field.masked}</span> — leave blank to keep current value
-    </p>
-  );
-}
 
 export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter();
@@ -178,234 +169,177 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
     );
   }
 
+  const dataforseoSavedHint =
+    dataforseoView?.loginSet || dataforseoView?.passwordSet
+      ? `Saved: ${dataforseoView.loginSet ? dataforseoView.loginMasked : '—'} · ${dataforseoView.passwordSet ? dataforseoView.passwordMasked : '—'}`
+      : undefined;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit}>
       {readOnly && (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-muted)]">
+        <div className="mb-4 text-sm text-[var(--text-muted)]">
           Only company admins can edit integration settings.
         </div>
       )}
 
-      <fieldset disabled={readOnly} className="space-y-5 disabled:opacity-80">
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          {success}
-        </div>
-      )}
+      <fieldset disabled={readOnly} className="disabled:opacity-80">
+        {error && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-[var(--red)]">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-[#38678A]">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {success}
+          </div>
+        )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <KeyRound className="h-5 w-5" />
-            Meta Ads
-          </CardTitle>
-          <CardDescription>
-            Credentials for launching campaigns, live ads, reports, and location search.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="metaAccessToken">Access token</Label>
-            <Input
-              id="metaAccessToken"
-              type="password"
-              autoComplete="off"
-              placeholder={settings?.metaAccessToken.set ? '••••••••' : 'EAAG…'}
-              value={form.metaAccessToken}
-              onChange={(e) => setForm((f) => ({ ...f, metaAccessToken: e.target.value }))}
-            />
-            {settings && <SecretHint field={settings.metaAccessToken} />}
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="metaAdAccountId">Ad account ID</Label>
-              <Input
-                id="metaAdAccountId"
-                placeholder="10152738476174098"
-                value={form.metaAdAccountId}
-                onChange={(e) => setForm((f) => ({ ...f, metaAdAccountId: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="metaPageId">Facebook page ID</Label>
-              <Input
-                id="metaPageId"
-                placeholder="750158511525291"
-                value={form.metaPageId}
-                onChange={(e) => setForm((f) => ({ ...f, metaPageId: e.target.value }))}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">WordPress</CardTitle>
-          <CardDescription>Blog publishing credentials for your WordPress site.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="wordpressSiteUrl">Site URL</Label>
-            <Input
-              id="wordpressSiteUrl"
-              type="url"
-              placeholder="https://blog.example.com"
-              value={form.wordpressSiteUrl}
-              onChange={(e) => setForm((f) => ({ ...f, wordpressSiteUrl: e.target.value }))}
-            />
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="wordpressUsername">Username</Label>
-              <Input
-                id="wordpressUsername"
-                autoComplete="off"
-                value={form.wordpressUsername}
-                onChange={(e) => setForm((f) => ({ ...f, wordpressUsername: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="wordpressAppPassword">Application password</Label>
-              <Input
-                id="wordpressAppPassword"
-                type="password"
-                autoComplete="new-password"
-                placeholder={settings?.wordpressAppPassword.set ? '••••••••' : ''}
-                value={form.wordpressAppPassword}
-                onChange={(e) => setForm((f) => ({ ...f, wordpressAppPassword: e.target.value }))}
-              />
-            </div>
-          </div>
-          {settings && (
-            <div className="rounded-md border border-[var(--border-light)] bg-[var(--surface)] px-3 py-2">
-              <SecretHint field={settings.wordpressAppPassword} />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">DataForSEO</CardTitle>
-          <CardDescription>
-            Blog keyword research credentials. Use your DataForSEO account login and API password from{' '}
-            <a
-              href="https://app.dataforseo.com/api-access"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--primary)] underline"
+        <section>
+          <EditorialSectionHeader
+            title="Meta Ads"
+            meta="Campaigns, live ads, reports, location search"
+          />
+          <EditorialDefinitionList>
+            <EditorialDefinitionRow
+              label="Access token"
+              labelSub={
+                settings?.metaAccessToken.set
+                  ? `Saved: ${settings.metaAccessToken.masked}`
+                  : 'Not configured'
+              }
             >
-              app.dataforseo.com/api-access
-            </a>
-            .
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="dataforseoLogin">Account login (email)</Label>
-              <Input
-                id="dataforseoLogin"
-                type="email"
-                autoComplete="off"
-                placeholder={dataforseoView?.loginSet ? dataforseoView.loginMasked : 'you@company.com'}
-                value={dataforseoForm.login}
-                onChange={(e) =>
-                  setDataforseoForm((prev) => ({ ...prev, login: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="dataforseoPassword">API password</Label>
-              <Input
-                id="dataforseoPassword"
+              <EditorialField
+                value={form.metaAccessToken}
+                onChange={(v) => setForm((f) => ({ ...f, metaAccessToken: v }))}
                 type="password"
-                autoComplete="new-password"
-                placeholder={dataforseoView?.passwordSet ? '••••••••' : 'API password from DataForSEO dashboard'}
-                value={dataforseoForm.password}
-                onChange={(e) =>
-                  setDataforseoForm((prev) => ({ ...prev, password: e.target.value }))
-                }
+                placeholder="Leave blank to keep current value"
+                style={{ maxWidth: 420 }}
               />
-            </div>
-          </div>
-          {dataforseoView && (
-            <div className="grid gap-2 rounded-md border border-[var(--border-light)] bg-[var(--surface)] px-3 py-2 sm:grid-cols-2">
-              {dataforseoView.loginSet ? (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Login saved: <span className="font-mono">{dataforseoView.loginMasked}</span>
-                </p>
-              ) : (
-                <p className="text-xs text-[var(--text-muted)]">Login not configured</p>
-              )}
-              {dataforseoView.passwordSet ? (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Password saved: <span className="font-mono">{dataforseoView.passwordMasked}</span>
-                </p>
-              ) : (
-                <p className="text-xs text-[var(--text-muted)]">Password not configured</p>
-              )}
-              <p className="text-xs text-[var(--text-muted)] sm:col-span-2">
-                Leave a field blank to keep the current saved value.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">API tokens</CardTitle>
-          <CardDescription>
-            Third-party API keys used by native pipelines (Cold Email, Ads Analysis, Newsletter, Social Studio, Blog, Create Ad voiceovers). DataForSEO is configured in its own section above.
-            Leave blank to keep the current saved value.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-5 sm:grid-cols-2">
-            {apiTokenSecrets.map((token) => (
-              <div key={token.key} className="space-y-2">
-                <Label htmlFor={`token-${token.key}`}>{token.label}</Label>
-                <Input
-                  id={`token-${token.key}`}
-                  type="password"
-                  autoComplete="off"
-                  placeholder={token.set ? '••••••••' : token.placeholder}
-                  value={apiTokenForm[token.key] ?? ''}
-                  onChange={(e) =>
-                    setApiTokenForm((prev) => ({ ...prev, [token.key]: e.target.value }))
-                  }
+            </EditorialDefinitionRow>
+            <EditorialDefinitionRow label="Account IDs" isLast>
+              <div className="flex flex-wrap gap-8">
+                <EditorialField
+                  value={form.metaAdAccountId}
+                  onChange={(v) => setForm((f) => ({ ...f, metaAdAccountId: v }))}
+                  placeholder="Ad account ID"
+                  style={{ flex: 1, minWidth: 180 }}
                 />
-                {token.set ? (
-                  <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">
-                    Saved: <span className="font-mono">{token.masked}</span> — leave blank to keep
-                    current value
-                  </p>
-                ) : (
-                  <p className="min-h-[1.125rem] text-xs text-[var(--text-muted)]">Not configured</p>
-                )}
+                <EditorialField
+                  value={form.metaPageId}
+                  onChange={(v) => setForm((f) => ({ ...f, metaPageId: v }))}
+                  placeholder="Facebook page ID"
+                  style={{ flex: 1, minWidth: 180 }}
+                />
+              </div>
+            </EditorialDefinitionRow>
+          </EditorialDefinitionList>
+        </section>
+
+        <section className="mt-10">
+          <EditorialSectionHeader title="WordPress" meta="Blog publishing credentials" />
+          <EditorialDefinitionList>
+            <EditorialDefinitionRow
+              label="Site & login"
+              labelSub={
+                settings?.wordpressAppPassword.set
+                  ? `Password saved: ${settings.wordpressAppPassword.masked}`
+                  : 'Password not configured'
+              }
+              isLast
+            >
+              <div className="flex flex-wrap gap-8">
+                <EditorialField
+                  value={form.wordpressSiteUrl}
+                  onChange={(v) => setForm((f) => ({ ...f, wordpressSiteUrl: v }))}
+                  type="url"
+                  placeholder="https://blog.example.com"
+                  style={{ flex: 1.4, minWidth: 200 }}
+                />
+                <EditorialField
+                  value={form.wordpressUsername}
+                  onChange={(v) => setForm((f) => ({ ...f, wordpressUsername: v }))}
+                  placeholder="Username"
+                  style={{ flex: 1, minWidth: 140 }}
+                />
+                <EditorialField
+                  value={form.wordpressAppPassword}
+                  onChange={(v) => setForm((f) => ({ ...f, wordpressAppPassword: v }))}
+                  type="password"
+                  placeholder="Application password"
+                  style={{ flex: 1, minWidth: 160 }}
+                />
+              </div>
+            </EditorialDefinitionRow>
+          </EditorialDefinitionList>
+        </section>
+
+        <section className="mt-10">
+          <EditorialSectionHeader title="DataForSEO" meta="Blog keyword research credentials" />
+          <EditorialDefinitionList>
+            <EditorialDefinitionRow label="Login & password" labelSub={dataforseoSavedHint} isLast>
+              <div className="flex flex-wrap gap-8">
+                <EditorialField
+                  value={dataforseoForm.login}
+                  onChange={(v) => setDataforseoForm((prev) => ({ ...prev, login: v }))}
+                  type="email"
+                  placeholder="Account login (email)"
+                  style={{ flex: 1.2, minWidth: 200 }}
+                />
+                <EditorialField
+                  value={dataforseoForm.password}
+                  onChange={(v) => setDataforseoForm((prev) => ({ ...prev, password: v }))}
+                  type="password"
+                  placeholder="API password"
+                  style={{ flex: 1, minWidth: 160 }}
+                />
+              </div>
+            </EditorialDefinitionRow>
+          </EditorialDefinitionList>
+        </section>
+
+        <section className="mt-10">
+          <EditorialSectionHeader
+            title="API Tokens"
+            meta="Leave blank to keep the current saved value"
+          />
+          <div className="grid grid-cols-1 gap-x-12 lg:grid-cols-2">
+            {apiTokenSecrets.map((token) => (
+              <div key={token.key} className="border-b border-[var(--border)] py-[18px]">
+                <div className="mb-2 flex items-baseline justify-between gap-3">
+                  <div className="font-[family-name:var(--font-display)] text-[14.5px] font-semibold text-[var(--primary)]">
+                    {token.label}
+                  </div>
+                  <div className="text-[11.5px] text-[var(--text-muted)]">
+                    {token.set ? `Saved: ${token.masked}` : 'Not configured'}
+                  </div>
+                </div>
+                <EditorialField
+                  value={apiTokenForm[token.key] ?? ''}
+                  onChange={(v) => setApiTokenForm((prev) => ({ ...prev, [token.key]: v }))}
+                  type="password"
+                  placeholder="••••••••"
+                />
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
 
-      {!readOnly && (
-        <div className="sticky bottom-0 -mx-1 flex justify-end border-t border-[var(--border-light)] bg-[var(--bg)]/95 px-1 py-4 backdrop-blur-sm">
-          <Button type="submit" disabled={saving} className="gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {saving ? 'Saving…' : 'Save integrations'}
-          </Button>
-        </div>
-      )}
+          {!readOnly && (
+            <footer className="mt-6 flex justify-end">
+              <button type="submit" disabled={saving} className={editorialPillButtonClass}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  'Save integrations'
+                )}
+              </button>
+            </footer>
+          )}
+        </section>
       </fieldset>
     </form>
   );

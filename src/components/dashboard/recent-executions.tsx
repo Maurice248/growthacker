@@ -10,6 +10,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { formatRelativeTime, cn } from '@/lib/utils';
 import { useAppSection } from '@/lib/app-section';
 import { outreachCardClass } from '@/components/outreach/page-body';
+import {
+  EditorialSectionHeader,
+  OutreachActionLink,
+  OutreachListRow,
+  workflowStatusPill,
+} from '@/components/cold-email/outreach-ui';
 
 export interface ExecutionItem {
   id: string;
@@ -29,9 +35,9 @@ const statusColors: Record<string, 'success' | 'destructive' | 'secondary' | 'wa
 };
 
 function ExecutionIcon({ type }: { type: string }) {
-  if (type === 'CAMPAIGN') return <Mail className="h-4 w-4 text-[#0077b6]" />;
-  if (type === 'SCRAPER') return <Search className="h-4 w-4 text-[#0077b6]" />;
-  return <Trash2 className="h-4 w-4 text-[#0077b6]" />;
+  if (type === 'CAMPAIGN') return <Mail className="h-4 w-4 text-[#003049]" />;
+  if (type === 'SCRAPER') return <Search className="h-4 w-4 text-[#003049]" />;
+  return <Trash2 className="h-4 w-4 text-[#003049]" />;
 }
 
 export function RecentExecutions({ initialExecutions }: { initialExecutions: ExecutionItem[] }) {
@@ -97,7 +103,7 @@ export function RecentExecutions({ initialExecutions }: { initialExecutions: Exe
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#0077b6]/10">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#003049]/10">
             <ExecutionIcon type={exec.workflowType} />
           </div>
           <div className="min-w-0">
@@ -117,7 +123,7 @@ export function RecentExecutions({ initialExecutions }: { initialExecutions: Exe
               variant="outline"
               disabled={isReusing}
               onClick={() => handleReuse(exec)}
-              className="h-8 gap-1 border-[#0077b6]/30 px-2.5 text-xs text-[#0077b6] hover:bg-[#0077b6]/5"
+              className="h-8 gap-1 border-[#003049]/30 px-2.5 text-xs text-[#003049] hover:bg-[#003049]/5"
               title="Reuse this campaign"
             >
               <Copy className="h-3 w-3" />
@@ -144,27 +150,54 @@ export function RecentExecutions({ initialExecutions }: { initialExecutions: Exe
   };
 
   if (isOutreach) {
+    const renderOutreachRow = (exec: ExecutionItem) => {
+      const isCampaignExec = exec.workflowType === 'CAMPAIGN';
+      const canReuse = isCampaignExec && !!exec.campaignId;
+
+      return (
+        <OutreachListRow
+          key={exec.id}
+          title={exec.workflowName || exec.workflowType}
+          meta={formatRelativeTime(exec.createdAt)}
+          actions={
+            <>
+              {canReuse && (
+                <OutreachActionLink
+                  disabled={reusingId === exec.id}
+                  onClick={() => handleReuse(exec)}
+                >
+                  Reuse
+                </OutreachActionLink>
+              )}
+              {isCampaignExec && (
+                <OutreachActionLink
+                  variant="muted"
+                  disabled={deletingId === exec.id}
+                  onClick={() => handleDelete(exec)}
+                >
+                  Delete
+                </OutreachActionLink>
+              )}
+            </>
+          }
+          status={workflowStatusPill(exec.status)}
+        />
+      );
+    };
+
     return (
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 px-1">
-          <Activity className="h-4 w-4 text-[#0077b6]" />
-          <h2 className="text-base font-semibold text-gray-900">Recent Workflow Executions</h2>
-        </div>
+      <section>
+        <EditorialSectionHeader title="Recent Workflow Executions" meta="Last 11 days" />
 
         {executions.length === 0 ? (
-          <div
-            className={cn(
-              outreachCardClass,
-              'flex flex-col items-center justify-center py-12 text-gray-400'
-            )}
-          >
-            <CheckCircle className="mb-2 h-10 w-10 opacity-30" />
+          <div className="border-t border-[var(--border)] py-12 text-center text-[var(--text-muted)]">
+            <CheckCircle className="mx-auto mb-2 h-10 w-10 opacity-30" />
             <p className="text-sm">No workflows run yet. Start by creating a campaign!</p>
           </div>
         ) : (
-          <div className="space-y-2.5">{executions.map(renderRow)}</div>
+          <div>{executions.map(renderOutreachRow)}</div>
         )}
-      </div>
+      </section>
     );
   }
 
@@ -172,7 +205,7 @@ export function RecentExecutions({ initialExecutions }: { initialExecutions: Exe
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Activity className="h-4 w-4 text-[#0077b6]" />
+          <Activity className="h-4 w-4 text-[#003049]" />
           Recent Workflow Executions
         </CardTitle>
       </CardHeader>

@@ -183,9 +183,9 @@ export default function VoiceExplorerModal({
         height: '30px',
         padding: '0 6px',
         borderRadius: '6px',
-        border: active ? 'none' : '1px solid #e2e8f0',
-        background: active ? '#0f172a' : '#ffffff',
-        color: active ? '#ffffff' : '#475569',
+        border: active ? 'none' : '1px solid #E8DCC2',
+        background: active ? '#003049' : '#ffffff',
+        color: active ? '#ffffff' : '#4A5A64',
         fontSize: '12px',
         fontWeight: active ? 700 : 500,
         cursor: 'pointer',
@@ -230,27 +230,27 @@ export default function VoiceExplorerModal({
             background: '#ffffff',
             borderRadius: '24px',
             boxShadow: '0 25px 50px -12px rgba(2, 132, 199, 0.25)',
-            border: '1px solid #cbd5e1',
+            border: '1px solid #C2B79A',
             overflow: 'hidden',
           }}
         >
           {/* ── Header ── */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', borderBottom: '1px solid #E8DCC2', paddingBottom: '14px' }}>
             <div style={{ textAlign: 'left' }}>
-              <Dialog.Title style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                <Sparkles size={20} color="#0284c7" />
+              <Dialog.Title style={{ fontSize: '20px', fontWeight: 800, color: '#003049', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <Sparkles size={20} color="#003049" />
                 ElevenLabs Voice Explorer
               </Dialog.Title>
-              <Dialog.Description style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', margin: 0 }}>
+              <Dialog.Description style={{ fontSize: '12px', color: '#8C8474', marginTop: '4px', margin: 0 }}>
                 {loading ? 'Loading voice library…' : `${filteredVoices.length.toLocaleString()} voices found · Page ${safePage} of ${totalPages}`}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
               <button
                 onClick={stopAudio}
-                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: 'background 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
-                onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+                style={{ background: '#FDF0D5', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8C8474', transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#E8DCC2'}
+                onMouseLeave={e => e.currentTarget.style.background = '#FDF0D5'}
               >
                 <X size={16} />
               </button>
@@ -258,19 +258,19 @@ export default function VoiceExplorerModal({
           </div>
 
           {/* ── Search & Filters ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px', background: '#f8fafc', padding: '14px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px', background: '#FDF6E3', padding: '14px', borderRadius: '16px', border: '1px solid #FDF0D5' }}>
 
             {/* Search Input */}
             <div style={{ position: 'relative', width: '100%' }}>
-              <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+              <Search size={16} color="#9FA8A3" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search by name, accent, language or description…"
-                style={{ width: '100%', padding: '10px 12px 10px 38px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '10px', background: '#ffffff', color: '#0f172a', outline: 'none', boxSizing: 'border-box' }}
-                onFocus={e => e.target.style.borderColor = '#0284c7'}
-                onBlur={e => e.target.style.borderColor = '#cbd5e1'}
+                style={{ width: '100%', padding: '10px 12px 10px 38px', fontSize: '13px', border: '1px solid #C2B79A', borderRadius: '10px', background: '#ffffff', color: '#003049', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = '#003049'}
+                onBlur={e => e.target.style.borderColor = '#C2B79A'}
               />
             </div>
 
@@ -279,9 +279,9 @@ export default function VoiceExplorerModal({
 
               {/* Gender */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <User size={12} color="#475569" />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Gender</span>
-                <div style={{ display: 'flex', background: '#e2e8f0', padding: '2px', borderRadius: '8px', gap: '2px' }}>
+                <User size={12} color="#4A5A64" />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#4A5A64', textTransform: 'uppercase' }}>Gender</span>
+                <div style={{ display: 'flex', background: '#E8DCC2', padding: '2px', borderRadius: '8px', gap: '2px' }}>
                   {(['all', 'male', 'female'] as const).map(g => (
                     <button
                       key={g}
@@ -290,7 +290,7 @@ export default function VoiceExplorerModal({
                       style={{
                         padding: '3px 10px', fontSize: '11px', fontWeight: 600, borderRadius: '6px', border: 'none', cursor: 'pointer',
                         background: genderFilter === g ? '#ffffff' : 'transparent',
-                        color: genderFilter === g ? '#0f172a' : '#64748b',
+                        color: genderFilter === g ? '#003049' : '#8C8474',
                         boxShadow: genderFilter === g ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                         textTransform: 'capitalize', transition: 'all 0.15s'
                       }}
@@ -303,12 +303,12 @@ export default function VoiceExplorerModal({
 
               {/* Language */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Globe size={12} color="#475569" />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Language</span>
+                <Globe size={12} color="#4A5A64" />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#4A5A64', textTransform: 'uppercase' }}>Language</span>
                 <select
                   value={languageFilter}
                   onChange={e => setLanguageFilter(e.target.value)}
-                  style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#ffffff', color: '#0f172a', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
+                  style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #C2B79A', borderRadius: '8px', background: '#ffffff', color: '#003049', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
                 >
                   <option value="all">All Languages</option>
                   {PINNED_LANGUAGES.map(p => (
@@ -323,12 +323,12 @@ export default function VoiceExplorerModal({
 
               {/* Accent */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Mic2 size={12} color="#475569" />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Accent</span>
+                <Mic2 size={12} color="#4A5A64" />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#4A5A64', textTransform: 'uppercase' }}>Accent</span>
                 <select
                   value={accentFilter}
                   onChange={e => setAccentFilter(e.target.value)}
-                  style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#ffffff', color: '#0f172a', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
+                  style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #C2B79A', borderRadius: '8px', background: '#ffffff', color: '#003049', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
                 >
                   <option value="all">All Accents</option>
                   {uniqueAccents.map(acc => (
@@ -341,7 +341,7 @@ export default function VoiceExplorerModal({
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
-                  style={{ marginLeft: 'auto', padding: '5px 12px', fontSize: '11px', fontWeight: 700, border: '1px solid #fca5a5', borderRadius: '8px', background: '#fff1f2', color: '#dc2626', cursor: 'pointer', transition: 'all 0.15s' }}
+                  style={{ marginLeft: 'auto', padding: '5px 12px', fontSize: '11px', fontWeight: 700, border: '1px solid #fca5a5', borderRadius: '8px', background: '#fff1f2', color: '#C1121F', cursor: 'pointer', transition: 'all 0.15s' }}
                 >
                   ✕ Clear
                 </button>
@@ -353,14 +353,14 @@ export default function VoiceExplorerModal({
           <div ref={gridRef} style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="sd-voice-explorer-grid">
             {loading ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px' }}>
-                <Spinner size={36} color="#0284c7" />
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Loading voice library from ElevenLabs…</span>
+                <Spinner size={36} color="#003049" />
+                <span style={{ fontSize: '13px', color: '#8C8474', fontWeight: 500 }}>Loading voice library from ElevenLabs…</span>
               </div>
             ) : pageVoices.length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '200px', gap: '10px', background: '#f8fafc', borderRadius: '16px', border: '2px dashed #cbd5e1' }}>
-                <X size={28} color="#94a3b8" />
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>No voices match your filters.</span>
-                <button onClick={clearFilters} style={{ background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '200px', gap: '10px', background: '#FDF6E3', borderRadius: '16px', border: '2px dashed #C2B79A' }}>
+                <X size={28} color="#9FA8A3" />
+                <span style={{ fontSize: '13px', color: '#8C8474', fontWeight: 600 }}>No voices match your filters.</span>
+                <button onClick={clearFilters} style={{ background: '#003049', color: '#ffffff', border: 'none', borderRadius: '8px', padding: '6px 14px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
                   Clear All Filters
                 </button>
               </div>
@@ -377,7 +377,7 @@ export default function VoiceExplorerModal({
                       style={{
                         padding: '14px',
                         background: '#ffffff',
-                        border: isSelected ? '2px solid #0284c7' : '1.5px solid #e2e8f0',
+                        border: isSelected ? '2px solid #003049' : '1.5px solid #E8DCC2',
                         borderRadius: '14px',
                         boxShadow: isSelected ? '0 8px 20px -4px rgba(2,132,199,0.15)' : '0 1px 3px rgba(0,0,0,0.04)',
                         transition: 'all 0.2s',
@@ -390,9 +390,9 @@ export default function VoiceExplorerModal({
                       <div>
                         {/* Name + Badges */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', gap: '6px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>{voice.name}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#003049', lineHeight: 1.3 }}>{voice.name}</span>
                           <div style={{ display: 'flex', gap: '3px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                            <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', background: voice.gender === 'male' ? '#e0f2fe' : '#fce7f3', color: voice.gender === 'male' ? '#0369a1' : '#be185d' }}>
+                            <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 700, textTransform: 'uppercase', background: voice.gender === 'male' ? '#e0f2fe' : '#fce7f3', color: voice.gender === 'male' ? '#1A4A66' : '#be185d' }}>
                               {voice.gender}
                             </span>
                             {voice.accent && voice.accent !== 'Global' && (
@@ -406,29 +406,29 @@ export default function VoiceExplorerModal({
                         {/* Language tag */}
                         {voice.language && (
                           <div style={{ marginBottom: '6px' }}>
-                            <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '9px', fontWeight: 600, background: '#f1f5f9', color: '#475569' }}>
+                            <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '9px', fontWeight: 600, background: '#FDF0D5', color: '#4A5A64' }}>
                               🌐 {getLanguageLabel(voice.language)}
                             </span>
                           </div>
                         )}
 
                         {/* Description */}
-                        <p style={{ fontSize: '11px', color: '#64748b', lineHeight: '1.4', margin: '0 0 12px 0', minHeight: '30px' }}>
+                        <p style={{ fontSize: '11px', color: '#8C8474', lineHeight: '1.4', margin: '0 0 12px 0', minHeight: '30px' }}>
                           {voice.description}
                         </p>
                       </div>
 
                       {/* Footer Actions */}
-                      <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                      <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #FDF0D5', paddingTop: '10px' }}>
                         <button
                           type="button"
                           onClick={() => playPreview(voice.voice_id, voice.preview_url)}
                           disabled={!voice.preview_url}
                           style={{
                             flex: 1, padding: '7px', borderRadius: '8px',
-                            border: '1.5px solid #e2e8f0',
+                            border: '1.5px solid #E8DCC2',
                             background: isPlaying ? 'rgba(2,132,199,0.08)' : '#ffffff',
-                            color: isPlaying ? '#0284c7' : '#475569',
+                            color: isPlaying ? '#003049' : '#4A5A64',
                             cursor: voice.preview_url ? 'pointer' : 'not-allowed',
                             fontSize: '11px', fontWeight: 700,
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
@@ -443,7 +443,7 @@ export default function VoiceExplorerModal({
                           onClick={() => { onSelectVoice(voice.voice_id, `${voice.name} - ${voice.accent || voice.language}`); stopAudio(); }}
                           style={{
                             flex: 1.2, padding: '7px', borderRadius: '8px', border: 'none',
-                            background: isSelected ? '#10b981' : '#0f172a',
+                            background: isSelected ? '#10b981' : '#003049',
                             color: '#ffffff', cursor: 'pointer',
                             fontSize: '11px', fontWeight: 700,
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
@@ -462,30 +462,30 @@ export default function VoiceExplorerModal({
 
           {/* ── Pagination ── */}
           {!loading && filteredVoices.length > VOICES_PER_PAGE && (
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <div style={{ borderTop: '1px solid #E8DCC2', paddingTop: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <button
                 onClick={() => goToPage(safePage - 1)}
                 disabled={safePage === 1}
-                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', color: safePage === 1 ? '#cbd5e1' : '#475569', cursor: safePage === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #E8DCC2', background: '#ffffff', color: safePage === 1 ? '#C2B79A' : '#4A5A64', cursor: safePage === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
               >
                 <ChevronLeft size={14} />
               </button>
 
               {getPageNumbers().map((p, i) =>
                 p === '...'
-                  ? <span key={`ellipsis-${i}`} style={{ fontSize: '12px', color: '#94a3b8', padding: '0 2px' }}>…</span>
+                  ? <span key={`ellipsis-${i}`} style={{ fontSize: '12px', color: '#9FA8A3', padding: '0 2px' }}>…</span>
                   : <PaginationBtn key={p} page={p as number} active={p === safePage} />
               )}
 
               <button
                 onClick={() => goToPage(safePage + 1)}
                 disabled={safePage === totalPages}
-                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', color: safePage === totalPages ? '#cbd5e1' : '#475569', cursor: safePage === totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #E8DCC2', background: '#ffffff', color: safePage === totalPages ? '#C2B79A' : '#4A5A64', cursor: safePage === totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
               >
                 <ChevronRight size={14} />
               </button>
 
-              <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '8px' }}>
+              <span style={{ fontSize: '11px', color: '#9FA8A3', marginLeft: '8px' }}>
                 {pageStart + 1}–{Math.min(pageStart + VOICES_PER_PAGE, filteredVoices.length)} of {filteredVoices.length}
               </span>
             </div>

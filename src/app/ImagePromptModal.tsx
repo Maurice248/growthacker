@@ -28,7 +28,7 @@ export default function ImagePromptModal({ isOpen, onOpenChange, onSubmit, loadi
           <div className="sd-modal-header">
             <div className="sd-modal-title-row">
               <div className="sd-modal-icon-bg" style={{ background: '#e0f2fe' }}>
-                <ImageIcon size={20} color="#0284c7" />
+                <ImageIcon size={20} color="#003049" />
               </div>
               <div>
                 <Dialog.Title className="sd-modal-title">Generate Social Images</Dialog.Title>
@@ -63,7 +63,7 @@ export default function ImagePromptModal({ isOpen, onOpenChange, onSubmit, loadi
               <button 
                 type="submit" 
                 className="sd-modal-btn-submit"
-                style={{ background: '#0284c7' }}
+                style={{ background: '#003049' }}
                 disabled={loading}
               >
                 {loading ? "Generating..." : "Generate Images"}

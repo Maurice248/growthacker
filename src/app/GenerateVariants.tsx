@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Card, Badge, SectionTitle, Spinner } from "./components";
+import {
+  Spinner,
+  EditorialPage,
+  EditorialPageHeader,
+  EditorialSectionHeader,
+  EditorialPillButton,
+} from "./components";
 
 type ApprovedAd = {
   id: string | number;
@@ -52,12 +58,43 @@ function parseMetadata(ad: ApprovedAd) {
   }
 }
 
+function adDisplayName(ad: ApprovedAd) {
+  const meta = parseMetadata(ad);
+  return (meta.ad_name as string) || (meta.headline as string) || "Untitled Ad";
+}
+
 function formatGenerationError(message: string) {
   if (/aborted due to timeout|timed out/i.test(message)) {
     return 'Generation timed out. Video variants can take 5–10 minutes — please try again. If this keeps happening, verify your API keys (OpenAI, kie.ai, ElevenLabs, AssemblyAI, Upload Post).';
   }
   return message;
 }
+
+const metricInputWidth = {
+  sm: 72,
+  md: 96,
+} as const;
+
+function sanitizeIntegerInput(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function sanitizeDecimalInput(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [whole, ...rest] = cleaned.split(".");
+  return rest.length > 0 ? `${whole}.${rest.join("")}` : whole;
+}
+
+const cardCaptionTitleStyle: CSSProperties = {
+  fontSize: 13.5,
+  fontWeight: 700,
+  color: "var(--primary)",
+  marginTop: 2,
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
 
 export default function GenerateVariants({
   approvedAds,
@@ -71,6 +108,9 @@ export default function GenerateVariants({
   const [numVariants, setNumVariants] = useState(3);
   const [evalLengthDays, setEvalLengthDays] = useState(7);
   const [dailyBudgetCents, setDailyBudgetCents] = useState(100);
+  const [numVariantsDraft, setNumVariantsDraft] = useState<string | null>(null);
+  const [evalLengthDaysDraft, setEvalLengthDaysDraft] = useState<string | null>(null);
+  const [dailyBudgetDraft, setDailyBudgetDraft] = useState<string | null>(null);
   const [selectedBaseAd, setSelectedBaseAd] = useState<ApprovedAd | null>(null);
   const [automation, setAutomation] = useState<AutomationRecord | null>(null);
   const [loadingDefaults, setLoadingDefaults] = useState(true);
@@ -81,6 +121,9 @@ export default function GenerateVariants({
   const [challengerElapsedSec, setChallengerElapsedSec] = useState(0);
   const [error, setError] = useState("");
   const resumeCheckedRef = useRef(false);
+  const numVariantsRestoreRef = useRef(3);
+  const evalLengthDaysRestoreRef = useRef(7);
+  const dailyBudgetRestoreRef = useRef(100);
 
   const restoreBaseAdSelection = useCallback(
     (record: AutomationRecord) => {
@@ -289,7 +332,6 @@ export default function GenerateVariants({
     }
   }, [challengersDone]);
 
-  // Base ad is already approved — it is copied, not generated. Count it as ready from the start.
   const baseReady =
     Boolean(currentGenerationVariants.find((v) => v.role === "base")) ||
     (generating && Boolean(selectedBaseAd));
@@ -333,112 +375,210 @@ export default function GenerateVariants({
     return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
 
+  const summaryLine = `${numVariants} variant${numVariants === 1 ? "" : "s"} · ${evalLengthDays}-day evaluation · $${(dailyBudgetCents / 100).toFixed(2)}/day per ad`;
+
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto" }}>
-      <div style={{ marginBottom: 20 }}>
-        <SectionTitle>Generate Ad Variants</SectionTitle>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -8, lineHeight: 1.6 }}>
-          One-time setup: pick an approved ad as the base and generate your first variant set.
-          Launch them in Campaign Setup, then use Automated Campaigns for ongoing evaluation and new variants.
-        </div>
-      </div>
+    <EditorialPage>
+      <EditorialPageHeader
+        eyebrow="Meta Ads"
+        title="Generate Ad Variants"
+        subtitle="One-time setup: pick an approved ad as the base and generate your first variant set. Launch them in Campaign Setup, then use Automated Campaigns for ongoing evaluation and new variants."
+      />
 
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, fontWeight: 600 }}>
-            Number of variants
+      {/* Variant Settings */}
+      <section>
+        <EditorialSectionHeader title="Variant Settings" />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <div style={{ padding: "24px 24px 24px 0", borderRight: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>
+              Number of variants
+            </div>
             <input
-              type="number"
-              min={2}
-              max={10}
-              value={numVariants}
-              onChange={(e) => setNumVariants(Math.max(2, Number(e.target.value) || 2))}
-              style={inputStyle}
+              type="text"
+              inputMode="numeric"
+              className="editorial-metric-input"
+              value={numVariantsDraft ?? String(numVariants)}
+              onFocus={() => {
+                numVariantsRestoreRef.current = numVariants;
+                setNumVariantsDraft(String(numVariants));
+              }}
+              onChange={(e) => setNumVariantsDraft(sanitizeIntegerInput(e.target.value))}
+              onBlur={() => {
+                const raw = numVariantsDraft ?? "";
+                if (raw === "") {
+                  setNumVariants(numVariantsRestoreRef.current);
+                } else {
+                  setNumVariants(
+                    Math.min(10, Math.max(2, Number(raw) || numVariantsRestoreRef.current))
+                  );
+                }
+                setNumVariantsDraft(null);
+              }}
+              style={{ width: metricInputWidth.sm }}
             />
-            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
-              Base ad counts as variant #1. Generates {challengersNeeded} new variant{challengersNeeded === 1 ? "" : "s"}.
-            </span>
-          </label>
+            <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 8 }}>
+              Base ad counts as variant #1 — generates {challengersNeeded} new variant{challengersNeeded === 1 ? "" : "s"}.
+            </div>
+          </div>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, fontWeight: 600 }}>
-            Evaluation length (days)
+          <div style={{ padding: 24, borderRight: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>
+              Evaluation length (days)
+            </div>
             <input
-              type="number"
-              min={1}
-              max={30}
-              value={evalLengthDays}
-              onChange={(e) => setEvalLengthDays(Math.max(1, Number(e.target.value) || 1))}
-              style={inputStyle}
+              type="text"
+              inputMode="numeric"
+              className="editorial-metric-input"
+              value={evalLengthDaysDraft ?? String(evalLengthDays)}
+              onFocus={() => {
+                evalLengthDaysRestoreRef.current = evalLengthDays;
+                setEvalLengthDaysDraft(String(evalLengthDays));
+              }}
+              onChange={(e) => setEvalLengthDaysDraft(sanitizeIntegerInput(e.target.value))}
+              onBlur={() => {
+                const raw = evalLengthDaysDraft ?? "";
+                if (raw === "") {
+                  setEvalLengthDays(evalLengthDaysRestoreRef.current);
+                } else {
+                  setEvalLengthDays(
+                    Math.min(30, Math.max(1, Number(raw) || evalLengthDaysRestoreRef.current))
+                  );
+                }
+                setEvalLengthDaysDraft(null);
+              }}
+              style={{ width: metricInputWidth.sm }}
             />
-          </label>
+          </div>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, fontWeight: 600 }}>
-            Amount per day (USD)
+          <div style={{ padding: "24px 0 24px 24px" }}>
+            <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 8 }}>
+              Amount per day (USD)
+            </div>
             <input
-              type="number"
-              min={1}
-              step={0.01}
-              value={(dailyBudgetCents / 100).toFixed(2)}
-              onChange={(e) =>
-                setDailyBudgetCents(Math.max(100, Math.round((Number(e.target.value) || 1) * 100)))
-              }
-              style={inputStyle}
+              type="text"
+              inputMode="decimal"
+              className="editorial-metric-input"
+              value={dailyBudgetDraft ?? (dailyBudgetCents / 100).toFixed(2)}
+              onFocus={() => {
+                dailyBudgetRestoreRef.current = dailyBudgetCents;
+                setDailyBudgetDraft((dailyBudgetCents / 100).toFixed(2));
+              }}
+              onChange={(e) => setDailyBudgetDraft(sanitizeDecimalInput(e.target.value))}
+              onBlur={() => {
+                const raw = dailyBudgetDraft ?? "";
+                if (raw === "" || raw === ".") {
+                  setDailyBudgetCents(dailyBudgetRestoreRef.current);
+                } else {
+                  const parsed = Number(raw);
+                  setDailyBudgetCents(
+                    Math.max(
+                      100,
+                      Math.round(
+                        (Number.isNaN(parsed)
+                          ? dailyBudgetRestoreRef.current / 100
+                          : parsed) * 100
+                      )
+                    )
+                  );
+                }
+                setDailyBudgetDraft(null);
+              }}
+              style={{ width: metricInputWidth.md }}
             />
-            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
+            <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 8 }}>
               Default Meta minimum is $1.00/day per ad.
-            </span>
-          </label>
+            </div>
+          </div>
         </div>
-      </Card>
+      </section>
 
-      <Card style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Select base approved ad</div>
+      {/* Base ad selection */}
+      <section style={{ marginTop: 48 }}>
+        <EditorialSectionHeader
+          title="Select Base Approved Ad"
+          meta={
+            approvedAds.length === 0
+              ? undefined
+              : `${approvedAds.length} approved ad${approvedAds.length === 1 ? "" : "s"}`
+          }
+        />
+
         {approvedAds.length === 0 ? (
-          <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
+          <div style={{ color: "var(--text-muted)", fontSize: 13, paddingTop: 24 }}>
             No approved ads yet. Approve an ad in the Approval tab first.
           </div>
         ) : (
           <div
+            className="editorial-preview-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 12,
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: 28,
+              paddingTop: 24,
             }}
           >
             {approvedAds.map((ad, idx) => {
               const isVideo = (ad.format || "").toLowerCase() === "video";
               const selected = selectedBaseAd?.text === ad.text;
-              const meta = parseMetadata(ad);
+              const name = adDisplayName(ad);
+              const formatLabel = isVideo ? "Video" : "Image";
+
               return (
                 <button
                   key={`${ad.id}-${idx}`}
                   type="button"
                   onClick={() => setSelectedBaseAd(ad)}
                   style={{
-                    border: selected ? "2px solid var(--primary)" : "1px solid var(--border)",
-                    borderRadius: "var(--radius-md)",
-                    overflow: "hidden",
-                    background: "var(--card-bg)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    background: "none",
+                    border: "none",
                     padding: 0,
                     cursor: "pointer",
                     textAlign: "left",
+                    minWidth: 0,
+                    width: "100%",
                   }}
                 >
-                  <div style={{ aspectRatio: "9/16", background: "#0f172a" }}>
-                    {isVideo ? (
-                      <video src={ad.text} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <img src={ad.text} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    )}
+                  <div
+                    style={{
+                      width: "100%",
+                      aspectRatio: "4/5",
+                      border: selected ? "2px solid var(--red)" : "1px solid var(--border)",
+                      borderRadius: 12,
+                      padding: selected ? 4 : 5,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{ width: "100%", height: "100%", borderRadius: 8, overflow: "hidden", background: "var(--primary)" }}>
+                      {isVideo ? (
+                        <video src={ad.text} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} muted playsInline />
+                      ) : (
+                        <img src={ad.text} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      )}
+                    </div>
                   </div>
-                  <div style={{ padding: 8 }}>
-                    <Badge
-                      text={isVideo ? "Video" : "Image"}
-                      color={isVideo ? "var(--primary)" : "var(--text-muted)"}
-                      bg={isVideo ? "var(--primary-light)" : "var(--surface)"}
-                    />
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                      {(meta.ad_name as string) || (meta.headline as string) || "Approved ad"}
+                  <div style={{ minWidth: 0, width: "100%" }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: "1px",
+                        textTransform: "uppercase",
+                        color: selected ? "var(--red)" : "var(--text-muted)",
+                      }}
+                    >
+                      {formatLabel}{selected ? " · selected" : ""}
+                    </div>
+                    <div style={cardCaptionTitleStyle} title={name}>
+                      {name}
                     </div>
                   </div>
                 </button>
@@ -446,174 +586,192 @@ export default function GenerateVariants({
             })}
           </div>
         )}
-      </Card>
 
-      {error && (
-        <div
+        {error && (
+          <div
+            style={{
+              background: "#F9E3E0",
+              border: "1px solid #fecaca",
+              borderRadius: 8,
+              padding: 12,
+              marginTop: 24,
+              color: "#780000",
+              fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <footer
           style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: "var(--radius-md)",
-            padding: 12,
-            marginBottom: 16,
-            color: "#991b1b",
-            fontSize: 13,
+            marginTop: 36,
+            paddingTop: 20,
+            borderTop: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "baseline",
+            gap: 16,
+            flexWrap: "wrap",
           }}
         >
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={generating || !selectedBaseAd || loadingDefaults}
-          style={primaryBtn}
-        >
-          {generating ? "Generating variants..." : "Generate variants"}
-        </button>
-
-        {automation?.status === "pending_review" && currentGenerationVariants.length > 0 && (
-          <button
-            type="button"
-            onClick={() =>
-              onContinueToCampaignSetup({
-                automationId: automation.id,
-                variants: currentGenerationVariants,
-                numVariants,
-                evalLengthDays,
-                dailyBudgetCents,
-              })
-            }
-            style={secondaryBtn}
-          >
-            Continue to Campaign Setup →
-          </button>
-        )}
-      </div>
-
-      {isInProgress && (
-        <Card style={{ marginBottom: 20, border: "1px solid var(--primary-light)", background: "var(--primary-light)" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Spinner />
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>Generating variants</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{progressLabel}</div>
-              </div>
-            </div>
-            {elapsedSec > 0 && (
-              <div style={{ fontSize: 11, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
-                Elapsed {formatElapsed(elapsedSec)}
-              </div>
+          <span style={{ fontSize: 13.5, color: "var(--text-muted)" }}>{summaryLine}</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {automation?.status === "pending_review" && currentGenerationVariants.length > 0 && (
+              <EditorialPillButton
+                variant="outline"
+                onClick={() =>
+                  onContinueToCampaignSetup({
+                    automationId: automation.id,
+                    variants: currentGenerationVariants,
+                    numVariants,
+                    evalLengthDays,
+                    dailyBudgetCents,
+                  })
+                }
+              >
+                Continue to Campaign Setup →
+              </EditorialPillButton>
             )}
+            <EditorialPillButton
+              onClick={handleGenerate}
+              disabled={generating || !selectedBaseAd || loadingDefaults}
+              style={{ marginLeft: automation?.status === "pending_review" ? 0 : undefined }}
+            >
+              {generating ? "Generating variants…" : "Generate variants →"}
+            </EditorialPillButton>
           </div>
+        </footer>
+      </section>
 
-          <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)" }}>
-            <span>{completedCount} of {numVariants} variants ready</span>
-            <span>{progressPercent}%</span>
-          </div>
+      {/* Generation progress */}
+      {isInProgress && (
+        <section style={{ marginTop: 48 }}>
+          <EditorialSectionHeader title="Generating Variants" />
+          <div style={{ paddingTop: 24 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Spinner />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{progressLabel}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                    {completedCount} of {numVariants} variants ready
+                  </div>
+                </div>
+              </div>
+              {elapsedSec > 0 && (
+                <div style={{ fontSize: 11, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+                  Elapsed {formatElapsed(elapsedSec)}
+                </div>
+              )}
+            </div>
 
-          <div
-            style={{
-              height: 10,
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.7)",
-              border: "1px solid var(--border-light)",
-              overflow: "hidden",
-            }}
-          >
+            <div style={{ marginBottom: 8, display: "flex", justifyContent: "flex-end", fontSize: 11, color: "var(--text-muted)" }}>
+              <span>{progressPercent}%</span>
+            </div>
+
             <div
               style={{
-                height: "100%",
-                width: `${Math.max(progressPercent, completedCount > 0 ? 8 : 4)}%`,
+                height: 6,
                 borderRadius: 999,
-                background: "linear-gradient(90deg, var(--primary), #60a5fa)",
-                transition: hasActiveChallenger ? "width 1s linear" : "width 0.6s ease",
-                boxShadow: progressPercent < 100 ? "0 0 8px rgba(59,130,246,0.35)" : "none",
+                background: "var(--border)",
+                overflow: "hidden",
+                marginBottom: 24,
               }}
-            />
-          </div>
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${Math.max(progressPercent, completedCount > 0 ? 8 : 4)}%`,
+                  borderRadius: 999,
+                  background: "var(--primary)",
+                  transition: hasActiveChallenger ? "width 1s linear" : "width 0.6s ease",
+                }}
+              />
+            </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 12,
-              marginTop: 16,
-            }}
-          >
-            {Array.from({ length: numVariants }).map((_, slotIndex) => {
-              const isBaseSlot = slotIndex === 0;
-              const baseVariant = currentGenerationVariants.find((v) => v.role === "base");
-              const challengers = currentGenerationVariants.filter((v) => v.role === "challenger");
+            <div
+              className="editorial-preview-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                gap: 28,
+              }}
+            >
+              {Array.from({ length: numVariants }).map((_, slotIndex) => {
+                const isBaseSlot = slotIndex === 0;
+                const baseVariant = currentGenerationVariants.find((v) => v.role === "base");
+                const challengers = currentGenerationVariants.filter((v) => v.role === "challenger");
 
-              if (isBaseSlot) {
-                if (baseVariant) {
+                if (isBaseSlot) {
+                  if (baseVariant) {
+                    return (
+                      <VariantPreviewCard
+                        key={baseVariant.id}
+                        variant={baseVariant}
+                        label="Base variant"
+                        status="done"
+                      />
+                    );
+                  }
+                  if (generating && selectedBaseAd) {
+                    const isVideo = (selectedBaseAd.format || "").toLowerCase() === "video";
+                    return (
+                      <VariantPreviewCard
+                        key="selected-base"
+                        variant={{
+                          id: "selected-base",
+                          mediaUrl: selectedBaseAd.text,
+                          format: isVideo ? "Video" : "Image",
+                          role: "base",
+                        }}
+                        label="Base variant"
+                        status="done"
+                      />
+                    );
+                  }
+                }
+
+                const challenger = challengers[slotIndex - 1];
+                if (challenger) {
                   return (
                     <VariantPreviewCard
-                      key={baseVariant.id}
-                      variant={baseVariant}
-                      label="Base variant"
+                      key={challenger.id}
+                      variant={challenger}
+                      label={`AI variant ${slotIndex}`}
                       status="done"
                     />
                   );
                 }
-                if (generating && selectedBaseAd) {
-                  const isVideo = (selectedBaseAd.format || "").toLowerCase() === "video";
-                  return (
-                    <VariantPreviewCard
-                      key="selected-base"
-                      variant={{
-                        id: "selected-base",
-                        mediaUrl: selectedBaseAd.text,
-                        format: isVideo ? "Video" : "Image",
-                        role: "base",
-                      }}
-                      label="Base variant"
-                      status="done"
-                    />
-                  );
-                }
-              }
 
-              const challenger = challengers[slotIndex - 1];
-              if (challenger) {
+                const pendingLabel = isBaseSlot ? "Base variant" : `AI variant ${slotIndex}`;
+
                 return (
                   <VariantPreviewCard
-                    key={challenger.id}
-                    variant={challenger}
-                    label={`AI variant ${slotIndex}`}
-                    status="done"
+                    key={`pending-${slotIndex}`}
+                    label={pendingLabel}
+                    status={slotIndex === completedCount ? "active" : "pending"}
                   />
                 );
-              }
-
-              const pendingLabel = isBaseSlot ? "Base variant" : `AI variant ${slotIndex}`;
-
-              return (
-                <VariantPreviewCard
-                  key={`pending-${slotIndex}`}
-                  label={pendingLabel}
-                  status={slotIndex === completedCount ? "active" : "pending"}
-                />
-              );
-            })}
+              })}
+            </div>
           </div>
-        </Card>
+        </section>
       )}
 
+      {/* Completed variant set */}
       {automation?.status === "pending_review" && currentGenerationVariants.length > 0 && !isInProgress && (
-        <Card>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>
-            Variant set ({currentGenerationVariants.length}/{numVariants})
-          </div>
+        <section style={{ marginTop: 48 }}>
+          <EditorialSectionHeader
+            title="Variant Set"
+            meta={`${currentGenerationVariants.length}/${numVariants}`}
+          />
           <div
+            className="editorial-preview-grid"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 12,
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: 28,
+              paddingTop: 24,
             }}
           >
             {currentGenerationVariants.map((variant, idx) => (
@@ -625,9 +783,11 @@ export default function GenerateVariants({
               />
             ))}
           </div>
-        </Card>
+        </section>
       )}
-    </div>
+
+      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+    </EditorialPage>
   );
 }
 
@@ -641,119 +801,96 @@ function VariantPreviewCard({
   status: "done" | "active" | "pending";
 }) {
   const isVideo = variant?.format === "Video";
+  const formatLabel = isVideo ? "Video" : "Image";
+  const statusLabel =
+    status === "done"
+      ? label
+      : status === "active"
+        ? `${formatLabel} · generating`
+        : `${formatLabel} · queued`;
 
   return (
-    <div
-      style={{
-        border:
-          status === "active"
-            ? "2px solid var(--primary)"
-            : status === "done"
-              ? "1px solid var(--border)"
-              : "1px dashed var(--border)",
-        borderRadius: "var(--radius-md)",
-        overflow: "hidden",
-        opacity: status === "pending" ? 0.65 : 1,
-      }}
-    >
-      <div style={{ aspectRatio: "9/16", background: "#0f172a", position: "relative" }}>
-        {variant ? (
-          isVideo ? (
-            <video
-              src={variant.mediaUrl}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0, width: "100%" }}>
+      <div
+        style={{
+          width: "100%",
+          aspectRatio: "4/5",
+          border:
+            status === "active"
+              ? "2px solid var(--red)"
+              : status === "done"
+                ? "1px solid var(--border)"
+                : "1px dashed var(--border)",
+          borderRadius: 12,
+          padding: status === "active" ? 4 : 5,
+          overflow: "hidden",
+          opacity: status === "pending" ? 0.65 : 1,
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            borderRadius: 8,
+            overflow: "hidden",
+            background: "var(--primary)",
+            position: "relative",
+          }}
+        >
+          {variant ? (
+            isVideo ? (
+              <video
+                src={variant.mediaUrl}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                muted
+                playsInline
+              />
+            ) : (
+              <img
+                src={variant.mediaUrl}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            )
           ) : (
-            <img
-              src={variant.mediaUrl}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          )
-        ) : (
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              background:
-                status === "active"
-                  ? "linear-gradient(135deg, #1e293b 0%, #334155 50%, #1e293b 100%)"
-                  : "#1e293b",
-              backgroundSize: status === "active" ? "200% 200%" : undefined,
-              animation: status === "active" ? "shimmer 2s ease infinite" : undefined,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {status === "active" && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                <Spinner />
-                <span style={{ fontSize: 10, color: "#94a3b8" }}>Generating...</span>
-              </div>
-            )}
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                background: status === "active" ? "#23394A" : "#23394A",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {status === "active" && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                  <Spinner />
+                  <span style={{ fontSize: 10, color: "#9FA8A3" }}>Generating…</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ minWidth: 0, width: "100%" }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+            color: status === "active" ? "var(--red)" : status === "done" ? "var(--text-muted)" : "var(--text-muted)",
+          }}
+        >
+          {statusLabel}
+        </div>
+        {variant && (
+          <div style={cardCaptionTitleStyle} title={label}>
+            {label}
           </div>
         )}
-      </div>
-      <div style={{ padding: 8 }}>
-        <Badge
-          text={
-            status === "done"
-              ? label
-              : status === "active"
-                ? `${label} · in progress`
-                : `${label} · queued`
-          }
-          color={
-            status === "done"
-              ? variant?.role === "base"
-                ? "var(--green)"
-                : "var(--primary)"
-              : status === "active"
-                ? "var(--primary)"
-                : "var(--text-muted)"
-          }
-          bg={
-            status === "done"
-              ? variant?.role === "base"
-                ? "var(--green-light)"
-                : "var(--primary-light)"
-              : status === "active"
-                ? "var(--primary-light)"
-                : "var(--surface)"
-          }
-        />
       </div>
     </div>
   );
 }
-
-const inputStyle: CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border)",
-  background: "var(--input-bg, #fff)",
-  fontSize: 14,
-};
-
-const primaryBtn: CSSProperties = {
-  padding: "12px 20px",
-  borderRadius: "var(--radius-md)",
-  border: "none",
-  background: "var(--primary)",
-  color: "#fff",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const secondaryBtn: CSSProperties = {
-  padding: "12px 20px",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--primary)",
-  background: "#eff6ff",
-  color: "var(--primary)",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-};

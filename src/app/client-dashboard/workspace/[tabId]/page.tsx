@@ -25,7 +25,7 @@ export default async function ClientWorkspaceTabPage({
     redirect('/client-login');
   }
 
-  if (session.user.isAppAdmin) {
+  if (session.user.isAppAdmin && !session.user.isImpersonating) {
     return <ClientTabView tabId={tabId} />;
   }
 
@@ -34,11 +34,18 @@ export default async function ClientWorkspaceTabPage({
   }
 
   if (tabId !== CLIENT_BRAND_CONTEXT_TAB_ID) {
-    const { modules } = await getCompanyIntegrationStatus(session.user.companyId);
+    const companyId = session.user.companyId!;
+    const { modules } = await getCompanyIntegrationStatus(companyId);
     const moduleId = moduleForTab(tabId);
+    const status = moduleId ? modules.find((m) => m.id === moduleId) : null;
+
+    if (status && !status.enabled) {
+      redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);
+    }
+
     const allowed = moduleId
-      ? modules.find((m) => m.id === moduleId)?.configured === true
-      : modules.some((m) => m.configured);
+      ? status?.accessible === true
+      : modules.some((m) => m.accessible);
 
     if (!allowed) {
       redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);

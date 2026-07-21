@@ -67,7 +67,7 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
           <div className="sd-modal-header">
             <div className="sd-modal-title-row">
               <div className="sd-modal-icon-bg">
-                <Wand2 size={20} color="#0284c7" />
+                <Wand2 size={20} color="#003049" />
               </div>
               <div>
                 <Dialog.Title className="sd-modal-title">Video AI Generation</Dialog.Title>
@@ -147,10 +147,10 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
                     padding: '10px 12px',
                     fontSize: '13px',
                     fontWeight: 600,
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid #C2B79A',
                     borderRadius: '8px',
-                    background: '#f8fafc',
-                    color: '#0f172a',
+                    background: '#FDF6E3',
+                    color: '#003049',
                     outline: 'none',
                     cursor: 'pointer',
                     display: 'flex',
@@ -158,14 +158,14 @@ export default function GeneratorModal({ isOpen, onOpenChange, onSubmit, loading
                     justifyContent: 'space-between',
                     transition: 'all 0.15s'
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#0284c7'; e.currentTarget.style.background = '#ffffff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = '#f8fafc'; }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#003049'; e.currentTarget.style.background = '#ffffff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#C2B79A'; e.currentTarget.style.background = '#FDF6E3'; }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Sparkles size={13} color="#0284c7" />
+                    <Sparkles size={13} color="#003049" />
                     {voiceLabel}
                   </span>
-                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '10px', color: '#8C8474', fontWeight: 700, textTransform: 'uppercase', background: '#E8DCC2', padding: '2px 6px', borderRadius: '4px' }}>
                     Explore
                   </span>
                 </button>

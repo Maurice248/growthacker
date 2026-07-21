@@ -338,7 +338,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
                 <Button
                   type="button"
                   disabled={!selectedCategory || categoriesLoading}
-                  className="bg-[#0077b6] text-white hover:bg-[#005f8f]"
+                  className="bg-[#003049] text-white hover:bg-[#1A4A66]"
                   onClick={handleCreatePost}
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
@@ -352,10 +352,10 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
         {phase === 'generating' && (
           <div className="px-6 py-8 text-center">
             <div className="relative mx-auto mb-6 h-20 w-20">
-              <div className="absolute inset-0 rounded-full border-4 border-[#0077b6]/20" />
-              <div className="absolute inset-0 rounded-full border-4 border-t-[#0077b6] animate-spin" />
+              <div className="absolute inset-0 rounded-full border-4 border-[#003049]/20" />
+              <div className="absolute inset-0 rounded-full border-4 border-t-[#003049] animate-spin" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="h-8 w-8 text-[#0077b6]" />
+                <Sparkles className="h-8 w-8 text-[#003049]" />
               </div>
             </div>
 
@@ -363,7 +363,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
             {selectedCategory && (
               <p className="mt-1 text-sm text-gray-500">{selectedCategory.category}</p>
             )}
-            <p className="mt-3 min-h-[20px] text-sm font-medium text-[#0077b6] transition-all">
+            <p className="mt-3 min-h-[20px] text-sm font-medium text-[#003049] transition-all">
               {statusText}
             </p>
 
@@ -374,7 +374,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
                 <div
-                  className="h-full rounded-full bg-[#0077b6] transition-all duration-1000 ease-out"
+                  className="h-full rounded-full bg-[#003049] transition-all duration-1000 ease-out"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -409,7 +409,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
                 href={postUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#0077b6] hover:underline"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#003049] hover:underline"
               >
                 View published post
                 <ExternalLink className="h-4 w-4" />
@@ -432,7 +432,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
             </div>
 
             <Button
-              className="mt-8 w-full bg-[#0077b6] text-white hover:bg-[#005f8f]"
+              className="mt-8 w-full bg-[#003049] text-white hover:bg-[#1A4A66]"
               onClick={handleDone}
             >
               Done
@@ -456,7 +456,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
                 Close
               </Button>
               <Button
-                className="flex-1 bg-[#0077b6] text-white hover:bg-[#005f8f]"
+                className="flex-1 bg-[#003049] text-white hover:bg-[#1A4A66]"
                 onClick={() => {
                   setPhase('select');
                   setErrorMessage('');
@@ -492,7 +492,7 @@ function CategoryOption({
       className={cn(
         'w-full rounded-xl border px-4 py-3 text-left transition-all',
         selected
-          ? 'border-[#0077b6] bg-[#0077b6]/5 ring-1 ring-[#0077b6]/30'
+          ? 'border-[#003049] bg-[#003049]/5 ring-1 ring-[#003049]/30'
           : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
       )}
     >
@@ -502,7 +502,7 @@ function CategoryOption({
             <span
               className={cn(
                 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                selected ? 'bg-[#0077b6] text-white' : 'bg-gray-100 text-gray-600'
+                selected ? 'bg-[#003049] text-white' : 'bg-gray-100 text-gray-600'
               )}
             >
               {index}

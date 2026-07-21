@@ -6,6 +6,7 @@ import { getCompanyIntegrationStatus } from '@/lib/company-integration-status';
 import { getUnlockedModuleStatusesForAdmin } from '@/lib/company-module-status';
 import { ClientDashboardShell } from '@/components/client-dashboard/client-dashboard-shell';
 import { ClientDashboardSessionProvider } from '@/components/client-dashboard/client-dashboard-session-provider';
+import { ModuleStatusProvider } from '@/components/client-dashboard/module-status-context';
 
 export default async function ClientDashboardLayout({
   children,
@@ -38,20 +39,27 @@ export default async function ClientDashboardLayout({
       }
     }
 
+    const moduleStatuses =
+      session.user.isImpersonating && session.user.companyId
+        ? (await getCompanyIntegrationStatus(session.user.companyId)).modules
+        : getUnlockedModuleStatusesForAdmin();
+
     return (
       <ClientDashboardSessionProvider session={session}>
-        <ClientDashboardShell
-          companyName={companyName}
-          logoUrl={logoUrl}
-          userName={session.user.name ?? null}
-          userEmail={session.user.email ?? ''}
-          integrationsConfigured={true}
-          moduleStatuses={getUnlockedModuleStatusesForAdmin()}
-          isAppAdmin={true}
-          isImpersonating={session.user.isImpersonating === true}
-        >
-          {children}
-        </ClientDashboardShell>
+        <ModuleStatusProvider moduleStatuses={moduleStatuses}>
+          <ClientDashboardShell
+            companyName={companyName}
+            logoUrl={logoUrl}
+            userName={session.user.name ?? null}
+            userEmail={session.user.email ?? ''}
+            integrationsConfigured={true}
+            moduleStatuses={moduleStatuses}
+            isAppAdmin={true}
+            isImpersonating={session.user.isImpersonating === true}
+          >
+            {children}
+          </ClientDashboardShell>
+        </ModuleStatusProvider>
       </ClientDashboardSessionProvider>
     );
   }
@@ -70,18 +78,20 @@ export default async function ClientDashboardLayout({
 
   return (
     <ClientDashboardSessionProvider session={session}>
-      <ClientDashboardShell
-        companyName={company.name}
-        logoUrl={company.logoUrl}
-        userName={session.user.name ?? null}
-        userEmail={session.user.email ?? ''}
-        integrationsConfigured={integrationsConfigured}
-        moduleStatuses={modules}
-        isAppAdmin={false}
-        isImpersonating={false}
-      >
-        {children}
-      </ClientDashboardShell>
+      <ModuleStatusProvider moduleStatuses={modules}>
+        <ClientDashboardShell
+          companyName={company.name}
+          logoUrl={company.logoUrl}
+          userName={session.user.name ?? null}
+          userEmail={session.user.email ?? ''}
+          integrationsConfigured={integrationsConfigured}
+          moduleStatuses={modules}
+          isAppAdmin={false}
+          isImpersonating={false}
+        >
+          {children}
+        </ClientDashboardShell>
+      </ModuleStatusProvider>
     </ClientDashboardSessionProvider>
   );
 }

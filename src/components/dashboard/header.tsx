@@ -1,34 +1,34 @@
 'use client';
 
 import { useAppSection } from '@/lib/app-section';
+import { EditorialPageHeader } from '@/components/editorial/editorial-layout';
+import { editorialPageShellClass, useEditorialPageShell } from '@/components/outreach/page-body';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   title: string;
   description?: string;
+  eyebrow?: React.ReactNode;
+  actions?: React.ReactNode;
+  className?: string;
 }
 
-export function Header({ title, description }: HeaderProps) {
+export function Header({ title, description, eyebrow, actions, className }: HeaderProps) {
   const { section } = useAppSection();
-  const isOutreach = section === 'outreach';
+  const inShell = useEditorialPageShell();
+  const defaultEyebrow = section === 'dashboard' ? 'Dashboard' : undefined;
 
-  if (isOutreach) {
-    return (
-      <div className="px-8 pb-2 pt-8">
-        <h1 className="text-[28px] font-bold leading-tight text-gray-900">{title}</h1>
-        {description && (
-          <p className="mt-1 text-[15px] text-gray-500">{description}</p>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-16 items-center justify-between border-b bg-white px-6">
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
-        {description && <p className="text-sm text-gray-500">{description}</p>}
-      </div>
-    </div>
+  const header = (
+    <EditorialPageHeader
+      eyebrow={eyebrow ?? defaultEyebrow}
+      title={title}
+      subtitle={description}
+      actions={actions}
+      className={cn('mb-10', className)}
+    />
   );
+
+  if (inShell) return header;
+
+  return <div className={cn(editorialPageShellClass, 'pt-14')}>{header}</div>;
 }

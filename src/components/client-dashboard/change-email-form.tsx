@@ -2,10 +2,12 @@
 
 import { FormEvent, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialField,
+} from '@/app/components';
+import { EditorialSectionHeader, editorialPillButtonClass } from '@/components/editorial/editorial-layout';
 
 export function ChangeEmailForm({ currentEmail }: { currentEmail: string }) {
   const [newEmail, setNewEmail] = useState('');
@@ -57,79 +59,70 @@ export function ChangeEmailForm({ currentEmail }: { currentEmail: string }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Email</CardTitle>
-        <CardDescription>Update the email address you use to sign in.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {success}
-          </div>
-        )}
+    <section>
+      <EditorialSectionHeader title="Email" />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="currentEmail">Current email</Label>
-            <Input id="currentEmail" type="email" value={currentEmail} disabled />
-          </div>
+      {error && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-[var(--red)]">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mt-4 flex items-center gap-2 text-sm text-[#38678A]">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {success}
+        </div>
+      )}
 
-          <div className="space-y-2">
-            <Label htmlFor="newEmail">New email</Label>
-            <Input
-              id="newEmail"
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
+      <form onSubmit={handleSubmit}>
+        <EditorialDefinitionList>
+          <EditorialDefinitionRow label="Current email">
+            <div className="text-[15px] text-[var(--text-muted)]">{currentEmail}</div>
+          </EditorialDefinitionRow>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirmEmail">Confirm new email</Label>
-            <Input
-              id="confirmEmail"
-              type="email"
-              value={confirmEmail}
-              onChange={(e) => setConfirmEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
+          <EditorialDefinitionRow label="New email">
+            <div className="flex flex-wrap gap-8">
+              <EditorialField
+                value={newEmail}
+                onChange={setNewEmail}
+                type="email"
+                placeholder="New email"
+                style={{ flex: 1, minWidth: 200 }}
+              />
+              <EditorialField
+                value={confirmEmail}
+                onChange={setConfirmEmail}
+                type="email"
+                placeholder="Confirm new email"
+                style={{ flex: 1, minWidth: 200 }}
+              />
+            </div>
+          </EditorialDefinitionRow>
 
-          <div className="space-y-2">
-            <Label htmlFor="emailCurrentPassword">Current password</Label>
-            <Input
-              id="emailCurrentPassword"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
-
-          <Button type="submit" disabled={saving}>
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              'Update email'
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          <EditorialDefinitionRow label="Current password" isLast>
+            <div className="flex flex-wrap items-baseline gap-6">
+              <EditorialField
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                type="password"
+                placeholder="••••••••"
+                style={{ flex: 1, minWidth: 200 }}
+              />
+              <button type="submit" disabled={saving} className={editorialPillButtonClass}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Updating…
+                  </>
+                ) : (
+                  'Update email'
+                )}
+              </button>
+            </div>
+          </EditorialDefinitionRow>
+        </EditorialDefinitionList>
+      </form>
+    </section>
   );
 }

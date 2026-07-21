@@ -1,23 +1,20 @@
 'use client';
 
 import { BlogWorkflowEditor } from '@/components/blog/BlogWorkflowEditor';
+import { EditorialPage, EditorialPageHeader } from '@/components/editorial/editorial-layout';
 
 export default function BlogAutomationPage() {
   return (
-    <div>
-      <div className="flex items-start justify-between gap-6 px-8 pb-4 pt-8">
-        <div>
-          <h1 className="text-[28px] font-bold leading-tight text-gray-900">Automation</h1>
-          <p className="mt-1 text-[15px] text-gray-500">
-            Configure schedule, AI prompts, publishing options, and blog categories for automated
-            generation
-          </p>
-        </div>
-      </div>
+    <EditorialPage>
+      <EditorialPageHeader
+        eyebrow="Blog"
+        title="Automation"
+        subtitle="Configure schedule, AI prompts, publishing options, and blog categories for automated generation. Prompts, schedule, and categories are stored per company — leave prompt fields empty to use smart defaults built from your brand config."
+      />
 
-      <div className="px-8 pb-8">
-        <BlogWorkflowEditor />
-      </div>
-    </div>
+      <BlogWorkflowEditor />
+
+      <div className="mt-14 text-xs text-[#B0A88F]">version 0.2</div>
+    </EditorialPage>
   );
 }

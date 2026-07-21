@@ -19,6 +19,13 @@ import { useToast } from '@/components/ui/use-toast';
 import { Header } from '@/components/dashboard/header';
 import { PageBody } from '@/components/outreach/page-body';
 import { useAppSection } from '@/lib/app-section';
+import {
+  EditorialSectionHeader,
+  OutreachActionLink,
+  OutreachListRow,
+  campaignStatusPill,
+  editorialPillButtonClass,
+} from '@/components/cold-email/outreach-ui';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,7 +115,8 @@ export default function CampaignsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const router = useRouter();
-  const { basePath, labels } = useAppSection();
+  const { basePath, labels, section } = useAppSection();
+  const isOutreach = section === 'outreach';
 
   const [selectedCampaign, setSelectedCampaign]   = useState<Campaign | null>(null);
   const [comments, setComments]                   = useState('');
@@ -277,19 +285,30 @@ export default function CampaignsPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  const newCampaignButton = (
+    <Link href={`${basePath}/campaigns/new`} className={editorialPillButtonClass}>
+      + New campaign
+    </Link>
+  );
+
   return (
     <div>
-      <Header title={labels.campaignsTitle} description={labels.campaignsDescription} />
+      <Header
+        title={labels.campaignsTitle}
+        description={labels.campaignsDescription}
+        actions={isOutreach ? newCampaignButton : undefined}
+      />
 
-      <PageBody className="space-y-8">
-        {/* New Campaign */}
-        <div className="flex justify-end">
-          <Button asChild className="bg-[#0077b6] hover:bg-[#005f8f] text-white">
-            <Link href={`${basePath}/campaigns/new`}>
-              <Plus className="mr-2 h-4 w-4" /> New Campaign
-            </Link>
-          </Button>
-        </div>
+      <PageBody>
+        {!isOutreach && (
+          <div className="flex justify-end">
+            <Button asChild className="bg-[#003049] hover:bg-[#1A4A66] text-white">
+              <Link href={`${basePath}/campaigns/new`}>
+                <Plus className="mr-2 h-4 w-4" /> New Campaign
+              </Link>
+            </Button>
+          </div>
+        )}
 
         {isLoading && (
           <div className="space-y-3">
@@ -306,6 +325,43 @@ export default function CampaignsPage() {
         {/* Pending Approvals */}
         {!isLoading && pending.length > 0 && (
           <section className="space-y-4">
+            {isOutreach ? (
+              <>
+                <EditorialSectionHeader
+                  title="Pending Approval"
+                  meta={`${pending.length} campaign${pending.length === 1 ? '' : 's'}`}
+                />
+                {pending.map((campaign) => (
+                  <OutreachListRow
+                    key={campaign.id}
+                    title={campaign.campaignName}
+                    meta={`${campaign.serviceType.replace('_', ' ')} · ${campaign.targetRegion} · ${format(new Date(campaign.createdAt), 'MMM dd, yyyy')}`}
+                    actions={
+                      <>
+                        <OutreachActionLink onClick={() => openReview(campaign)}>
+                          Review
+                        </OutreachActionLink>
+                        <OutreachActionLink
+                          variant="muted"
+                          onClick={() => handleQuickReject(campaign.id, campaign.campaignName)}
+                        >
+                          Reject
+                        </OutreachActionLink>
+                        <OutreachActionLink
+                          variant="muted"
+                          disabled={deletingId === campaign.id}
+                          onClick={() => handleDelete(campaign.id, campaign.campaignName)}
+                        >
+                          Delete
+                        </OutreachActionLink>
+                      </>
+                    }
+                    status={campaignStatusPill(campaign.status)}
+                  />
+                ))}
+              </>
+            ) : (
+              <>
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-amber-500" />
               <h2 className="text-lg font-semibold text-gray-900">
@@ -348,7 +404,7 @@ export default function CampaignsPage() {
 
                     <div className="flex gap-2">
                       <Button
-                        className="flex-1 bg-[#0077b6] hover:bg-[#005f8f] text-white"
+                        className="flex-1 bg-[#003049] hover:bg-[#1A4A66] text-white"
                         onClick={() => openReview(campaign)}
                       >
                         <Eye className="mr-2 h-4 w-4" /> Review &amp; Approve
@@ -379,12 +435,56 @@ export default function CampaignsPage() {
                 </Card>
               ))}
             </div>
+              </>
+            )}
           </section>
         )}
 
         {/* Campaign History */}
         {!isLoading && (
           <section className="space-y-4">
+            {isOutreach ? (
+              <>
+                <EditorialSectionHeader
+                  title="Campaign History"
+                  meta={`${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}`}
+                />
+                {campaigns.length === 0 ? (
+                  <div className="border-t border-[var(--border)] py-16 text-center text-[var(--text-muted)]">
+                    <Mail className="mx-auto mb-3 h-12 w-12 opacity-30" />
+                    <p className="text-lg font-medium">No campaigns yet</p>
+                    <p className="text-sm">Create your first campaign to get started</p>
+                  </div>
+                ) : (
+                  completed.map((campaign) => (
+                    <OutreachListRow
+                      key={campaign.id}
+                      title={campaign.campaignName}
+                      meta={`${campaign.serviceType.replace('_', ' ')} · ${campaign.targetRegion} · ${format(new Date(campaign.createdAt), 'MMM dd, yyyy')}`}
+                      actions={
+                        <>
+                          <OutreachActionLink
+                            disabled={reusingId === campaign.id}
+                            onClick={() => handleReuse(campaign.id)}
+                          >
+                            Reuse
+                          </OutreachActionLink>
+                          <OutreachActionLink
+                            variant="muted"
+                            disabled={deletingId === campaign.id}
+                            onClick={() => handleDelete(campaign.id, campaign.campaignName)}
+                          >
+                            Delete
+                          </OutreachActionLink>
+                        </>
+                      }
+                      status={campaignStatusPill(campaign.status)}
+                    />
+                  ))
+                )}
+              </>
+            ) : (
+              <>
             <h2 className="text-lg font-semibold text-gray-900">Campaign History</h2>
 
             {campaigns.length === 0 && (
@@ -425,7 +525,7 @@ export default function CampaignsPage() {
                           title="Reuse this campaign"
                           disabled={reusingId === campaign.id}
                           onClick={() => handleReuse(campaign.id)}
-                          className="text-[#0077b6] border-[#0077b6]/30 hover:bg-[#0077b6]/5 gap-1.5"
+                          className="text-[#003049] border-[#003049]/30 hover:bg-[#003049]/5 gap-1.5"
                         >
                           <Copy className="h-3.5 w-3.5" />
                           Reuse
@@ -449,6 +549,8 @@ export default function CampaignsPage() {
                 </Card>
               ))}
             </div>
+              </>
+            )}
           </section>
         )}
       </PageBody>
@@ -501,7 +603,7 @@ export default function CampaignsPage() {
                 {selectedCampaign.aiGeneratedContent ? (
                   <div className="rounded-xl border overflow-hidden">
                     {/* Email header — subject + preview */}
-                    <div className="bg-[#0077b6] px-5 py-4">
+                    <div className="bg-[#003049] px-5 py-4">
                       <p className="text-[11px] text-blue-200 uppercase tracking-wider mb-1">Subject Line</p>
                       <p className="text-white font-semibold text-sm leading-snug">
                         {selectedCampaign.aiGeneratedContent.subject_line ?? '—'}
@@ -578,22 +680,22 @@ export default function CampaignsPage() {
             <div className="flex flex-col items-center justify-center px-6 py-14 text-center space-y-6">
               {/* Animated ring */}
               <div className="relative h-20 w-20">
-                <div className="absolute inset-0 rounded-full border-4 border-[#0077b6]/20" />
-                <div className="absolute inset-0 rounded-full border-4 border-t-[#0077b6] animate-spin" />
+                <div className="absolute inset-0 rounded-full border-4 border-[#003049]/20" />
+                <div className="absolute inset-0 rounded-full border-4 border-t-[#003049] animate-spin" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Send className="h-7 w-7 text-[#0077b6]" />
+                  <Send className="h-7 w-7 text-[#003049]" />
                 </div>
               </div>
 
               <div>
                 <h3 className="text-base font-semibold text-gray-900">Pushing to Instantly.ai...</h3>
-                <p className="text-sm text-[#0077b6] mt-1 min-h-[20px]">{currentStep.text}</p>
+                <p className="text-sm text-[#003049] mt-1 min-h-[20px]">{currentStep.text}</p>
               </div>
 
               {/* Progress bar */}
               <div className="w-full max-w-xs bg-gray-100 rounded-full h-2">
                 <div
-                  className="bg-[#0077b6] h-2 rounded-full transition-all duration-1000"
+                  className="bg-[#003049] h-2 rounded-full transition-all duration-1000"
                   style={{ width: `${Math.min((elapsed / 70) * 100, 95)}%` }}
                 />
               </div>
@@ -667,7 +769,7 @@ export default function CampaignsPage() {
               )}
 
               <Button
-                className="w-full bg-[#0077b6] hover:bg-[#005f8f] text-white"
+                className="w-full bg-[#003049] hover:bg-[#1A4A66] text-white"
                 onClick={closeDialog}
               >
                 Done
@@ -704,7 +806,7 @@ export default function CampaignsPage() {
                   <RotateCcw className="mr-2 h-4 w-4" /> Try Again
                 </Button>
                 <Button
-                  className="flex-1 bg-[#0077b6] hover:bg-[#005f8f] text-white"
+                  className="flex-1 bg-[#003049] hover:bg-[#1A4A66] text-white"
                   onClick={closeDialog}
                 >
                   Close

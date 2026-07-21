@@ -1,13 +1,47 @@
 import type { IntegrationCredentials } from '@/lib/company-integrations';
 import { rowToCredentials } from '@/lib/company-integrations';
 import type { ApiTokenSecretsMap } from '@/lib/api-token-secrets';
+import { DEFAULT_MAINTENANCE_MESSAGE } from '@/lib/company-module-access';
 
-export type ModuleId = 'meta' | 'social' | 'newsletter' | 'outreach' | 'blog';
+export type ModuleId =
+  | 'meta'
+  | 'social'
+  | 'newsletter'
+  | 'outreach'
+  | 'blog'
+  | 'coldDm'
+  | 'coldCall'
+  | 'coldSms';
+
+export const MODULE_IDS: ModuleId[] = [
+  'meta',
+  'social',
+  'outreach',
+  'coldDm',
+  'coldCall',
+  'coldSms',
+  'newsletter',
+  'blog',
+];
+
+export const MODULE_LABELS: Record<ModuleId, string> = {
+  meta: 'Meta Ads',
+  social: 'Social Channels',
+  newsletter: 'Newsletter',
+  outreach: 'Cold Email',
+  blog: 'Blog',
+  coldDm: 'Cold DM',
+  coldCall: 'Cold Call',
+  coldSms: 'Cold SMS',
+};
 
 export type ModuleStatus = {
   id: ModuleId;
   label: string;
   configured: boolean;
+  enabled: boolean;
+  accessible: boolean;
+  maintenanceMessage: string;
   requiredKeys: string[];
   missingKeys: string[];
 };
@@ -65,20 +99,38 @@ export function getModuleStatuses(
     {
       id: 'social',
       label: 'Social Channels',
-      keys: ['ElevenLabs API key', 'OpenAI/KIE/Upload Post in API key management', 'Social settings in Overview'],
+      keys: ['ElevenLabs API key', 'OpenAI/KIE/Upload Post in API Keys', 'Social settings in Overview'],
       ok: socialConfigured(creds, apiSecrets),
-    },
-    {
-      id: 'newsletter',
-      label: 'Newsletter',
-      keys: ['OpenAI API key', 'Resend API key'],
-      ok: newsletterConfigured(creds, apiSecrets),
     },
     {
       id: 'outreach',
       label: 'Cold Email',
       keys: ['OpenAI API key', 'Instantly.ai API key', 'Apify API key', 'Million Verifier API key', 'Instantly campaign ID in Settings'],
       ok: outreachConfigured(creds, apiSecrets),
+    },
+    {
+      id: 'coldDm',
+      label: 'Cold DM',
+      keys: [],
+      ok: true,
+    },
+    {
+      id: 'coldCall',
+      label: 'Cold Call',
+      keys: [],
+      ok: true,
+    },
+    {
+      id: 'coldSms',
+      label: 'Cold SMS',
+      keys: [],
+      ok: true,
+    },
+    {
+      id: 'newsletter',
+      label: 'Newsletter',
+      keys: ['OpenAI API key', 'Resend API key'],
+      ok: newsletterConfigured(creds, apiSecrets),
     },
     {
       id: 'blog',
@@ -92,6 +144,9 @@ export function getModuleStatuses(
     id: m.id,
     label: m.label,
     configured: m.ok,
+    enabled: true,
+    accessible: m.ok,
+    maintenanceMessage: DEFAULT_MAINTENANCE_MESSAGE,
     requiredKeys: m.keys,
     missingKeys: m.ok ? [] : m.keys,
   }));
@@ -117,13 +172,15 @@ export function getUnlockedModuleStatusesForAdmin(): ModuleStatus[] {
   return getModuleStatuses(rowToCredentials(null)).map((m) => ({
     ...m,
     configured: true,
+    enabled: true,
+    accessible: true,
     missingKeys: [],
+    maintenanceMessage: DEFAULT_MAINTENANCE_MESSAGE,
   }));
 }
 
 export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
   meta: new Set([
-    'analysis',
     'overview',
     'create',
     'variants',
@@ -133,15 +190,6 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
     'reports',
   ]),
   social: new Set(['social-overview', 'social-creator-studio', 'social-dash']),
-  newsletter: new Set([
-    'newsletter-dashboard',
-    'newsletter-overview',
-    'newsletter-generate',
-    'newsletter-campaign',
-    'newsletter-subscribers',
-    'newsletter-history',
-    'newsletter-services',
-  ]),
   outreach: new Set([
     'outreach-dashboard',
     'outreach-campaigns',
@@ -150,9 +198,18 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
     'outreach-scraper-history',
     'outreach-cleanup',
     'outreach-settings',
-    'cold-dm',
-    'cold-call',
-    'cold-sms',
+  ]),
+  coldDm: new Set(['cold-dm']),
+  coldCall: new Set(['cold-call']),
+  coldSms: new Set(['cold-sms']),
+  newsletter: new Set([
+    'newsletter-dashboard',
+    'newsletter-overview',
+    'newsletter-generate',
+    'newsletter-campaign',
+    'newsletter-subscribers',
+    'newsletter-history',
+    'newsletter-services',
   ]),
   blog: new Set(['blog-post', 'blog-automation']),
 };

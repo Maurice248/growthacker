@@ -8,14 +8,16 @@ interface CustomSelectProps {
   onChange: (v: string) => void;
   options: Option[];
   style?: React.CSSProperties;
+  variant?: "default" | "editorial";
 }
 
-export default function CustomSelect({ value, onChange, options, style }: CustomSelectProps) {
+export default function CustomSelect({ value, onChange, options, style, variant = "default" }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0, openUp: false });
 
   const selectedLabel = options.find(o => o.value === value)?.label || value;
+  const isEditorial = variant === "editorial";
 
   const openDropdown = () => {
     if (!triggerRef.current) return;
@@ -58,12 +60,13 @@ export default function CustomSelect({ value, onChange, options, style }: Custom
         onClick={() => open ? setOpen(false) : openDropdown()}
         style={{
           width: "100%",
-          padding: "10px 32px 10px 12px",
-          borderRadius: 10,
-          border: open ? "1.5px solid #93c5fd" : "1.5px solid #e2e8f0",
-          background: open ? "#fff" : "#f8fafc",
-          color: "#0f172a",
-          fontSize: 13,
+          padding: isEditorial ? "10px 24px 10px 0" : "10px 32px 10px 12px",
+          borderRadius: isEditorial ? 0 : 10,
+          border: isEditorial ? "none" : open ? "1.5px solid #669BBC" : "1.5px solid #E8DCC2",
+          borderBottom: isEditorial ? "1px solid #C2B79A" : undefined,
+          background: isEditorial ? "transparent" : open ? "#fff" : "#FDF6E3",
+          color: "#003049",
+          fontSize: isEditorial ? 15 : 13,
           fontWeight: 500,
           fontFamily: "inherit",
           textAlign: "left",
@@ -71,7 +74,7 @@ export default function CustomSelect({ value, onChange, options, style }: Custom
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          boxShadow: open ? "0 0 0 3px rgba(37,99,235,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
+          boxShadow: isEditorial ? "none" : open ? "0 0 0 3px rgba(0,48,73,0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
           transition: "border-color 0.15s, box-shadow 0.15s",
           boxSizing: "border-box",
           position: "relative",
@@ -83,7 +86,7 @@ export default function CustomSelect({ value, onChange, options, style }: Custom
         </span>
         <svg
           width="12" height="12" viewBox="0 0 24 24" fill="none"
-          stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          stroke="#9FA8A3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           style={{ flexShrink: 0, marginLeft: 6, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
         >
           <polyline points="6 9 12 15 18 9" />
@@ -107,7 +110,7 @@ export default function CustomSelect({ value, onChange, options, style }: Custom
               zIndex: 9999,
               background: "#fff",
               borderRadius: 12,
-              border: "1.5px solid #e2e8f0",
+              border: "1.5px solid #E8DCC2",
               boxShadow: "0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
               overflow: "hidden",
               maxHeight: 220,
@@ -122,14 +125,14 @@ export default function CustomSelect({ value, onChange, options, style }: Custom
                   padding: "11px 14px",
                   fontSize: 13,
                   fontWeight: opt.value === value ? 700 : 500,
-                  color: opt.value === value ? "#1d4ed8" : "#0f172a",
-                  background: opt.value === value ? "#eff6ff" : "transparent",
+                  color: opt.value === value ? "#1A4A66" : "#003049",
+                  background: opt.value === value ? "#E7F0F6" : "transparent",
                   cursor: "pointer",
-                  borderBottom: "1px solid #f1f5f9",
+                  borderBottom: "1px solid #FDF0D5",
                   transition: "background 0.1s",
                   userSelect: "none",
                 }}
-                onMouseEnter={e => { if (opt.value !== value) (e.target as HTMLElement).style.background = "#f8fafc"; }}
+                onMouseEnter={e => { if (opt.value !== value) (e.target as HTMLElement).style.background = "#FDF6E3"; }}
                 onMouseLeave={e => { if (opt.value !== value) (e.target as HTMLElement).style.background = "transparent"; }}
               >
                 {opt.label}

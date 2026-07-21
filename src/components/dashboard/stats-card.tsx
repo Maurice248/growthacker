@@ -1,7 +1,5 @@
 import { LucideIcon } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { outreachCardClass } from '@/components/outreach/page-body';
 
 interface StatsCardProps {
   title: string;
@@ -22,55 +20,32 @@ export function StatsCard({
   trend,
   className,
   iconClassName,
-  variant = 'dashboard',
 }: StatsCardProps) {
-  const isOutreach = variant === 'outreach';
+  void Icon;
+  void iconClassName;
 
   return (
-    <Card
+    <div
       className={cn(
-        isOutreach ? outreachCardClass : 'hover:shadow-md transition-shadow',
+        'border-r border-[var(--border)] py-6 pr-6 last:border-r-0',
         className
       )}
     >
-      <CardHeader
-        className={cn(
-          'flex flex-row items-start justify-between space-y-0',
-          isOutreach ? 'p-5 pb-2' : 'pb-2'
-        )}
-      >
-        <CardTitle
+      <div className="text-xs uppercase tracking-[0.08em] text-[var(--text-muted)]">{title}</div>
+      <div className="mt-2 font-[family-name:var(--font-display)] text-[34px] font-bold leading-none text-[var(--primary)]">
+        {value}
+      </div>
+      {subtitle && <p className="mt-2 text-[12.5px] text-[var(--text-muted)]">{subtitle}</p>}
+      {trend && (
+        <p
           className={cn(
-            'font-medium leading-snug text-gray-600',
-            isOutreach ? 'text-[13px]' : 'text-sm'
+            'mt-1 text-xs font-medium',
+            trend.positive ? 'text-green-700' : 'text-[var(--red)]'
           )}
         >
-          {title}
-        </CardTitle>
-        <div className={cn('rounded-lg bg-[#0077b6]/10 p-2', iconClassName)}>
-          <Icon className="h-5 w-5 text-[#0077b6]" />
-        </div>
-      </CardHeader>
-      <CardContent className={cn(isOutreach && 'px-5 pb-5 pt-0')}>
-        <div className={cn('font-bold text-gray-900', isOutreach ? 'text-[32px]' : 'text-3xl')}>
-          {value}
-        </div>
-        {subtitle && (
-          <p className={cn('mt-1 text-gray-500', isOutreach ? 'text-[13px]' : 'text-xs')}>
-            {subtitle}
-          </p>
-        )}
-        {trend && (
-          <p
-            className={cn(
-              'mt-1 text-xs font-medium',
-              trend.positive ? 'text-green-600' : 'text-red-600'
-            )}
-          >
-            {trend.positive ? '↑' : '↓'} {Math.abs(trend.value)}% from last month
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          {trend.positive ? '↑' : '↓'} {Math.abs(trend.value)}% from last month
+        </p>
+      )}
+    </div>
   );
 }

@@ -31,10 +31,13 @@ export type ClientNavItem = {
 
 export const CLIENT_BRAND_CONTEXT_TAB_ID = 'profile';
 
-export const CLIENT_TOP_TABS: ClientNavItem[] = [
+export const CLIENT_CONFIGURATION_TABS: ClientNavItem[] = [
   { id: CLIENT_BRAND_CONTEXT_TAB_ID, label: 'Brand Context', icon: User },
-  { id: 'analysis', label: 'Ads Lab', icon: BarChart3 },
+  { id: 'analysis', label: 'Competitors', icon: BarChart3 },
 ];
+
+/** @deprecated Use CLIENT_CONFIGURATION_TABS */
+export const CLIENT_TOP_TABS = CLIENT_CONFIGURATION_TABS;
 
 export const CLIENT_META_ADS_TABS: ClientNavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -89,14 +92,15 @@ export const CLIENT_SOCIAL_IDS = new Set(CLIENT_SOCIAL_TABS.map((t) => t.id));
 export const CLIENT_NEWSLETTER_IDS = new Set(CLIENT_NEWSLETTER_TABS.map((t) => t.id));
 export const CLIENT_OUTREACH_IDS = new Set(CLIENT_OUTREACH_TABS.map((t) => t.id));
 export const CLIENT_BLOG_IDS = new Set(CLIENT_BLOG_TABS.map((t) => t.id));
+export const CLIENT_CONFIGURATION_IDS = new Set(CLIENT_CONFIGURATION_TABS.map((t) => t.id));
 
 export const CLIENT_ALL_TAB_IDS = new Set([
-  ...CLIENT_TOP_TABS.map((t) => t.id),
+  ...CLIENT_CONFIGURATION_TABS.map((t) => t.id),
   ...CLIENT_META_ADS_TABS.map((t) => t.id),
   ...CLIENT_SOCIAL_TABS.map((t) => t.id),
-  ...CLIENT_NEWSLETTER_TABS.map((t) => t.id),
   ...CLIENT_OUTREACH_TABS.map((t) => t.id),
   ...CLIENT_OUTREACH_FUTURE_TABS.map((t) => t.id),
+  ...CLIENT_NEWSLETTER_TABS.map((t) => t.id),
   ...CLIENT_BLOG_TABS.map((t) => t.id),
 ]);
 
@@ -139,6 +143,33 @@ const BLOG_PATHS: Record<string, string> = {
   'blog-automation': '/blog/automation',
 };
 
+const EMBED_SECTION_PATHS: Record<string, string> = {
+  ...OUTREACH_PATHS,
+  ...NEWSLETTER_PATHS,
+  ...BLOG_PATHS,
+};
+
+const EMBED_PATH_TO_TAB: Record<string, string> = Object.fromEntries(
+  Object.entries(EMBED_SECTION_PATHS).map(([tabId, path]) => [path, tabId])
+);
+
+export function clientTabIdFromEmbedPath(pathname: string): string | null {
+  const normalized = pathname.replace(/\/$/, '') || '/';
+  return EMBED_PATH_TO_TAB[normalized] ?? null;
+}
+
+/** Tell the parent shell to switch sidebar tab when navigating inside an embed iframe. */
+export function notifyParentEmbedNavigate(pathname: string): boolean {
+  if (typeof window === 'undefined' || window.parent === window) return false;
+  const tabId = clientTabIdFromEmbedPath(pathname);
+  if (!tabId) return false;
+  window.parent.postMessage(
+    { type: CLIENT_DASHBOARD_NAVIGATE_EVENT, tabId },
+    window.location.origin
+  );
+  return true;
+}
+
 const MAIN_APP_TABS = new Set([
   'profile',
   'analysis',
@@ -171,12 +202,12 @@ export function clientTabEmbedSrc(tabId: string): string | null {
 
 export function clientTabLabel(tabId: string): string {
   const all = [
-    ...CLIENT_TOP_TABS,
+    ...CLIENT_CONFIGURATION_TABS,
     ...CLIENT_META_ADS_TABS,
     ...CLIENT_SOCIAL_TABS,
-    ...CLIENT_NEWSLETTER_TABS,
     ...CLIENT_OUTREACH_TABS,
     ...CLIENT_OUTREACH_FUTURE_TABS,
+    ...CLIENT_NEWSLETTER_TABS,
     ...CLIENT_BLOG_TABS,
   ];
   return all.find((t) => t.id === tabId)?.label ?? tabId;

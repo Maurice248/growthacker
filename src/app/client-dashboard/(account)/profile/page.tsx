@@ -3,12 +3,13 @@ import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions, isCompanyAdminRole } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { Mail } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { CompanyProfileForm } from '@/components/client-dashboard/company-profile-form';
-import { AccountPage } from '@/components/client-dashboard/account-page';
+import {
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialStatusPill,
+} from '@/app/components';
+import { EditorialSectionHeader } from '@/components/editorial/editorial-layout';
 
 function formatDate(date: Date) {
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -58,43 +59,52 @@ export default async function ClientProfilePage() {
   const isAdmin = isCompanyAdminRole(user.role);
 
   return (
-    <AccountPage title="Profile" description="Your account and company details.">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Account</CardTitle>
-          <CardDescription>Personal information for your login.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-[var(--primary-mid)] bg-[var(--primary-light)] text-lg font-bold text-[var(--primary)]">
-              {initials(displayName)}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-lg font-semibold text-[var(--text)]">{displayName}</p>
-              <Badge variant="outline" className="mt-1">
-                {roleLabel(user.role)}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 space-y-2">
-                <div className="flex items-center gap-2 text-sm text-[var(--text-body)]">
-                  <Mail className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-                  <span className="truncate">{user.email}</span>
-                </div>
-                <p className="text-xs text-[var(--text-muted)]">Member since {formatDate(user.createdAt)}</p>
+    <>
+      <section>
+        <div className="pb-3.5 pt-7 text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--red)]">
+          Account
+        </div>
+        <EditorialDefinitionList>
+          <EditorialDefinitionRow label="Identity">
+            <div className="flex items-center gap-4">
+              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--primary)] font-[family-name:var(--font-display)] text-[17px] font-bold text-[#FAEDCD]">
+                {initials(displayName)}
               </div>
-              <Button asChild variant="outline" size="sm" className="shrink-0">
-                <Link href="/client-dashboard/security">Change Credentials</Link>
-              </Button>
+              <div>
+                <div className="font-[family-name:var(--font-display)] text-[17px] font-bold text-[var(--primary)]">
+                  {displayName}
+                </div>
+                <div className="mt-1">
+                  <EditorialStatusPill variant={isAdmin ? 'danger' : 'neutral'}>
+                    {roleLabel(user.role)}
+                  </EditorialStatusPill>
+                </div>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </EditorialDefinitionRow>
+          <EditorialDefinitionRow label="Login" isLast>
+            <div className="flex flex-wrap items-baseline gap-4">
+              <div className="min-w-[240px] flex-1">
+                <div className="text-[15px] text-[var(--text)]">{user.email}</div>
+                <div className="mt-1 text-[13px] text-[var(--text-muted)]">
+                  Member since {formatDate(user.createdAt)}
+                </div>
+              </div>
+              <Link
+                href="/client-dashboard/security"
+                className="text-sm font-bold text-[var(--primary)] underline decoration-[#C2B79A] underline-offset-4 transition-colors hover:text-[var(--red)] hover:decoration-[var(--red)]"
+              >
+                Change credentials
+              </Link>
+            </div>
+          </EditorialDefinitionRow>
+        </EditorialDefinitionList>
+      </section>
 
-      <CompanyProfileForm readOnly={!isAdmin} />
-    </AccountPage>
+      <section className="mt-10">
+        <EditorialSectionHeader title="Company" meta="Name and logo for the dashboard" />
+        <CompanyProfileForm readOnly={!isAdmin} />
+      </section>
+    </>
   );
 }

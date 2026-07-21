@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { notifyParentEmbedNavigate } from '@/lib/client-dashboard-nav';
 import { HideNextDevIndicator } from '@/components/HideNextDevIndicator';
 
 export function BlogShell({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,8 @@ export function BlogShell({ children }: { children: React.ReactNode }) {
 
       event.preventDefault();
       const url = new URL(href, window.location.origin);
+      if (notifyParentEmbedNavigate(url.pathname)) return;
+
       url.searchParams.set('embed', '1');
       window.location.assign(`${url.pathname}${url.search}${url.hash}`);
     };
@@ -27,8 +30,8 @@ export function BlogShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <HideNextDevIndicator />
-      <div className="min-h-screen bg-[#f8f9fa]">
-        <main>{children}</main>
+      <div className="min-h-screen bg-[var(--background)]">
+        <main className="editorial-shell-main">{children}</main>
       </div>
     </>
   );

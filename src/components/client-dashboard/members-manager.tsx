@@ -1,34 +1,15 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { AlertCircle, CheckCircle2, Copy, Loader2 } from 'lucide-react';
 import {
-  AlertCircle,
-  CheckCircle2,
-  Copy,
-  Loader2,
-  Trash2,
-  UserPlus,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialField,
+  EditorialStatusPill,
+} from '@/app/components';
+import { EditorialSectionHeader, editorialPillButtonClass } from '@/components/editorial/editorial-layout';
+import { OutreachSelect } from '@/components/cold-email/outreach-ui';
 
 type Member = {
   id: string;
@@ -210,218 +191,179 @@ export function MembersManager({ currentUserId }: MembersManagerProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-[var(--text-muted)]">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading team...
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center gap-2 py-12 text-sm text-[var(--text-muted)]">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading team…
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div>
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-4 flex items-center gap-2 text-sm text-[var(--red)]">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <div className="mb-4 flex items-center gap-2 text-sm text-[#38678A]">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {success}
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <UserPlus className="h-5 w-5" />
-            Invite member
-          </CardTitle>
-          <CardDescription>
-            Create a shareable invite link. The link expires in 7 days.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreateInvite} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-              <div className="space-y-2">
-                <Label htmlFor="inviteEmail">Email address</Label>
-                <Input
-                  id="inviteEmail"
-                  type="email"
+      <section>
+        <EditorialSectionHeader title="Invite Member" meta="Invite link expires in 7 days" />
+        <form onSubmit={handleCreateInvite}>
+          <EditorialDefinitionList>
+            <EditorialDefinitionRow label="Email & role" isLast>
+              <div className="flex flex-wrap items-baseline gap-6">
+                <EditorialField
                   value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
+                  onChange={setInviteEmail}
+                  type="email"
                   placeholder="teammate@company.com"
-                  required
+                  style={{ flex: 1.6, minWidth: 220 }}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <Select
+                <OutreachSelect
                   value={inviteRole}
-                  onValueChange={(v) => setInviteRole(v as 'COMPANY_MEMBER' | 'COMPANY_ADMIN')}
-                >
-                  <SelectTrigger className="w-full sm:w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="COMPANY_MEMBER">Member</SelectItem>
-                    <SelectItem value="COMPANY_ADMIN">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => setInviteRole(v as 'COMPANY_MEMBER' | 'COMPANY_ADMIN')}
+                  options={[
+                    { value: 'COMPANY_MEMBER', label: 'Member' },
+                    { value: 'COMPANY_ADMIN', label: 'Admin' },
+                  ]}
+                  className="min-w-[110px] flex-[0.6]"
+                />
+                <button type="submit" disabled={creatingInvite} className={editorialPillButtonClass}>
+                  {creatingInvite ? 'Creating…' : 'Generate invite link'}
+                </button>
               </div>
-            </div>
+            </EditorialDefinitionRow>
+          </EditorialDefinitionList>
+        </form>
 
-            <Button type="submit" disabled={creatingInvite}>
-              {creatingInvite ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Generate invite link'
-              )}
-            </Button>
-          </form>
-
-          {inviteUrl && (
-            <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-              <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">Share this link</p>
-              <div className="flex gap-2">
-                <Input readOnly value={inviteUrl} className="font-mono text-xs" />
-                <Button type="button" variant="outline" size="icon" onClick={copyInviteUrl}>
-                  {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {inviteUrl && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-4">
+            <EditorialField value={inviteUrl} disabled style={{ flex: 1, minWidth: 240, fontSize: 13 }} />
+            <button
+              type="button"
+              onClick={copyInviteUrl}
+              className="text-sm font-bold text-[var(--primary)] underline decoration-[#C2B79A] underline-offset-4 hover:text-[var(--red)] hover:decoration-[var(--red)]"
+            >
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+          </div>
+        )}
+      </section>
 
       {invites.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Pending invites</CardTitle>
-            <CardDescription>Invites that haven&apos;t been accepted yet.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead className="w-[80px]" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invites.map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell className="font-medium">{inv.email}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{roleLabel(inv.role)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-[var(--text-muted)]">{formatDate(inv.expiresAt)}</TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={actionId === inv.id}
-                        onClick={() => handleRevokeInvite(inv.id)}
-                        title="Revoke invite"
-                      >
-                        {actionId === inv.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        )}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <section className="mt-10">
+          <EditorialSectionHeader
+            title="Pending Invites"
+            meta={`${invites.length} pending`}
+          />
+          <div
+            className="grid gap-5 px-0 py-3 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]"
+            style={{ gridTemplateColumns: 'minmax(0,1.1fr) auto auto auto' }}
+          >
+            <div>Email</div>
+            <div>Role</div>
+            <div>Expires</div>
+            <div />
+          </div>
+          {invites.map((inv) => (
+            <div
+              key={inv.id}
+              className="grid items-center gap-5 border-t border-[var(--border)] py-4"
+              style={{ gridTemplateColumns: 'minmax(0,1.1fr) auto auto auto' }}
+            >
+              <div className="truncate text-sm font-bold text-[var(--primary)]">{inv.email}</div>
+              <EditorialStatusPill variant="neutral">{roleLabel(inv.role)}</EditorialStatusPill>
+              <div className="text-[13px] text-[var(--text-muted)]">{formatDate(inv.expiresAt)}</div>
+              <button
+                type="button"
+                disabled={actionId === inv.id}
+                onClick={() => handleRevokeInvite(inv.id)}
+                className="text-[13px] text-[var(--text-muted)] hover:text-[var(--red)] disabled:opacity-50"
+              >
+                {actionId === inv.id ? 'Revoking…' : 'Revoke'}
+              </button>
+            </div>
+          ))}
+        </section>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Team members</CardTitle>
-          <CardDescription>People who have access to this company workspace.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Joined</TableHead>
-                <TableHead className="w-[80px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => {
-                const isSelf = member.id === currentUserId;
-                return (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">
-                      {member.name || member.email.split('@')[0]}
-                      {isSelf && (
-                        <span className="ml-2 text-xs text-[var(--text-muted)]">(you)</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{member.email}</TableCell>
-                    <TableCell>
-                      {isSelf ? (
-                        <Badge variant="outline">{roleLabel(member.role)}</Badge>
-                      ) : (
-                        <Select
-                          value={member.role === 'COMPANY_ADMIN' ? 'COMPANY_ADMIN' : 'COMPANY_MEMBER'}
-                          onValueChange={(v) => handleRoleChange(member.id, v)}
-                          disabled={actionId === member.id}
-                        >
-                          <SelectTrigger className="h-8 w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="COMPANY_MEMBER">Member</SelectItem>
-                            <SelectItem value="COMPANY_ADMIN">Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-[var(--text-muted)]">{formatDate(member.createdAt)}</TableCell>
-                    <TableCell>
-                      {!isSelf && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={actionId === member.id}
-                          onClick={() => handleRemoveMember(member.id)}
-                          title="Remove member"
-                        >
-                          {actionId === member.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          )}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <section className="mt-10">
+        <EditorialSectionHeader
+          title="Team Members"
+          meta={`${members.length} ${members.length === 1 ? 'person' : 'people'}`}
+        />
+
+        <div
+          className="grid gap-5 px-0 py-3 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]"
+          style={{
+            gridTemplateColumns: 'minmax(0,1.1fr) minmax(0,1.3fr) auto auto auto',
+          }}
+        >
+          <div>Name</div>
+          <div>Email</div>
+          <div>Role</div>
+          <div>Joined</div>
+          <div />
+        </div>
+
+        {members.map((member, index) => {
+          const isSelf = member.id === currentUserId;
+          const displayName = member.name || member.email.split('@')[0];
+          const isLast = index === members.length - 1;
+
+          return (
+            <div
+              key={member.id}
+              className={`grid items-center gap-5 border-t border-[var(--border)] py-[18px] ${isLast ? 'border-b' : ''}`}
+              style={{
+                gridTemplateColumns: 'minmax(0,1.1fr) minmax(0,1.3fr) auto auto auto',
+              }}
+            >
+              <div className="text-[15px] font-bold text-[var(--primary)]">
+                {displayName}
+                {isSelf && <span className="ml-2 text-[12.5px] font-normal text-[var(--text-muted)]">(you)</span>}
+              </div>
+              <div className="truncate text-sm text-[#4A5A64]">{member.email}</div>
+              <div>
+                {isSelf ? (
+                  <EditorialStatusPill variant="danger">{roleLabel(member.role)}</EditorialStatusPill>
+                ) : (
+                  <OutreachSelect
+                    value={member.role === 'COMPANY_ADMIN' ? 'COMPANY_ADMIN' : 'COMPANY_MEMBER'}
+                    onChange={(v) => handleRoleChange(member.id, v)}
+                    disabled={actionId === member.id}
+                    options={[
+                      { value: 'COMPANY_MEMBER', label: 'Member' },
+                      { value: 'COMPANY_ADMIN', label: 'Admin' },
+                    ]}
+                    className="min-w-[110px]"
+                  />
+                )}
+              </div>
+              <div className="text-[13px] text-[var(--text-muted)]">{formatDate(member.createdAt)}</div>
+              <div>
+                {!isSelf && (
+                  <button
+                    type="button"
+                    disabled={actionId === member.id}
+                    onClick={() => handleRemoveMember(member.id)}
+                    className="text-[13px] text-[var(--text-muted)] hover:text-[var(--red)] disabled:opacity-50"
+                  >
+                    {actionId === member.id ? 'Removing…' : 'Remove'}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </section>
     </div>
   );
 }

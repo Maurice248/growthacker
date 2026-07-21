@@ -4,27 +4,27 @@ import React, { useState, useEffect, useRef } from 'react';
 import CustomSelect from './CustomSelect';
 import { createPortal } from 'react-dom';
 import {
-  Clapperboard,
   Image as ImageIcon,
-  Share2,
-  Play,
-  Zap,
-  Settings,
   Loader2,
   CheckCircle2,
   Activity,
   MessageSquare,
   RefreshCw,
-  Tag,
-  Monitor,
-  User,
-  Mic2,
-  Music,
-  Clock,
-  Sparkles
 } from 'lucide-react';
 
-import { Badge, Spinner } from './components';
+import {
+  Spinner,
+  EditorialPage,
+  EditorialPageHeader,
+  EditorialSectionHeader,
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialField,
+  EditorialPillButton,
+  EditorialTextLink,
+  EditorialTabBar,
+  EditorialStatusPill,
+} from './components';
 import {
   acceptStory,
   fetchJobStatus,
@@ -59,8 +59,8 @@ const VOICE_OPTIONS = {
   ]
 };
 
-const medicalBlue = "#0284c7";
-const medicalTeal = "#0d9488";
+const medicalBlue = "#003049";
+const medicalTeal = "#669BBC";
 
 const DEFAULT_BRAND_HANDLE = "brand";
 const DEFAULT_BRAND_NAME = "Your Brand";
@@ -95,6 +95,56 @@ const LANDLORD_HASHTAGS = [
   "#RentalIncome",
   "#CanadianLandlords",
 ];
+
+const VIDEO_PLATFORM_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  twitter: "X (Twitter)",
+};
+
+const IMAGE_PLATFORM_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  linkedin: "LinkedIn",
+  tiktok: "TikTok",
+  twitter: "X (Twitter)",
+};
+
+const editorialDurationInputStyle: React.CSSProperties = {
+  fontFamily: "var(--font-display)",
+  fontSize: 20,
+  fontWeight: 700,
+  padding: "4px 0",
+  border: "none",
+  borderBottom: "1px solid #C2B79A",
+  background: "transparent",
+  color: "#003049",
+  outline: "none",
+  width: 64,
+};
+
+function brandInitials(handle: string, name: string): string {
+  const src = (handle || name || "BR").replace(/^@/, "");
+  return src.slice(0, 2).toUpperCase() || "BR";
+}
+
+function formatDurationBadge(duration: string | number): string {
+  const sec = typeof duration === "number" ? duration : parseInt(String(duration), 10) || 30;
+  if (sec >= 60) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+  return `0:${String(sec).padStart(2, "0")}`;
+}
+
+function extractHashtags(text: string): string {
+  const tags = text.match(/#[\w]+/g);
+  return tags ? tags.join(" ") : "";
+}
 
 function parseDescriptions(rawDescriptions: any) {
   try {
@@ -828,7 +878,7 @@ export default function SocialDash() {
         };
       default:
         return {
-          color: '#64748b',
+          color: '#8C8474',
           bgActive: 'rgba(100,116,139,0.1)',
           borderColor: 'rgba(100,116,139,0.2)',
           charLimit: 2200,
@@ -847,7 +897,7 @@ export default function SocialDash() {
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
-      border: '1px solid #e2e8f0'
+      border: '1px solid #E8DCC2'
     }}>
       <img src={brandLogo} alt={brandName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
     </div>
@@ -870,14 +920,14 @@ export default function SocialDash() {
             {renderAvatar()}
             <div>
               <p style={{ fontSize: '11px', fontWeight: 700, margin: 0 }}>{brandHandle}</p>
-              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>AI Tenant Screening · Canada</p>
+              <p style={{ fontSize: '9px', color: '#8C8474', margin: 0 }}>AI Tenant Screening · Canada</p>
             </div>
           </div>
-          <span style={{ fontSize: '14px', fontWeight: 800, color: '#64748b', cursor: 'pointer' }}>•••</span>
+          <span style={{ fontSize: '14px', fontWeight: 800, color: '#8C8474', cursor: 'pointer' }}>•••</span>
         </div>
 
         {/* Media Block */}
-        <div style={{ background: '#000000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9' }}>
+        <div style={{ background: '#000000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16', borderTop: '1px solid #FDF0D5', borderBottom: '1px solid #FDF0D5' }}>
           {generatedSocialImage ? (
             <img
               src={generatedSocialImage}
@@ -933,7 +983,7 @@ export default function SocialDash() {
         </div>
 
         {/* Facebook Caption is ABOVE the image */}
-        <p style={{ fontSize: '11px', lineHeight: '1.6', margin: '0 0 10px 0', wordBreak: 'break-word', whiteSpace: 'pre-wrap', color: '#0f172a' }}>
+        <p style={{ fontSize: '11px', lineHeight: '1.6', margin: '0 0 10px 0', wordBreak: 'break-word', whiteSpace: 'pre-wrap', color: '#003049' }}>
           {formattedText}
         </p>
 
@@ -986,8 +1036,8 @@ export default function SocialDash() {
           {renderAvatar()}
           <div>
             <p style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#000000' }}>{brandName}</p>
-            <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>AI-Powered Tenant Screening Platform · 10,240 followers</p>
-            <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>1h · 🌍</p>
+            <p style={{ fontSize: '9px', color: '#8C8474', margin: 0 }}>AI-Powered Tenant Screening Platform · 10,240 followers</p>
+            <p style={{ fontSize: '9px', color: '#8C8474', margin: 0 }}>1h · 🌍</p>
           </div>
         </div>
 
@@ -997,7 +1047,7 @@ export default function SocialDash() {
         </p>
 
         {/* Media card */}
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden', background: '#000000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
+        <div style={{ border: '1px solid #E8DCC2', borderRadius: '4px', overflow: 'hidden', background: '#000000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
           {generatedSocialImage ? (
             <img
               src={generatedSocialImage}
@@ -1008,16 +1058,16 @@ export default function SocialDash() {
         </div>
 
         {/* Likes Count */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', padding: '8px 0', marginTop: '8px' }}>
-          <span style={{ fontSize: '9px', color: '#64748b' }}>👍👏❤️ 82 · 12 comments</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E8DCC2', padding: '8px 0', marginTop: '8px' }}>
+          <span style={{ fontSize: '9px', color: '#8C8474' }}>👍👏❤️ 82 · 12 comments</span>
         </div>
 
         {/* Action row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
-          <button style={{ flex: 1, background: 'none', border: 'none', color: '#64748b', fontSize: '9px', fontWeight: 600, padding: '4px' }}>👍 Like</button>
-          <button style={{ flex: 1, background: 'none', border: 'none', color: '#64748b', fontSize: '9px', fontWeight: 600, padding: '4px' }}>💬 Comment</button>
-          <button style={{ flex: 1, background: 'none', border: 'none', color: '#64748b', fontSize: '9px', fontWeight: 600, padding: '4px' }}>➡️ Share</button>
-          <button style={{ flex: 1, background: 'none', border: 'none', color: '#64748b', fontSize: '9px', fontWeight: 600, padding: '4px' }}>Send</button>
+          <button style={{ flex: 1, background: 'none', border: 'none', color: '#8C8474', fontSize: '9px', fontWeight: 600, padding: '4px' }}>👍 Like</button>
+          <button style={{ flex: 1, background: 'none', border: 'none', color: '#8C8474', fontSize: '9px', fontWeight: 600, padding: '4px' }}>💬 Comment</button>
+          <button style={{ flex: 1, background: 'none', border: 'none', color: '#8C8474', fontSize: '9px', fontWeight: 600, padding: '4px' }}>➡️ Share</button>
+          <button style={{ flex: 1, background: 'none', border: 'none', color: '#8C8474', fontSize: '9px', fontWeight: 600, padding: '4px' }}>Send</button>
         </div>
       </div>
     );
@@ -1086,8 +1136,8 @@ export default function SocialDash() {
             </div>
             
             {/* Audio Vinyl */}
-            <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#334155', border: '3px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0284c7' }} />
+            <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#23394A', border: '3px solid #23394A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#003049' }} />
             </div>
           </div>
 
@@ -1113,8 +1163,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderAvatar()}
             <div>
-              <p style={{ fontSize: '11px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{brandName}</p>
-              <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>@{brandHandle} · 1h</p>
+              <p style={{ fontSize: '11px', fontWeight: 800, margin: 0, color: '#003049' }}>{brandName}</p>
+              <p style={{ fontSize: '9px', color: '#8C8474', margin: 0 }}>@{brandHandle} · 1h</p>
             </div>
           </div>
           <svg viewBox="0 0 24 24" width="16" height="16" fill="#000000">
@@ -1123,26 +1173,26 @@ export default function SocialDash() {
         </div>
 
         {/* Tweet Text */}
-        <p style={{ fontSize: '12px', lineHeight: '1.6', margin: '0 0 10px 0', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+        <p style={{ fontSize: '12px', lineHeight: '1.6', margin: '0 0 10px 0', color: '#003049', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
           {formattedText}
         </p>
 
         {/* Image */}
         {generatedSocialImage && (
-          <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: '8px', background: '#000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
+          <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #E8DCC2', marginBottom: '8px', background: '#000', aspectRatio: imageRatio === '16:9' ? '16/9' : '9/16' }}>
             <img src={generatedSocialImage} alt="X Post" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
         )}
 
         {/* Char count */}
-        <p style={{ fontSize: '9px', color: text.length > 280 ? '#ef4444' : '#94a3b8', margin: '0 0 8px 0', textAlign: 'right', fontWeight: 500 }}>
+        <p style={{ fontSize: '9px', color: text.length > 280 ? '#C1121F' : '#9FA8A3', margin: '0 0 8px 0', textAlign: 'right', fontWeight: 500 }}>
           {text.length} / 280
         </p>
 
         {/* Engagement */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #FDF0D5', paddingTop: '8px' }}>
           {[['💬','84'],['🔁','312'],['❤️','2.1K'],['📊','18.4K'],['🔖','']].map(([icon, count], i) => (
-            <button key={i} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '9px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
+            <button key={i} style={{ background: 'none', border: 'none', color: '#8C8474', fontSize: '9px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
               {icon}{count && <span>{count}</span>}
             </button>
           ))}
@@ -1232,7 +1282,7 @@ export default function SocialDash() {
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
-      border: '1px solid #e2e8f0',
+      border: '1px solid #E8DCC2',
       flexShrink: 0
     }}>
       <img src={brandLogo} alt={brandName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -1416,8 +1466,8 @@ export default function SocialDash() {
               <span style={{ fontSize: '8px', color: '#ffffff', fontWeight: 600 }}>98</span>
             </div>
             
-            <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#334155', border: '3px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0284c7' }} />
+            <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#23394A', border: '3px solid #23394A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#003049' }} />
             </div>
           </div>
 
@@ -1436,18 +1486,18 @@ export default function SocialDash() {
 
         {/* Video metadata */}
         <div style={{ padding: '10px 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <h3 style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#0f172a', lineHeight: '1.4' }}>
+          <h3 style={{ fontSize: '11px', fontWeight: 700, margin: 0, color: '#003049', lineHeight: '1.4' }}>
             {titleText || SAMPLE_VIDEO_FALLBACK.title}
           </h3>
-          <p style={{ fontSize: '7.5px', color: '#64748b', margin: 0 }}>4.2K views · 2 hours ago</p>
+          <p style={{ fontSize: '7.5px', color: '#8C8474', margin: 0 }}>4.2K views · 2 hours ago</p>
 
           {/* Channel Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', borderBottom: '1px solid #f1f5f9', padding: '6px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #FDF0D5', borderBottom: '1px solid #FDF0D5', padding: '6px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {renderVideoAvatar()}
               <div>
-                <p style={{ fontSize: '9px', fontWeight: 700, margin: 0, color: '#0f172a' }}>{brandName}</p>
-                <p style={{ fontSize: '7.5px', color: '#64748b', margin: 0 }}>12.4K subscribers</p>
+                <p style={{ fontSize: '9px', fontWeight: 700, margin: 0, color: '#003049' }}>{brandName}</p>
+                <p style={{ fontSize: '7.5px', color: '#8C8474', margin: 0 }}>12.4K subscribers</p>
               </div>
             </div>
             <button style={{ background: '#cc0000', border: 'none', color: '#ffffff', fontSize: '8.5px', fontWeight: 700, borderRadius: '16px', padding: '5px 10px', cursor: 'pointer' }}>
@@ -1456,9 +1506,9 @@ export default function SocialDash() {
           </div>
 
           {/* Video Description Box */}
-          <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '8px 10px' }}>
-            <p style={{ fontSize: '8px', color: '#334155', fontWeight: 700, margin: '0 0 4px 0' }}>Description</p>
-            <p style={{ fontSize: '8px', lineHeight: '1.4', margin: 0, color: '#475569', wordBreak: 'break-word', whiteSpace: 'pre-wrap', maxHeight: '100px', overflowY: 'auto' }}>
+          <div style={{ background: '#FDF6E3', borderRadius: '8px', padding: '8px 10px' }}>
+            <p style={{ fontSize: '8px', color: '#23394A', fontWeight: 700, margin: '0 0 4px 0' }}>Description</p>
+            <p style={{ fontSize: '8px', lineHeight: '1.4', margin: 0, color: '#4A5A64', wordBreak: 'break-word', whiteSpace: 'pre-wrap', maxHeight: '100px', overflowY: 'auto' }}>
               {descriptionText || SAMPLE_VIDEO_FALLBACK.description}
             </p>
           </div>
@@ -1482,8 +1532,8 @@ export default function SocialDash() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {renderVideoAvatar()}
             <div>
-              <p style={{ fontSize: '10px', fontWeight: 800, margin: 0, color: '#0f172a' }}>{brandName}</p>
-              <p style={{ fontSize: '8px', color: '#64748b', margin: 0 }}>@{brandHandle} · 1h</p>
+              <p style={{ fontSize: '10px', fontWeight: 800, margin: 0, color: '#003049' }}>{brandName}</p>
+              <p style={{ fontSize: '8px', color: '#8C8474', margin: 0 }}>@{brandHandle} · 1h</p>
             </div>
           </div>
           <svg viewBox="0 0 24 24" width="14" height="14" fill="#000000">
@@ -1492,19 +1542,19 @@ export default function SocialDash() {
         </div>
 
         {/* Tweet Content */}
-        <p style={{ fontSize: '10px', lineHeight: '1.5', margin: '0 0 10px 0', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+        <p style={{ fontSize: '10px', lineHeight: '1.5', margin: '0 0 10px 0', color: '#003049', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
           {formattedText}
         </p>
 
         {/* Video Player */}
-        <div style={{ width: '100%', background: '#000000', borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', marginBottom: '10px' }}>
+        <div style={{ width: '100%', background: '#000000', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E8DCC2', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', marginBottom: '10px' }}>
           <video ref={videoRef} src={videoSrc} controls style={{ width: '100%', height: '100%', objectFit: 'contain' }} key={videoSrc} />
         </div>
 
         {/* Engagement Row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #FDF0D5', paddingTop: '8px', marginTop: 'auto' }}>
           {[['💬','42'],['🔁','112'],['❤️','812'],['📊','9.4K'],['🔖','']].map(([icon, count], i) => (
-            <button key={i} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
+            <button key={i} style={{ background: 'none', border: 'none', color: '#8C8474', fontSize: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
               {icon}{count && <span>{count}</span>}
             </button>
           ))}
@@ -1543,6 +1593,104 @@ export default function SocialDash() {
     }
   };
 
+  const getActiveVideoText = () => {
+    if (videoMetadata) {
+      const meta = videoMetadata[activeVideoPlatform];
+      if (meta) {
+        if (activeVideoPlatform === 'tiktok') return (meta as any).caption || (meta as any).content || "";
+        if (activeVideoPlatform === 'youtube') return (meta as any).description || "";
+        return (meta as any).content || (meta as any).description || (meta as any).caption || "";
+      }
+    }
+    const socialFallback = (socialDescriptions as any)[activeVideoPlatform === 'youtube' ? 'instagram' : activeVideoPlatform];
+    return socialFallback || SAMPLE_VIDEO_FALLBACK.caption;
+  };
+
+  const getActiveVideoTitle = () => {
+    if (videoMetadata) {
+      const meta = videoMetadata[activeVideoPlatform];
+      if (meta) return (meta as any).title || SAMPLE_VIDEO_FALLBACK.title;
+    }
+    return SAMPLE_VIDEO_FALLBACK.title;
+  };
+
+  const renderPlatformTextTabs = (
+    platforms: readonly string[],
+    active: string,
+    onSelect: (platform: string) => void,
+    labels: Record<string, string>
+  ) => (
+    <div style={{ display: "flex", gap: 24, padding: "16px 0 8px", flexWrap: "wrap" }}>
+      {platforms.map((platform) => {
+        const isActive = active === platform;
+        return (
+          <button
+            key={platform}
+            type="button"
+            onClick={() => onSelect(platform)}
+            style={{
+              fontFamily: "inherit",
+              fontSize: 14,
+              fontWeight: isActive ? 700 : 400,
+              color: isActive ? "#C1121F" : "#4A5A64",
+              background: "none",
+              border: "none",
+              borderBottom: isActive ? "2px solid #C1121F" : "2px solid transparent",
+              paddingBottom: 4,
+              cursor: "pointer",
+            }}
+          >
+            {labels[platform] || platform}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderV4PreviewCard = (
+    subtitle: string,
+    media: React.ReactNode,
+    statsLabel: string,
+    captionText: string
+  ) => (
+    <div style={{ border: "1.5px solid #003049", borderRadius: 28, padding: "16px 14px", background: "#FFFFFF" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 4px 12px" }}>
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            background: "#003049",
+            color: "#FAEDCD",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        >
+          {brandInitials(brandHandle, brandName)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#003049" }}>{brandHandle}</div>
+          <div style={{ fontSize: 11, color: "#8C8474" }}>{subtitle}</div>
+        </div>
+        <div style={{ color: "#8C8474", fontWeight: 700 }}>···</div>
+      </div>
+      {media}
+      <div style={{ padding: "12px 4px 0" }}>
+        <div style={{ fontSize: 12, color: "#8C8474" }}>{statsLabel}</div>
+        <p style={{ margin: "6px 0 0", fontSize: 12.5, lineHeight: 1.55, color: "#2B3A4A", wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
+          <strong>{brandHandle}</strong> {captionText}
+        </p>
+        {extractHashtags(captionText) && (
+          <div style={{ fontSize: 12, color: "#38678A", marginTop: 6 }}>{extractHashtags(captionText)}</div>
+        )}
+      </div>
+    </div>
+  );
+
   /* ---- Portal Toast (renders directly into document.body, fully independent) ---- */
   const toastPortal = typeof window !== 'undefined' && toast
     ? createPortal(
@@ -1551,7 +1699,7 @@ export default function SocialDash() {
             <div className="sd-portal-toast-icon">
               {toast.type === 'success'
                 ? <CheckCircle2 size={18} strokeWidth={2.5} color="#6ee7b7" />
-                : <Activity size={18} strokeWidth={2.5} color="#93c5fd" />}
+                : <Activity size={18} strokeWidth={2.5} color="#669BBC" />}
             </div>
             <div className="sd-portal-toast-body">
               <span className="sd-portal-toast-label">
@@ -1566,330 +1714,224 @@ export default function SocialDash() {
     : null;
 
   return (
-    <div className="sd-root">
-
-      {/* ---- Portal Toast injected outside sd-root via React Portal ---- */}
+    <EditorialPage>
       {toastPortal}
 
+      <EditorialPageHeader
+        eyebrow={
+          <>
+            Social Channels · <span style={{ color: "#38678A" }}>v2.0 connected</span>
+          </>
+        }
+        title="Creator Studio"
+        subtitle="Manage your social media content generation pipeline."
+        style={{ marginBottom: 36 }}
+      />
 
-      {/* ---- Header ---- */}
-      <header className="sd-header">
-        <div>
-          <h1 className="sd-header-title">Creator Studio</h1>
-          <p className="sd-header-sub">Manage your social media content generation pipeline</p>
-        </div>
-        <div className="sd-badge-row">
-          <Badge text="v2.0 Connected" color={medicalBlue} bg="var(--primary-light)" />
-        </div>
-      </header>
+      <EditorialTabBar
+        tabs={[
+          { id: "video", label: "Video" },
+          { id: "image", label: "Image" },
+        ]}
+        activeId={creatorStudioView}
+        onChange={(id) => setCreatorStudioView(id as "video" | "image")}
+      />
 
-      {/* Creator Studio sub-tabs */}
-      <div style={{ display: 'flex', gap: 8, padding: '4px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, width: 'fit-content', marginBottom: 8 }}>
-        {([
-          { id: 'video' as const, label: 'Video' },
-          { id: 'image' as const, label: 'Image' },
-        ]).map((viewTab) => {
-          const isActive = creatorStudioView === viewTab.id;
-          return (
-            <button
-              key={viewTab.id}
-              type="button"
-              onClick={() => setCreatorStudioView(viewTab.id)}
+      {creatorStudioView === "video" && (
+        <>
+          <section>
+            <div
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 16px',
-                borderRadius: 8,
-                border: 'none',
-                fontFamily: 'inherit',
-                fontSize: 13,
-                fontWeight: isActive ? 700 : 500,
-                cursor: 'pointer',
-                background: isActive ? 'var(--primary-light)' : 'transparent',
-                color: isActive ? 'var(--primary-dark)' : 'var(--text-muted)',
-                boxShadow: isActive ? '0 1px 3px rgba(37,99,235,0.12)' : 'none',
-                transition: 'all 0.18s ease',
+                fontSize: 11.5,
+                letterSpacing: "1.6px",
+                textTransform: "uppercase",
+                color: "#C1121F",
+                fontWeight: 700,
+                padding: "28px 0 14px",
+                fontFamily: "var(--font-display)",
               }}
             >
-              {viewTab.label}
-            </button>
-          );
-        })}
-      </div>
-
-
-      {/* ---- Main Layout ---- */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', width: '100%', paddingBottom: '40px' }}>
-
-        {creatorStudioView === 'video' && (
-        /* ROW 1: Video input (left) | Video preview (right) */
-        <div className="sd-grid">
-
-          {/* LEFT: video action cards */}
-          <div className="sd-left">
-
-
-          {/* Video Generation Config Form */}
-          <div className="sd-action-card sd-action-card-amber" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '480px', boxSizing: 'border-box' }}>
-            <div className="sd-card-head" style={{ marginBottom: '14px' }}>
-              <div className="sd-card-icon sd-card-icon-amber">
-                <Settings size={20} />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <h2 className="sd-card-title">Video AI Generation Config</h2>
-                <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>Configure video story, styles and details directly</p>
-              </div>
+              Video AI Generation Config
             </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-              {/* Form Grid */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                
-                {/* Category */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <Tag size={12} color="#d97706" /> Category
-                  </label>
-                  <input
-                    type="text"
-                    name="category"
+
+            <EditorialDefinitionList>
+              <div style={{ borderTop: "1px solid var(--border)" }}>
+                <EditorialDefinitionRow label="Category">
+                  <EditorialField
                     value={videoFormData.category}
-                    onChange={(e) => setVideoFormData(prev => ({ ...prev, category: e.target.value }))}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1.5px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', color: '#0f172a', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                    onChange={(v) => setVideoFormData((prev) => ({ ...prev, category: v }))}
                     placeholder="e.g. Tenant Screening"
                   />
-                </div>
+                </EditorialDefinitionRow>
 
-                {/* Video Style */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <Monitor size={12} color="#d97706" /> Video Style
-                  </label>
+                <EditorialDefinitionRow label="Video style">
                   <CustomSelect
+                    variant="editorial"
                     value={videoFormData.videoStyle}
-                    onChange={v => setVideoFormData(prev => ({ ...prev, videoStyle: v }))}
+                    onChange={(v) => setVideoFormData((prev) => ({ ...prev, videoStyle: v }))}
                     options={[
                       { value: "Highly Realistic 4k, real life", label: "Realistic 4k" },
-                      { value: "Cinematic Drone - Smooth", label: "Cinematic Drone" },
-                      { value: "Studio Professional - Clean", label: "Studio Clean" },
+                      { value: "Cinematic Drone - Smooth", label: "Cinematic" },
+                      { value: "Studio Professional - Clean", label: "Animated" },
                     ]}
                   />
-                </div>
+                </EditorialDefinitionRow>
 
-                {/* Character */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <User size={12} color="#d97706" /> Character
-                  </label>
+                <EditorialDefinitionRow label="Character">
                   <CustomSelect
+                    variant="editorial"
                     value={videoFormData.character}
-                    onChange={v => {
-                      const newChar = v as 'male' | 'female';
+                    onChange={(v) => {
+                      const newChar = v as "male" | "female";
                       const firstVoice = VOICE_OPTIONS[newChar][0].id;
-                      setVideoFormData(prev => ({ ...prev, character: newChar, voice: firstVoice }));
+                      setVideoFormData((prev) => ({ ...prev, character: newChar, voice: firstVoice }));
+                      setVoiceLabel(VOICE_OPTIONS[newChar][0].label);
                     }}
-                    options={[{ value: "male", label: "👨 Male" }, { value: "female", label: "👩 Female" }]}
+                    options={[
+                      { value: "male", label: "Male" },
+                      { value: "female", label: "Female" },
+                    ]}
                   />
-                </div>
+                </EditorialDefinitionRow>
 
-                {/* Voice */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsVoiceModalOpen(true)}
-                    style={{
-                      width: '100%',
-                      padding: '11px 14px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      border: 'none',
-                      borderRadius: '8px',
-                      background: '#d97706',
-                      color: '#ffffff',
-                      outline: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      transition: 'background 0.15s'
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#b45309'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#d97706'; }}
-                  >
-                    <Mic2 size={14} color="#ffffff" />
-                    Voices
-                  </button>
-                  {voiceLabel && (
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      padding: '5px 10px',
-                      background: '#fefce8',
-                      border: '1px solid #fde68a',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: '#92400e',
-                    }}>
-                      <Mic2 size={11} color="#d97706" />
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {voiceLabel}
-                      </span>
-                      <span style={{ fontSize: '9px', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', background: '#fef3c7', padding: '1px 5px', borderRadius: '3px', flexShrink: 0 }}>
-                        Selected
-                      </span>
-                    </div>
-                  )}
-                </div>
+                <EditorialDefinitionRow label="Voice">
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 14.5, fontWeight: 700, color: "#003049", display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {voiceLabel.replace(" - ", " · ")}
+                      {voiceLabel && <EditorialStatusPill variant="active">Selected</EditorialStatusPill>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsVoiceModalOpen(true)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        fontFamily: "inherit",
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        color: "#003049",
+                        borderBottom: "1px solid #C2B79A",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Browse voices
+                    </button>
+                  </div>
+                </EditorialDefinitionRow>
 
-                {/* Language */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    Language
-                  </label>
+                <EditorialDefinitionRow label="Language">
                   <CustomSelect
+                    variant="editorial"
                     value={videoFormData.language}
-                    onChange={v => setVideoFormData(prev => ({ ...prev, language: v }))}
-                    options={["English","Spanish","French","Hebrew","Turkish"].map(l => ({ value: l, label: l }))}
+                    onChange={(v) => setVideoFormData((prev) => ({ ...prev, language: v }))}
+                    options={["English", "Spanish", "French", "Hebrew", "Turkish"].map((l) => ({ value: l, label: l }))}
                   />
-                </div>
+                </EditorialDefinitionRow>
 
-                {/* Background Song */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <Music size={12} color="#d97706" /> Background
-                  </label>
+                <EditorialDefinitionRow label="Background music">
                   <CustomSelect
+                    variant="editorial"
                     value={videoFormData.backgroundSong}
-                    onChange={v => setVideoFormData(prev => ({ ...prev, backgroundSong: v }))}
+                    onChange={(v) => setVideoFormData((prev) => ({ ...prev, backgroundSong: v }))}
                     options={[
                       { value: "Inspirational - Sunrise Bloom", label: "Sunrise Bloom" },
-                      { value: "Upbeat - Corporate Drive", label: "Upbeat Drive" },
-                      { value: "Lo-fi - Midnight Study", label: "Lo-fi Midnight" },
-                      { value: "Cinematic - Epic Journey", label: "Epic Journey" },
-                      { value: "Ambient - Calm Waters", label: "Calm Waters" },
+                      { value: "Ambient - Calm Waters", label: "Calm Horizon" },
+                      { value: "Lo-fi - Midnight Study", label: "None" },
                     ]}
                   />
-                </div>
+                </EditorialDefinitionRow>
 
-                {/* Duration */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    <Clock size={12} color="#d97706" /> Duration (seconds)
-                  </label>
+                <EditorialDefinitionRow label="Duration" labelSub="Min 30s · max 90s">
                   <input
                     type="number"
                     name="duration"
                     value={videoFormData.duration}
                     onKeyDown={(e) => {
-                      // Block e, +, -, . and decimal characters
-                      if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                        e.preventDefault();
-                        return;
-                      }
-                      // Block if adding this digit would push value above 90
-                      const current = String(videoFormData.duration ?? '');
+                      if (["e", "E", "+", "-", "."].includes(e.key)) e.preventDefault();
+                      const current = String(videoFormData.duration ?? "");
                       const wouldBe = parseInt(current + e.key, 10);
-                      if (!isNaN(wouldBe) && wouldBe > 90) {
-                        e.preventDefault();
-                      }
+                      if (!isNaN(wouldBe) && wouldBe > 90) e.preventDefault();
                     }}
                     onChange={(e) => {
                       const raw = parseInt(e.target.value, 10);
-                      // Hard cap at 90 immediately
                       if (!isNaN(raw) && raw > 90) {
-                        setVideoFormData(prev => ({ ...prev, duration: 90 }));
-                      } else if (e.target.value === '') {
-                        setVideoFormData(prev => ({ ...prev, duration: '' as any }));
+                        setVideoFormData((prev) => ({ ...prev, duration: 90 }));
+                      } else if (e.target.value === "") {
+                        setVideoFormData((prev) => ({ ...prev, duration: "" as any }));
                       } else if (!isNaN(raw)) {
-                        setVideoFormData(prev => ({ ...prev, duration: raw }));
+                        setVideoFormData((prev) => ({ ...prev, duration: raw }));
                       }
                     }}
                     onBlur={(e) => {
-                      // Enforce minimum of 30 when user leaves field
                       const raw = parseInt(e.target.value, 10);
-                      const clamped = (isNaN(raw) || raw < 30) ? 30 : Math.min(raw, 90);
-                      setVideoFormData(prev => ({ ...prev, duration: clamped }));
+                      const clamped = isNaN(raw) || raw < 30 ? 30 : Math.min(raw, 90);
+                      setVideoFormData((prev) => ({ ...prev, duration: clamped }));
                     }}
                     min={30}
                     max={90}
-                    style={{ padding: '11px 14px', fontSize: '13px', border: '1.5px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', color: '#0f172a', outline: 'none', width: '100%', boxSizing: 'border-box' }}
-                    placeholder="30 – 90"
+                    style={editorialDurationInputStyle}
                   />
-                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 500 }}>Min 30s · Max 90s</span>
-                </div>
+                </EditorialDefinitionRow>
 
+                <EditorialDefinitionRow label="Story description" isLast>
+                  <EditorialField
+                    value={videoFormData.description}
+                    onChange={(v) => setVideoFormData((prev) => ({ ...prev, description: v }))}
+                    multiline
+                    rows={3}
+                    placeholder="Tell your landlord story or describe the tenant screening content…"
+                  />
+                </EditorialDefinitionRow>
               </div>
+            </EditorialDefinitionList>
 
-              {/* Story Description Textarea */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
-                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                  <MessageSquare size={12} color="#d97706" /> Story Description
-                </label>
-                <textarea 
-                  name="description"
-                  value={videoFormData.description}
-                  onChange={(e) => setVideoFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Tell your landlord story or describe the tenant screening content..."
-                  style={{
-                    height: '80px',
-                    minHeight: '70px',
-                    padding: '10px 12px',
-                    fontSize: '13px',
-                    border: '1.5px solid #e2e8f0',
-                    borderRadius: '10px',
-                    background: '#f8fafc',
-                    color: '#0f172a',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                    width: '100%',
-                    boxSizing: 'border-box'
-                  }}
-                  required
-                />
-              </div>
-
-              {/* Submit Button */}
-              <button
-                className="sd-btn-primary"
+            <div style={{ display: "flex", justifyContent: "flex-end", padding: "20px 0 0" }}>
+              <EditorialPillButton
+                variant="danger"
                 onClick={() => handleModalSubmit(videoFormData)}
-                disabled={loading === 'dynamic' || !videoFormData.description.trim()}
-                style={{ background: '#d97706', boxShadow: 'none', padding: '11px 16px' }}
+                disabled={loading === "dynamic" || !videoFormData.description.trim()}
               >
-                {loading === 'dynamic'
-                  ? <><Spinner size={14} color="white" /> Processing...</>
-                  : <><Zap size={14} /> Generate Video AI Campaign</>}
-              </button>
+                {loading === "dynamic" ? (
+                  <>
+                    <Spinner size={14} color="white" /> Processing…
+                  </>
+                ) : (
+                  <>Generate Video AI campaign →</>
+                )}
+              </EditorialPillButton>
+            </div>
 
-              {/* ---- Generation Progress (inside the input card) ---- */}
-              {isGenerating && generationType !== 'images' && (
-                <div style={{ marginTop: 4, padding: '16px', borderRadius: 12, background: '#f0fdfa', border: '1.5px solid #99f6e4' }} className="animate-fade-in">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: '#ccfbf1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Zap size={16} color="#0d9488" />
+            {isGenerating && generationType !== "images" && (
+              <div style={{ marginTop: 20, padding: "16px 0", borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 700, color: "#003049" }}>
+                      Video generation in progress
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Video Generation in Progress</div>
-                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>System is processing your request. Preview will update automatically.</div>
+                    <div style={{ fontSize: 13, color: "#8C8474", marginTop: 4 }}>
+                      Preview will update automatically · {Math.round(progress)}%
                     </div>
-                    <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: '#0d9488' }}>{Math.round(progress)}%</span>
-                  </div>
-                  <div style={{ height: 6, background: '#ccfbf1', borderRadius: 6, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #0d9488, #0284c7)', borderRadius: 6, transition: 'width 0.4s ease' }} />
                   </div>
                 </div>
-              )}
-
-            </div>
-          </div>
-
-          {/* Generated Story Output */}
+                <div style={{ height: 4, background: "#E8DCC2", borderRadius: 4, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${progress}%`,
+                      background: "#C1121F",
+                      borderRadius: 4,
+                      transition: "width 0.4s ease",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </section>
 
           {generatedStory && (
+            <section style={{ marginTop: 48 }}>
+              <EditorialSectionHeader title="Generated Story" />
             <div className="sd-action-card sd-action-card-success animate-fade-in">
               <div className="sd-card-head">
                 <div className="sd-card-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
@@ -1900,7 +1942,7 @@ export default function SocialDash() {
               <div className="sd-card-inner" style={{ background: '#ffffff', border: '1px solid #dcfce7' }}>
                 <div className="sd-generated-text">
                   {loading === 'dynamic' ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8C8474' }}>
                       <Spinner size={16} /> Generating new story...
                     </div>
                   ) : (
@@ -1915,7 +1957,7 @@ export default function SocialDash() {
                 <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                   <button 
                     className="sd-btn-secondary" 
-                    style={{ width: 'auto', fontSize: 12, padding: '8px 16px', background: '#f8fafc', color: '#1e293b' }}
+                    style={{ width: 'auto', fontSize: 12, padding: '8px 16px', background: '#FDF6E3', color: '#23394A' }}
                     onClick={() => setShowRetryModal(true)}
                   >
                     <RefreshCw size={14} /> Retry
@@ -1933,13 +1975,14 @@ export default function SocialDash() {
                 </div>
               </div>
             </div>
+            </section>
           )}
 
           {generatedScenes && generatedScenes.length > 0 && loading !== 'confirm' && (() => {
             const failCount = Object.keys(sceneFailures).length;
             return (
-            <div className="sd-action-card animate-fade-in" style={{ paddingBottom: 0, border: failCount > 0 ? '2px solid #ef4444' : undefined, boxShadow: failCount > 0 ? '0 8px 32px rgba(220,38,38,0.15)' : undefined }}>
-              <div className="sd-card-head" style={{ borderBottom: failCount > 0 ? '1px solid #fecaca' : '1px solid #dcfce7', paddingBottom: 16, background: failCount > 0 ? 'linear-gradient(135deg, #dc2626, #ef4444)' : undefined, margin: failCount > 0 ? '-20px -20px 0 -20px' : undefined, padding: failCount > 0 ? '18px 20px' : undefined, borderRadius: failCount > 0 ? '14px 14px 0 0' : undefined }}>
+            <div className="sd-action-card animate-fade-in" style={{ paddingBottom: 0, border: failCount > 0 ? '2px solid #C1121F' : undefined, boxShadow: failCount > 0 ? '0 8px 32px rgba(220,38,38,0.15)' : undefined }}>
+              <div className="sd-card-head" style={{ borderBottom: failCount > 0 ? '1px solid #fecaca' : '1px solid #dcfce7', paddingBottom: 16, background: failCount > 0 ? 'linear-gradient(135deg, #C1121F, #C1121F)' : undefined, margin: failCount > 0 ? '-20px -20px 0 -20px' : undefined, padding: failCount > 0 ? '18px 20px' : undefined, borderRadius: failCount > 0 ? '14px 14px 0 0' : undefined }}>
                 <div className="sd-card-icon" style={{ background: failCount > 0 ? 'rgba(255,255,255,0.2)' : '#f0fdf4', color: failCount > 0 ? '#fff' : '#16a34a' }}>
                   {failCount > 0 ? <span style={{ fontSize: 18 }}>⚠️</span> : <ImageIcon size={20} />}
                 </div>
@@ -1947,20 +1990,31 @@ export default function SocialDash() {
                   <h2 className="sd-card-title" style={{ color: failCount > 0 ? '#fff' : undefined }}>
                     {failCount > 0 ? 'Policy Violation — Fix & Resubmit' : 'Generated Ad Scenes'}
                   </h2>
-                  <p style={{ fontSize: 11, color: failCount > 0 ? 'rgba(255,255,255,0.8)' : '#64748b', marginTop: 2 }}>
+                  <p style={{ fontSize: 11, color: failCount > 0 ? 'rgba(255,255,255,0.8)' : '#8C8474', marginTop: 2 }}>
                     {failCount > 0
                       ? `${failCount} scene${failCount > 1 ? 's' : ''} failed content policy check — edit the highlighted prompt${failCount > 1 ? 's' : ''} and click Resubmit.`
                       : 'Inspect and edit your scaled image and video scenario prompts.'}
                   </p>
                 </div>
-                <Badge text={failCount > 0 ? `${failCount} failed` : `${generatedScenes.length} scenes`} color={failCount > 0 ? '#fff' : '#16a34a'} bg={failCount > 0 ? 'rgba(255,255,255,0.2)' : '#f0fdf4'} />
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: failCount > 0 ? "#fff" : "#16a34a",
+                    background: failCount > 0 ? "rgba(255,255,255,0.2)" : "#f0fdf4",
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                  }}
+                >
+                  {failCount > 0 ? `${failCount} failed` : `${generatedScenes.length} scenes`}
+                </span>
               </div>
               <div className="sd-card-inner" style={{ padding: 0, background: '#ffffff' }}>
-                <div style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", padding: "10px 20px", background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase" }}>#</div>
+                <div style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", padding: "10px 20px", background: "#FDF6E3", borderBottom: "1.5px solid #E8DCC2" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#9FA8A3", textTransform: "uppercase" }}>#</div>
                   <div style={{ fontSize: 10, fontWeight: 800, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.05em", paddingRight: 16 }}>📖 Voiceover Storyline</div>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.05em", paddingRight: 16 }}>🖼️ Image Prompt</div>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: "#7c3aed", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: 16 }}>🎬 Video Scenario</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#003049", textTransform: "uppercase", letterSpacing: "0.05em", paddingRight: 16 }}>🖼️ Image Prompt</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#669BBC", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: 16 }}>🎬 Video Scenario</div>
                 </div>
 
                 <div style={{ overflowY: "auto", maxHeight: "450px" }}>
@@ -1971,20 +2025,20 @@ export default function SocialDash() {
                     const isVideoFail = isFailed && failure.column === 'video';
                     const clearFailure = () => setSceneFailures(prev => { const n = { ...prev }; delete n[i]; return n; });
                     return (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", borderBottom: "1px solid #f1f5f9", background: isFailed ? "#fff5f5" : (i % 2 === 0 ? "#fff" : "#f8fafc"), outline: isFailed ? "2px solid #fca5a5" : undefined }}>
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "44px 1.1fr 1.3fr 1.3fr", borderBottom: "1px solid #FDF0D5", background: isFailed ? "#fff5f5" : (i % 2 === 0 ? "#fff" : "#FDF6E3"), outline: isFailed ? "2px solid #fca5a5" : undefined }}>
                       {/* Scene number */}
                       <div style={{ padding: "16px 8px", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 18 }}>
                         <span style={{
                           display: "inline-flex", alignItems: "center", justifyContent: "center",
                           width: 24, height: 24, borderRadius: "50%",
-                          background: isFailed ? "#ef4444" : "#0284c7",
+                          background: isFailed ? "#C1121F" : "#003049",
                           color: "#fff", fontSize: 11, fontWeight: 800,
                           boxShadow: isFailed ? "0 0 0 3px rgba(239,68,68,0.2)" : undefined
                         }}>{scene.scene}</span>
                       </div>
 
                       {/* Storyline / Story Sentence — editable */}
-                      <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #e2e8f0" }}>
+                      <div style={{ padding: "12px 12px 12px 0", borderRight: "1px solid #E8DCC2" }}>
                         <textarea
                           value={scene.script_line || scene.story_sentence || ""}
                           onChange={(e) => {
@@ -2008,7 +2062,7 @@ export default function SocialDash() {
                       </div>
 
                       {/* Image Prompt — red if image failure */}
-                      <div style={{ padding: "12px 12px 12px 12px", borderRight: "1px solid #e2e8f0" }}>
+                      <div style={{ padding: "12px 12px 12px 12px", borderRight: "1px solid #E8DCC2" }}>
                         <textarea
                           value={scene.prompt || ""}
                           onChange={(e) => {
@@ -2021,21 +2075,21 @@ export default function SocialDash() {
                           }}
                           rows={4}
                           style={{
-                            width: "100%", fontSize: 11, color: isImageFail ? "#991b1b" : "#334155", lineHeight: 1.75,
-                            border: isImageFail ? "2px solid #ef4444" : "1.5px solid #e2e8f0",
+                            width: "100%", fontSize: 11, color: isImageFail ? "#780000" : "#23394A", lineHeight: 1.75,
+                            border: isImageFail ? "2px solid #C1121F" : "1.5px solid #E8DCC2",
                             borderRadius: 8, padding: "10px 12px",
                             resize: "vertical", fontFamily: "inherit", outline: "none",
-                            background: isImageFail ? "#fff1f2" : "#f8fafc", transition: "border 0.15s",
+                            background: isImageFail ? "#fff1f2" : "#FDF6E3", transition: "border 0.15s",
                             boxShadow: isImageFail ? "0 0 0 3px rgba(239,68,68,0.12)" : undefined,
                           }}
-                          onFocus={e => e.target.style.borderColor = isImageFail ? "#dc2626" : "#0284c7"}
-                          onBlur={e => e.target.style.borderColor = isImageFail ? "#ef4444" : "#e2e8f0"}
+                          onFocus={e => e.target.style.borderColor = isImageFail ? "#C1121F" : "#003049"}
+                          onBlur={e => e.target.style.borderColor = isImageFail ? "#C1121F" : "#E8DCC2"}
                           placeholder="No image prompt..."
                         />
                         {isImageFail && (
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, padding: "7px 10px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7 }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, padding: "7px 10px", background: "#F9E3E0", border: "1px solid #fecaca", borderRadius: 7 }}>
                             <span style={{ fontSize: 13, flexShrink: 0 }}>🚫</span>
-                            <span style={{ fontSize: 10, color: "#991b1b", lineHeight: 1.5, fontWeight: 600 }}>{failure.msg}</span>
+                            <span style={{ fontSize: 10, color: "#780000", lineHeight: 1.5, fontWeight: 600 }}>{failure.msg}</span>
                           </div>
                         )}
                       </div>
@@ -2055,21 +2109,21 @@ export default function SocialDash() {
                           rows={4}
                           style={{
                             width: "100%", fontSize: 11, lineHeight: 1.75,
-                            color: isVideoFail ? "#991b1b" : "#6d28d9",
-                            border: isVideoFail ? "2px solid #ef4444" : "1.5px solid #e2e8f0",
+                            color: isVideoFail ? "#780000" : "#2C5A77",
+                            border: isVideoFail ? "2px solid #C1121F" : "1.5px solid #E8DCC2",
                             borderRadius: 8, padding: "10px 12px",
                             resize: "vertical", fontFamily: "inherit", outline: "none",
-                            background: isVideoFail ? "#fff1f2" : "#f5f3ff", transition: "border 0.15s",
+                            background: isVideoFail ? "#fff1f2" : "#E7F0F6", transition: "border 0.15s",
                             boxShadow: isVideoFail ? "0 0 0 3px rgba(239,68,68,0.12)" : undefined,
                           }}
-                          onFocus={e => e.target.style.borderColor = isVideoFail ? "#dc2626" : "#7c3aed"}
-                          onBlur={e => e.target.style.borderColor = isVideoFail ? "#ef4444" : "#e2e8f0"}
+                          onFocus={e => e.target.style.borderColor = isVideoFail ? "#C1121F" : "#669BBC"}
+                          onBlur={e => e.target.style.borderColor = isVideoFail ? "#C1121F" : "#E8DCC2"}
                           placeholder="No video scenario..."
                         />
                         {isVideoFail && (
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, padding: "7px 10px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7 }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 6, padding: "7px 10px", background: "#F9E3E0", border: "1px solid #fecaca", borderRadius: 7 }}>
                             <span style={{ fontSize: 13, flexShrink: 0 }}>🚫</span>
-                            <span style={{ fontSize: 10, color: "#991b1b", lineHeight: 1.5, fontWeight: 600 }}>{failure.msg}</span>
+                            <span style={{ fontSize: 10, color: "#780000", lineHeight: 1.5, fontWeight: 600 }}>{failure.msg}</span>
                           </div>
                         )}
                       </div>
@@ -2081,10 +2135,10 @@ export default function SocialDash() {
                 {/* Footer bar with Confirm Prompts button */}
                 <div style={{
                   padding: "14px 20px",
-                  borderTop: "1.5px solid #e2e8f0",
+                  borderTop: "1.5px solid #E8DCC2",
                   display: "flex",
                   justifyContent: "flex-end",
-                  background: "#f8fafc",
+                  background: "#FDF6E3",
                   borderBottomLeftRadius: 12,
                   borderBottomRightRadius: 12
                 }}>
@@ -2115,377 +2169,174 @@ export default function SocialDash() {
             );
           })()}
 
-          </div>
+          {/* RIGHT: video preview — editorial v4 */}
+          <section style={{ marginTop: 48 }}>
+            <EditorialSectionHeader
+              title="System Preview Output"
+              meta={
+                <EditorialTextLink onClick={handleRefreshPreview} disabled={isRefreshingVideo}>
+                  Live feed · refresh
+                </EditorialTextLink>
+              }
+            />
 
-          {/* RIGHT: video preview */}
-          <div className="sd-right">
-            <div className="sd-preview-panel">
+            {renderPlatformTextTabs(
+              ["instagram", "facebook", "linkedin", "tiktok", "youtube", "twitter"],
+              activeVideoPlatform,
+              (p) => setActiveVideoPlatform(p as typeof activeVideoPlatform),
+              VIDEO_PLATFORM_LABELS
+            )}
 
-              {/* Panel header */}
-              <div className="sd-preview-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div className="sd-live-dot" />
-                  <span className="sd-preview-label">System Preview Output</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button
-                    className="sd-btn-refresh-small"
-                    onClick={handleRefreshPreview}
-                    disabled={isRefreshingVideo}
-                    title="Refresh Preview"
-                  >
-                    <RefreshCw size={14} style={{ animation: isRefreshingVideo ? 'spin 1s linear infinite' : 'none' }} />
-                  </button>
-                  <span className="sd-live-tag">Live Feed</span>
-                </div>
-              </div>
-
-
-              {/* Mobile Preview & Platform Selector */}
-              {(() => {
-                const getActiveVideoText = () => {
-                  if (videoMetadata) {
-                    const meta = videoMetadata[activeVideoPlatform];
-                    if (meta) {
-                      if (activeVideoPlatform === 'tiktok') return (meta as any).caption || (meta as any).content || "";
-                      if (activeVideoPlatform === 'youtube') return (meta as any).description || "";
-                      return (meta as any).content || (meta as any).description || (meta as any).caption || "";
-                    }
-                  }
-                  const socialFallback = (socialDescriptions as any)[activeVideoPlatform === 'youtube' ? 'instagram' : activeVideoPlatform];
-                  return socialFallback || SAMPLE_VIDEO_FALLBACK.caption;
-                };
-
-                const getActiveVideoTitle = () => {
-                  if (videoMetadata) {
-                    const meta = videoMetadata[activeVideoPlatform];
-                    if (meta) {
-                      return (meta as any).title || SAMPLE_VIDEO_FALLBACK.title;
-                    }
-                  }
-                  return SAMPLE_VIDEO_FALLBACK.title;
-                };
-
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    {/* Horizontal 6 Brand Buttons Group for Video */}
-                    <div style={{
-                      display: 'flex',
-                      gap: '4px',
-                      justifyContent: 'space-between',
-                      background: '#ffffff',
-                      borderRadius: '12px',
-                      padding: '4px',
-                      border: '1px solid #e2e8f0'
-                    }}>
-                      {(['instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'twitter'] as const).map((p) => {
-                        const isActive = activeVideoPlatform === p;
-                        const config = getVideoPlatformConfig(p);
-                        return (
-                          <button
-                            key={p}
-                            onClick={() => setActiveVideoPlatform(p)}
-                            style={{
-                              flex: 1,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '2px',
-                              padding: '6px 2px',
-                              borderRadius: '8px',
-                              background: isActive ? config.bgActive : 'transparent',
-                              border: isActive ? `1px solid ${config.borderColor}` : '1px solid transparent',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              color: isActive ? config.color : '#64748b'
-                            }}
-                          >
-                            <span style={{ color: isActive ? config.color : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {config.icon}
-                            </span>
-                            <span style={{ fontSize: '8px', fontWeight: isActive ? 700 : 500, textTransform: 'capitalize' }}>{p}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Phone Simulator Frame */}
-                    <div className="sd-phone-frame" style={{
-                      width: '100%',
-                      maxWidth: '285px',
-                      margin: '0 auto',
-                      background: '#f8fafc',
-                      border: '8px solid #cbd5e1',
-                      borderRadius: '36px',
-                      boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1), inset 0 0 20px rgba(0,0,0,0.02)',
-                      overflow: 'hidden',
-                      position: 'relative',
-                      height: '530px'
-                    }}>
-                      {/* Simulated Notch / Dynamic Island */}
-                      <div style={{
-                        width: '110px',
-                        height: '20px',
-                        background: '#cbd5e1',
-                        borderRadius: '0 0 16px 16px',
-                        margin: '0 auto',
-                        position: 'absolute',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        top: 0,
-                        zIndex: 10,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#64748b', marginRight: '6px' }} />
-                        <div style={{ width: '30px', height: '3px', borderRadius: '3px', background: '#94a3b8' }} />
+            <div
+              className="editorial-preview-grid"
+              style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 48, paddingTop: 24, alignItems: "start" }}
+            >
+              {renderV4PreviewCard(
+                "Canada",
+                (
+                  <div style={{ width: "100%", aspectRatio: "4/5", position: "relative", borderRadius: 6, overflow: "hidden", background: "#000" }}>
+                    {isVideoPosting ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 280, gap: 12 }}>
+                        <Loader2 size={28} color="#FDF6E3" style={{ animation: "spin 1.5s linear infinite" }} />
                       </div>
-
-                      {/* Simulated Mobile Device screen viewport */}
-                      <div style={{
-                        height: '100%',
-                        overflowY: 'auto',
-                        background: activeVideoPlatform === 'tiktok' ? '#000000' : '#ffffff',
-                        color: activeVideoPlatform === 'tiktok' ? '#ffffff' : '#0f172a',
-                        position: 'relative',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-                        paddingTop: '20px' // Leave space for simulated notch
-                      }} className="sd-phone-screen">
-                        {isVideoPosting ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px', padding: '20px', background: 'rgba(255, 255, 255, 0.96)', zIndex: 20, position: 'absolute', top: 0, left: 0, width: '100%' }}>
-                            <Loader2 size={36} color="#0284c7" style={{ animation: 'spin 1.5s linear infinite' }} />
-                            <div style={{ textAlign: 'center' }}>
-                              <p style={{ color: '#0f172a', fontSize: '13px', fontWeight: 700, margin: 0 }}>posting content</p>
-                              <p style={{ color: '#64748b', fontSize: '9px', marginTop: '4px', maxWidth: '200px', margin: '4px 0 0 0' }}>Syncing video asset and native copy to active social accounts...</p>
-                            </div>
-                          </div>
-                        ) : supabaseVideoUrl || videoUrl ? (
-                          (() => {
-                            const videoSrc = supabaseVideoUrl || videoUrl;
-                            const activeText = getActiveVideoText();
-                            const activeTitle = getActiveVideoTitle();
-
-                            switch (activeVideoPlatform) {
-                              case 'instagram':
-                                return renderInstagramVideoMock(videoSrc, activeText);
-                              case 'facebook':
-                                return renderFacebookVideoMock(videoSrc, activeText);
-                              case 'linkedin':
-                                return renderLinkedInVideoMock(videoSrc, activeText);
-                              case 'tiktok':
-                                return renderTikTokVideoMock(videoSrc, activeText);
-                              case 'youtube':
-                                return renderYouTubeVideoMock(videoSrc, activeTitle, activeText);
-                              case 'twitter':
-                                return renderTwitterVideoMock(videoSrc, activeText);
-                              default:
-                                return null;
-                            }
-                          })()
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', padding: '20px' }}>
-                            <Loader2 size={36} color="#0284c7" style={{ animation: 'spin 1s linear infinite' }} />
-                            <p style={{ color: '#475569', fontSize: '11px', fontWeight: 500, textAlign: 'center' }}>Loading preview stream...</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Edit Native Platform Copy Section */}
-                    <div style={{
-                      background: '#ffffff',
-                      borderRadius: '16px',
-                      padding: '16px',
-                      border: '1px solid #e2e8f0',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '12px',
-                      marginTop: '8px',
-                      width: '100%',
-                      maxWidth: '100%',
-                      boxSizing: 'border-box',
-                      overflowX: 'hidden'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '14px' }}>✍️</span>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Edit {activeVideoPlatform} Post Copy
-                        </span>
-                      </div>
-
-                      {activeVideoPlatform === 'youtube' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>YouTube Video Title</label>
-                          <input
-                            type="text"
-                            value={getActiveVideoTitle()}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setVideoMetadata((prev: any) => {
-                                const currentMetadata = prev ? { ...prev } : {
-                                  instagram: { content: socialDescriptions.instagram },
-                                  facebook: { content: socialDescriptions.facebook },
-                                  linkedin: { content: socialDescriptions.linkedin },
-                                  tiktok: { caption: socialDescriptions.tiktok },
-                                  youtube: { title: SAMPLE_VIDEO_FALLBACK.title, description: socialDescriptions.instagram },
-                                  twitter: { content: socialDescriptions.twitter }
-                                };
-                                const updatedPlatformData = { ...currentMetadata.youtube, title: val };
-                                return { ...currentMetadata, youtube: updatedPlatformData };
-                              });
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: '1.5px solid #e2e8f0',
-                              fontSize: '11px',
-                              color: '#0f172a',
-                              outline: 'none',
-                              fontFamily: 'inherit',
-                              background: '#f8fafc',
-                              transition: 'all 0.15s'
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = '#0284c7'}
-                            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-                          />
-                        </div>
-                      )}
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-                          {activeVideoPlatform === 'tiktok' ? 'Video Caption' : activeVideoPlatform === 'youtube' ? 'Video Description' : 'Post Content'}
-                        </label>
-                        <textarea
-                          value={getActiveVideoText()}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setVideoMetadata((prev: any) => {
-                              const currentMetadata = prev ? { ...prev } : {
-                                instagram: { content: socialDescriptions.instagram },
-                                facebook: { content: socialDescriptions.facebook },
-                                linkedin: { content: socialDescriptions.linkedin },
-                                tiktok: { caption: socialDescriptions.tiktok },
-                                youtube: { title: SAMPLE_VIDEO_FALLBACK.title, description: socialDescriptions.instagram },
-                                twitter: { content: socialDescriptions.twitter }
-                              };
-                              const updatedPlatformData = { ...currentMetadata[activeVideoPlatform] };
-                              if (activeVideoPlatform === 'tiktok') {
-                                updatedPlatformData.caption = val;
-                              } else if (activeVideoPlatform === 'youtube') {
-                                updatedPlatformData.description = val;
-                              } else {
-                                updatedPlatformData.content = val;
-                              }
-                              return { ...currentMetadata, [activeVideoPlatform]: updatedPlatformData };
-                            });
-                          }}
-                          rows={4}
-                          placeholder={`Draft your perfect native ${activeVideoPlatform} copy...`}
-                          style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            borderRadius: '8px',
-                            border: '1.5px solid #e2e8f0',
-                            fontSize: '11px',
-                            color: '#0f172a',
-                            outline: 'none',
-                            resize: 'none',
-                            fontFamily: 'inherit',
-                            background: '#f8fafc',
-                            lineHeight: '1.6',
-                            transition: 'all 0.15s'
-                          }}
-                          onFocus={(e) => e.target.style.borderColor = '#0284c7'}
-                          onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                    ) : supabaseVideoUrl || videoUrl ? (
+                      <>
+                        <video
+                          ref={videoRef}
+                          src={supabaseVideoUrl || videoUrl}
+                          controls
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          key={supabaseVideoUrl || videoUrl}
                         />
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 10,
+                            bottom: 10,
+                            background: "rgba(0,48,73,0.85)",
+                            color: "#FDF6E3",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            borderRadius: 999,
+                            padding: "3px 10px",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          ▶ {formatDurationBadge(videoFormData.duration)}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 280, color: "#8C8474", fontSize: 13, padding: 16, textAlign: "center" }}>
+                        {isRefreshingVideo ? <Loader2 size={24} color="#003049" style={{ animation: "spin 1s linear infinite" }} /> : "Video preview will appear here after generation"}
                       </div>
+                    )}
+                  </div>
+                ),
+                "4,812 views",
+                getActiveVideoText()
+              )}
+
+              <div>
+                <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "#8C8474", marginBottom: 10 }}>
+                  Edit {VIDEO_PLATFORM_LABELS[activeVideoPlatform]} post copy
+                </div>
+
+                {activeVideoPlatform === "youtube" && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "#8C8474", marginBottom: 8 }}>
+                      YouTube video title
                     </div>
+                    <EditorialField
+                      value={getActiveVideoTitle()}
+                      onChange={(val) => {
+                        setVideoMetadata((prev: any) => {
+                          const currentMetadata = prev ? { ...prev } : {
+                            instagram: { content: socialDescriptions.instagram },
+                            facebook: { content: socialDescriptions.facebook },
+                            linkedin: { content: socialDescriptions.linkedin },
+                            tiktok: { caption: socialDescriptions.tiktok },
+                            youtube: { title: SAMPLE_VIDEO_FALLBACK.title, description: socialDescriptions.instagram },
+                            twitter: { content: socialDescriptions.twitter },
+                          };
+                          return { ...currentMetadata, youtube: { ...currentMetadata.youtube, title: val } };
+                        });
+                      }}
+                    />
                   </div>
-                );
-              })()}
+                )}
 
-              {/* Approval bar */}
-              <div className="sd-approval-bar">
-                <div>
-                  <p className="sd-approval-title">Final Creative Approval</p>
-                  <p className="sd-approval-sub">Ready to push this content to your active social channels?</p>
+                <EditorialField
+                  value={getActiveVideoText()}
+                  onChange={(val) => {
+                    setVideoMetadata((prev: any) => {
+                      const currentMetadata = prev ? { ...prev } : {
+                        instagram: { content: socialDescriptions.instagram },
+                        facebook: { content: socialDescriptions.facebook },
+                        linkedin: { content: socialDescriptions.linkedin },
+                        tiktok: { caption: socialDescriptions.tiktok },
+                        youtube: { title: SAMPLE_VIDEO_FALLBACK.title, description: socialDescriptions.instagram },
+                        twitter: { content: socialDescriptions.twitter },
+                      };
+                      const updatedPlatformData = { ...currentMetadata[activeVideoPlatform] };
+                      if (activeVideoPlatform === "tiktok") updatedPlatformData.caption = val;
+                      else if (activeVideoPlatform === "youtube") updatedPlatformData.description = val;
+                      else updatedPlatformData.content = val;
+                      return { ...currentMetadata, [activeVideoPlatform]: updatedPlatformData };
+                    });
+                  }}
+                  multiline
+                  rows={6}
+                />
+
+                <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid #E8DCC2" }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: "#003049" }}>
+                    Final creative approval
+                  </div>
+                  <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#8C8474" }}>
+                    Ready to push this content to your active social channels?
+                  </p>
+                  <div style={{ display: "flex", gap: 16, alignItems: "baseline", marginTop: 16 }}>
+                    <EditorialTextLink onClick={() => setShowRetryModal(true)}>Regenerate</EditorialTextLink>
+                    <EditorialPillButton
+                      variant="primary"
+                      onClick={handlePostVideo}
+                      disabled={isVideoPosting}
+                      style={{ marginLeft: "auto" }}
+                    >
+                      {isVideoPosting ? <Spinner size={14} color="white" /> : <>Post now →</>}
+                    </EditorialPillButton>
+                  </div>
                 </div>
-                <button
-                  className="sd-btn-post"
-                  onClick={handlePostVideo}
-                  disabled={isVideoPosting}
-                  style={{ background: `linear-gradient(135deg, ${medicalBlue}, ${medicalTeal})` }}
-                >
-                  {isVideoPosting
-                    ? <Spinner color="white" size={16} />
-                    : <><Share2 size={16} /> Post Now</>}
-                </button>
               </div>
-
             </div>
-          </div>
-        </div>
-        )}
+          </section>
+        </>
+      )}
 
-        {creatorStudioView === 'image' && (
-        /* ROW 2: Social Images (left inputs, right preview) */
-        <div className="sd-grid">
+      {creatorStudioView === "image" && (
+        <>
+          <section>
+            <EditorialSectionHeader
+              title="Social Image Creator"
+              meta="Auto-scale enabled"
+              style={{ paddingTop: 28, borderBottom: "1px solid var(--primary)" }}
+            />
 
-          {/* LEFT: Social Image Creator */}
-          <div className="sd-left">
-            {/* Social Image Creator Config Form */}
-             <div className="sd-action-card sd-action-card-sky" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '270px', boxSizing: 'border-box' }}>
-              <div className="sd-card-head" style={{ marginBottom: '14px', justifyContent: 'space-between', width: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div className="sd-card-icon sd-card-icon-sky">
-                    <ImageIcon size={20} />
-                  </div>
-                  <div style={{ textAlign: 'left' }}>
-                    <h2 className="sd-card-title">Social Image Creator</h2>
-                    <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0' }}>Configure scaled prompt directly</p>
-                  </div>
-                </div>
-                <Badge text="Auto-Scale" color={medicalBlue} bg="var(--primary-light)" />
-              </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-                
-                {/* Image Prompt Textarea */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    Image Generation Prompt
-                  </label>
-                  <textarea 
+            <EditorialDefinitionList>
+              <div style={{ borderTop: "1px solid var(--border)" }}>
+                <EditorialDefinitionRow label="Generation prompt">
+                  <EditorialField
                     value={imagePrompt}
-                    onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder="e.g. Landlord reviewing tenant application on laptop, professional home office, warm natural lighting, highly detailed..."
-                    style={{ 
-                      height: '65px', 
-                      minHeight: '50px', 
-                      padding: '10px 12px', 
-                      fontSize: '12px', 
-                      border: '1px solid #cbd5e1', 
-                      borderRadius: '8px', 
-                      background: '#f8fafc',
-                      color: '#0f172a',
-                      resize: 'none',
-                      fontFamily: 'inherit',
-                      outline: 'none'
-                    }}
-                    required
+                    onChange={setImagePrompt}
+                    multiline
+                    rows={3}
+                    placeholder="e.g. Landlord reviewing tenant application on laptop, professional home office, warm natural lighting, highly detailed…"
                   />
-                </div>
+                </EditorialDefinitionRow>
 
-                {/* Aspect Ratio Toggle Selector */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                    Aspect Ratio
-                  </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {(['16:9', '9:16'] as const).map((ratio) => {
+                <EditorialDefinitionRow label="Aspect ratio" isLast>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {(["16:9", "9:16"] as const).map((ratio) => {
                       const isActive = imageRatio === ratio;
                       return (
                         <button
@@ -2493,387 +2344,184 @@ export default function SocialDash() {
                           type="button"
                           onClick={() => setImageRatio(ratio)}
                           style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            borderRadius: '8px',
-                            border: isActive ? `1.5px solid ${medicalBlue}` : '1.5px solid #cbd5e1',
-                            background: isActive ? 'var(--primary-light)' : '#f8fafc',
-                            color: isActive ? medicalBlue : '#475569',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px'
+                            fontFamily: "inherit",
+                            border: isActive ? "none" : "1px solid #C2B79A",
+                            background: isActive ? "#003049" : "transparent",
+                            color: isActive ? "#FDF6E3" : "#8C8474",
+                            borderRadius: 999,
+                            padding: "7px 18px",
+                            fontSize: 13.5,
+                            fontWeight: isActive ? 700 : 400,
+                            cursor: "pointer",
                           }}
                         >
-                          <span style={{
-                            display: 'inline-block',
-                            width: ratio === '16:9' ? '12px' : '8px',
-                            height: ratio === '16:9' ? '8px' : '12px',
-                            border: `1.5px solid ${isActive ? medicalBlue : '#64748b'}`,
-                            borderRadius: '2px',
-                            background: isActive ? 'rgba(2, 132, 199, 0.1)' : 'transparent'
-                          }} />
-                          {ratio === '16:9' ? '16:9 Landscape' : '9:16 Portrait'}
+                          {isActive ? "✓ " : ""}
+                          {ratio === "16:9" ? "16:9 landscape" : "9:16 portrait"}
                         </button>
                       );
                     })}
                   </div>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  className="sd-btn-primary"
-                  onClick={() => handleImagePromptSubmit(imagePrompt)}
-                  disabled={loading === 'images' || isImageGenerating || !imagePrompt.trim()}
-                  style={{ background: medicalBlue, boxShadow: 'none', padding: '11px 16px' }}
-                >
-                  {loading === 'images'
-                    ? <><Spinner size={14} color="white" /> Generating...</>
-                    : <><Zap size={14} /> Generate Social Images</>}
-                </button>
-
+                </EditorialDefinitionRow>
               </div>
-            </div>
-          </div>
+            </EditorialDefinitionList>
 
-          {/* RIGHT: Social image preview */}
-          <div className="sd-right">
-            {!showImageWorkspace ? (
-              <div className="sd-preview-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', minHeight: '300px' }}>
-                <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ImageIcon size={28} color="#94a3b8" />
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: '14px', fontWeight: 600, color: '#475569', margin: 0 }}>No Image Generated Yet</p>
-                  <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Click “Generate Social Images” on the left to create platform-ready visuals.</p>
-                </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", padding: "20px 0 0" }}>
+              <EditorialPillButton
+                variant="danger"
+                onClick={() => handleImagePromptSubmit(imagePrompt)}
+                disabled={loading === "images" || isImageGenerating || !imagePrompt.trim()}
+              >
+                {loading === "images" || isImageGenerating ? (
+                  <>
+                    <Spinner size={14} color="white" /> Generating…
+                  </>
+                ) : (
+                  <>Generate social images →</>
+                )}
+              </EditorialPillButton>
+            </div>
+          </section>
+
+          <section style={{ marginTop: 48 }}>
+            <EditorialSectionHeader
+              title="Social Campaign Mockup"
+              meta={
+                <EditorialTextLink onClick={handleRefreshImagePreview} disabled={isRefreshingImage}>
+                  Live feed · refresh
+                </EditorialTextLink>
+              }
+            />
+
+            {isInitialLoading || isImageGenerating || isImagePosting ? (
+              <div style={{ padding: "48px 0", textAlign: "center" }}>
+                <Loader2 size={32} color="#003049" style={{ animation: "spin 1.5s linear infinite" }} />
+                <p style={{ margin: "16px 0 0", fontSize: 14, fontWeight: 600, color: "#003049" }}>
+                  {isInitialLoading ? "Loading platform preview…" : isImagePosting ? "Posting content…" : "Drafting platform creatives…"}
+                </p>
+                {generationType === "images" && (
+                  <div style={{ width: 200, margin: "16px auto 0", height: 4, background: "#E8DCC2", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${progress}%`, background: "#C1121F", transition: "width 0.3s ease" }} />
+                  </div>
+                )}
               </div>
             ) : (
-            <div className="sd-preview-panel sd-image-workspace-panel animate-fade-in" style={{ padding: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', color: '#0f172a', position: 'relative', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
-              {/* Workspace Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px' }}>
-                <div style={{ textAlign: 'left' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#0284c7', boxShadow: '0 0 8px #0284c7' }} />
-                    Social Campaign Mockup
-                  </h3>
-                  <p style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', margin: 0 }}>High-fidelity social feed preview & editor</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button
-                    className="sd-btn-refresh-small"
-                    onClick={handleRefreshImagePreview}
-                    disabled={isRefreshingImage}
-                    title="Refresh Image Preview"
-                  >
-                    <RefreshCw size={14} style={{ animation: isRefreshingImage ? 'spin 1s linear infinite' : 'none' }} />
-                  </button>
-                  <span className="sd-live-tag">Live Feed</span>
-                </div>
-              </div>
+              <>
+                {renderPlatformTextTabs(
+                  ["instagram", "facebook", "linkedin", "tiktok", "twitter"],
+                  activePlatform,
+                  (p) => setActivePlatform(p as typeof activePlatform),
+                  IMAGE_PLATFORM_LABELS
+                )}
 
-              {isInitialLoading || isImageGenerating || isImagePosting ? (
-                /* Mobile Screen - Loader State */
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '520px', background: 'rgba(255, 255, 255, 0.8)', border: '2px dashed #cbd5e1', borderRadius: '24px', position: 'relative' }}>
-                  {/* Glowing light pulse */}
-                  <div style={{ position: 'absolute', width: '150px', height: '150px', borderRadius: '50%', background: 'rgba(2, 132, 199, 0.1)', filter: 'blur(40px)', animation: 'pulse 2s infinite' }} />
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', zIndex: 1 }}>
-                    <div style={{ position: 'relative' }}>
-                      <Loader2 size={42} color="#0284c7" style={{ animation: 'spin 1.5s linear infinite' }} />
-                      <ImageIcon size={18} color="#0284c7" style={{ position: 'absolute', top: '12px', left: '12px' }} />
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ color: '#0f172a', fontSize: '14px', fontWeight: 600, margin: 0 }}>
-                        {isInitialLoading 
-                          ? "Loading Platform Preview..." 
-                          : isImagePosting 
-                            ? "Posting Content on Social Media..." 
-                            : "Drafting Platform Creatives..."}
-                      </p>
-                      <p style={{ color: '#64748b', fontSize: '11px', marginTop: '6px', maxWidth: '240px', margin: '6px 0 0 0' }}>
-                        {isInitialLoading
-                          ? "Connecting to Supabase and retrieving the latest campaign details..."
-                          : isImagePosting
-                            ? "Broadcasting your approved campaign images and copywriting to your active channels..."
-                            : "Generating scaled images & tailoring custom copywriting for social distribution"}
-                      </p>
-                      {generationType === 'images' && (
-                        <div style={{ width: '200px', margin: '14px auto 0 auto', display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 800, color: '#0284c7', letterSpacing: '0.05em' }}>
-                            <span>PROGRESS</span>
-                            <span>{Math.round(progress)}%</span>
+                <div
+                  className="editorial-preview-grid"
+                  style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 48, paddingTop: 24, alignItems: "start" }}
+                >
+                  {renderV4PreviewCard(
+                    "AI Tenant Screening · Canada",
+                    (
+                      <div style={{ width: "100%", aspectRatio: imageRatio === "16:9" ? "16/9" : "9/16", borderRadius: 6, overflow: "hidden", background: "#E8DCC2" }}>
+                        {generatedSocialImage ? (
+                          <img src={generatedSocialImage} alt="Generated social" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", minHeight: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "#8C8474", fontSize: 13 }}>
+                            Generated image preview
                           </div>
-                          <div style={{ height: '6px', width: '100%', background: '#cbd5e1', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${progress}%`, background: '#0284c7', borderRadius: '3px', transition: 'width 0.3s ease' }} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* Interactive Social Campaign Workspace (Mobile View + Editor) */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  
-                  {/* Phone Simulator Frame */}
-                  <div className="sd-phone-frame" style={{
-                    width: '100%',
-                    maxWidth: '285px',
-                    margin: '0 auto',
-                    background: '#f8fafc',
-                    border: '8px solid #cbd5e1',
-                    borderRadius: '36px',
-                    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.1), inset 0 0 20px rgba(0,0,0,0.02)',
-                    overflow: 'hidden',
-                    position: 'relative'
-                  }}>
-                    
-                    {/* Simulated Notch / Dynamic Island */}
-                    <div style={{
-                      width: '110px',
-                      height: '20px',
-                      background: '#cbd5e1',
-                      borderRadius: '0 0 16px 16px',
-                      margin: '0 auto',
-                      position: 'absolute',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      top: 0,
-                      zIndex: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#64748b', marginRight: '6px' }} />
-                      <div style={{ width: '30px', height: '3px', borderRadius: '3px', background: '#94a3b8' }} />
+                        )}
+                      </div>
+                    ),
+                    "1,482 likes",
+                    socialDescriptions[activePlatform] || SAMPLE_SOCIAL_FALLBACK[activePlatform]
+                  )}
+
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "#8C8474" }}>
+                        Edit {IMAGE_PLATFORM_LABELS[activePlatform]} post
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color:
+                            socialDescriptions[activePlatform].length > getPlatformConfig(activePlatform).charLimit
+                              ? "#C1121F"
+                              : "#8C8474",
+                        }}
+                      >
+                        {socialDescriptions[activePlatform].length.toLocaleString()} /{" "}
+                        {getPlatformConfig(activePlatform).charLimit.toLocaleString()} chars
+                      </div>
                     </div>
 
-                    {/* Horizontal 4 Brand Buttons Group inside Phone Simulator */}
-                    <div style={{
-                      display: 'flex',
-                      background: 'rgba(255, 255, 255, 0.8)',
-                      backdropFilter: 'blur(8px)',
-                      borderBottom: '1px solid rgba(0,0,0,0.06)',
-                      padding: '24px 8px 8px 8px', // padding top 24px to clear notch
-                      gap: '4px',
-                      justifyContent: 'space-between',
-                      zIndex: 5,
-                      position: 'relative'
-                    }}>
-                      {(['instagram', 'facebook', 'linkedin', 'tiktok', 'twitter'] as const).map((p) => {
-                        const isActive = activePlatform === p;
-                        const config = getPlatformConfig(p);
-                        return (
-                          <button
-                            key={p}
-                            onClick={() => setActivePlatform(p)}
-                            style={{
-                              flex: 1,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
-                              padding: '6px 2px',
-                              borderRadius: '10px',
-                              background: isActive ? config.bgActive : 'transparent',
-                              border: isActive ? `1px solid ${config.borderColor}` : '1px solid transparent',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              color: isActive ? config.color : '#64748b'
-                            }}
-                          >
-                            <span style={{ color: isActive ? config.color : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {config.icon}
-                            </span>
-                            <span style={{ fontSize: '8px', fontWeight: isActive ? 700 : 500, textTransform: 'capitalize' }}>{p}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Simulated Mobile Device screen viewport */}
-                    <div style={{
-                      height: '456px',
-                      overflowY: 'auto',
-                      background: activePlatform === 'tiktok' ? '#000000' : '#ffffff',
-                      color: activePlatform === 'tiktok' ? '#ffffff' : '#0f172a',
-                      position: 'relative',
-                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-                    }} className="sd-phone-screen">
-                      
-                      {activePlatform === 'instagram' && renderInstagramMock()}
-                      {activePlatform === 'facebook' && renderFacebookMock()}
-                      {activePlatform === 'linkedin' && renderLinkedInMock()}
-                      {activePlatform === 'tiktok' && renderTikTokMock()}
-                      {activePlatform === 'twitter' && renderTwitterMock()}
-
-                    </div>
-                  </div>
-
-                  {/* Real-time Caption Editor Workspace Card */}
-                  <div style={{
-                    background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '16px',
-                    padding: '14px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                    textAlign: 'left'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: getPlatformConfig(activePlatform).color, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {getPlatformConfig(activePlatform).icon}
-                        </span>
-                        Edit {activePlatform} Post
-                      </span>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: socialDescriptions[activePlatform].length > getPlatformConfig(activePlatform).charLimit ? '#ef4444' : '#64748b'
-                      }}>
-                        {socialDescriptions[activePlatform].length.toLocaleString()} / {getPlatformConfig(activePlatform).charLimit.toLocaleString()} chars
-                      </span>
-                    </div>
-
-                    <textarea
+                    <EditorialField
                       value={socialDescriptions[activePlatform]}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSocialDescriptions(prev => ({
-                          ...prev,
-                          [activePlatform]: val
-                        }));
-                      }}
-                      rows={4}
-                      style={{
-                        width: '100%',
-                        background: '#f8fafc',
-                        border: `1.5px solid #e2e8f0`,
-                        borderRadius: '12px',
-                        padding: '12px',
-                        fontSize: '12px',
-                        color: '#0f172a',
-                        fontFamily: 'inherit',
-                        outline: 'none',
-                        resize: 'none',
-                        transition: 'all 0.2s',
-                        lineHeight: '1.6'
-                      }}
-                      onFocus={(e) => { e.target.style.borderColor = getPlatformConfig(activePlatform).color; e.target.style.boxShadow = `0 0 10px ${getPlatformConfig(activePlatform).color}22`; e.target.style.background = '#ffffff'; }}
-                      onBlur={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; e.target.style.background = '#f8fafc'; }}
-                      placeholder={`Draft your perfect ${activePlatform} post here...`}
+                      onChange={(val) => setSocialDescriptions((prev) => ({ ...prev, [activePlatform]: val }))}
+                      multiline
+                      rows={5}
                     />
 
-                    {/* Clickable Landlord Hashtag Palette */}
-                    <div style={{ marginTop: '12px' }}>
-                      <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginBottom: '6px', margin: '0 0 6px 0' }}>🏠 Tap to Append Landlord Hashtags</p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    <div style={{ marginTop: 18 }}>
+                      <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "#8C8474", marginBottom: 10 }}>
+                        Tap to append landlord hashtags
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {LANDLORD_HASHTAGS.map((tag) => (
                           <button
                             key={tag}
+                            type="button"
                             onClick={() => {
                               const currentText = socialDescriptions[activePlatform];
-                              const space = currentText.endsWith(' ') || currentText === '' ? '' : ' ';
-                              setSocialDescriptions(prev => ({
+                              const space = currentText.endsWith(" ") || currentText === "" ? "" : " ";
+                              setSocialDescriptions((prev) => ({
                                 ...prev,
-                                [activePlatform]: currentText + space + tag
+                                [activePlatform]: currentText + space + tag,
                               }));
                             }}
                             style={{
-                              background: '#f1f5f9',
-                              border: '1px solid #e2e8f0',
-                              borderRadius: '6px',
-                              padding: '4px 8px',
-                              fontSize: '9px',
-                              fontWeight: 600,
-                              color: '#475569',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s'
+                              fontFamily: "inherit",
+                              border: "1px solid #C2B79A",
+                              borderRadius: 999,
+                              padding: "5px 12px",
+                              fontSize: 13,
+                              color: "#2B3A4A",
+                              background: "transparent",
+                              cursor: "pointer",
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
                           >
                             {tag}
                           </button>
                         ))}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Approve & Publish Bar */}
-                  <div style={{
-                    padding: '14px 16px',
-                    borderTop: '1px solid #e2e8f0',
-                    background: '#ffffff',
-                    borderRadius: '16px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div style={{ textAlign: 'left' }}>
-                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Creative Approved</p>
-                      <p style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', margin: '2px 0 0 0' }}>Verify scaling & descriptions before pushing live</p>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button
-                        onClick={() => setShowSocialRetryModal(true)}
-                        disabled={isImagePosting}
-                        style={{
-                          background: '#f1f5f9',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          padding: '10px 20px',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          color: '#475569',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        <RefreshCw size={13} /> Retry
-                      </button>
-                      <button
-                        onClick={handleSocialPost}
-                        disabled={isImagePosting}
-                        style={{
-                          background: `linear-gradient(135deg, ${medicalBlue}, ${medicalTeal})`,
-                          border: 'none',
-                          borderRadius: '8px',
-                          padding: '10px 20px',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          color: '#fff',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)'
-                        }}
-                      >
-                        {isImagePosting ? <Spinner size={12} color="white" /> : <Share2 size={13} />}
-                        Post
-                      </button>
+                    <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid #E8DCC2" }}>
+                      <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: "#003049" }}>
+                        Creative approved
+                      </div>
+                      <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#8C8474" }}>
+                        Verify scaling & descriptions before pushing live.
+                      </p>
+                      <div style={{ display: "flex", gap: 16, alignItems: "baseline", marginTop: 16 }}>
+                        <EditorialTextLink onClick={() => setShowSocialRetryModal(true)} disabled={isImagePosting}>
+                          Retry
+                        </EditorialTextLink>
+                        <EditorialPillButton
+                          variant="primary"
+                          onClick={handleSocialPost}
+                          disabled={isImagePosting}
+                          style={{ marginLeft: "auto" }}
+                        >
+                          {isImagePosting ? <Spinner size={14} color="white" /> : <>Post →</>}
+                        </EditorialPillButton>
+                      </div>
                     </div>
                   </div>
-
                 </div>
-              )}
-
-            </div>
+              </>
             )}
-          </div>
-        </div>
-        )}
-
-      </div>
+          </section>
+        </>
+      )}
 
       <GeneratorModal 
         isOpen={showModal} 
@@ -2914,6 +2562,6 @@ export default function SocialDash() {
         }}
       />
 
-    </div>
+    </EditorialPage>
   );
 }

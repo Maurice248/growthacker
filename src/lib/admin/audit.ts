@@ -7,7 +7,8 @@ export type AdminAuditAction =
   | 'company.update'
   | 'company.delete'
   | 'impersonate.start'
-  | 'impersonate.end';
+  | 'impersonate.end'
+  | 'company.modules.update';
 
 export async function logAdminAction(params: {
   actorUserId: string;

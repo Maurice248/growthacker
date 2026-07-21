@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Spinner, Badge } from "./components";
+import { Spinner, EditorialPage, EditorialPageHeader, EditorialSectionHeader, EditorialDefinitionList, EditorialDefinitionRow, EditorialField, EditorialPillButton, EditorialTextLink, EditorialStatusPill } from "./components";
 import CustomSelect from "./CustomSelect";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -112,6 +112,21 @@ const BUDGET_TYPES = [
   { value: "LIFETIME", label: "Lifetime Budget" },
 ];
 
+const CTA_OPTIONS = [
+  { value: "LEARN_MORE", label: "Learn More" },
+  { value: "SHOP_NOW", label: "Shop Now" },
+  { value: "BOOK_TRAVEL", label: "Book Now" },
+  { value: "SIGN_UP", label: "Sign Up" },
+  { value: "CONTACT_US", label: "Contact Us" },
+  { value: "GET_QUOTE", label: "Get Quote" },
+  { value: "APPLY_NOW", label: "Apply Now" },
+  { value: "DOWNLOAD", label: "Download" },
+  { value: "SUBSCRIBE", label: "Subscribe" },
+  { value: "GET_OFFER", label: "Get Offer" },
+  { value: "ORDER_NOW", label: "Order Now" },
+  { value: "WATCH_MORE", label: "Watch More" },
+];
+
 interface CampaignSetupProps {
   onSelect: (campaign: any) => void;
   selectedId: string | null | undefined;
@@ -133,9 +148,9 @@ interface CampaignSetupProps {
 }
 
 const STEPS = [
-  { num: 1, label: "Campaign", sub: "Objective & Strategy" },
-  { num: 2, label: "Ad Set", sub: "Targeting & Budget" },
-  { num: 3, label: "Ad Creative", sub: "Select & Configure" },
+  { num: 1, label: "Campaign", sub: "Objective & strategy" },
+  { num: 2, label: "Ad Set", sub: "Targeting & budget" },
+  { num: 3, label: "Ad Creative", sub: "Select & configure" },
 ];
 
 export default function CampaignSetup({
@@ -654,216 +669,196 @@ export default function CampaignSetup({
     setStep(step + 1);
   };
 
-  const getStatusColor = (status: string) => {
-    if (status === "ACTIVE") return { color: "#16a34a", bg: "#f0fdf4", border: "#86efac" };
-    if (status === "PAUSED") return { color: "#d97706", bg: "#fffbeb", border: "#fde68a" };
-    return { color: "#64748b", bg: "#f8fafc", border: "#e2e8f0" };
-  };
-
   const selectedCampaign = campaigns.find(c => c.id === selectedId);
   const isAdVideo = config.ad?.media_type === "video" || config.ad?.type === "video";
   const mediaUrl = config.link_data || "";
 
   return (
-    <div style={{ fontFamily: "'Inter', -apple-system, sans-serif", maxWidth: 900, margin: "0 auto" }}>
-
-      {/* ── Page Header ── */}
-      <div style={{ marginBottom: 28, paddingTop: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
-          Meta Ads Manager
-        </div>
-        <h2 style={{ fontSize: 24, fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>Campaign Setup</h2>
-        <p style={{ fontSize: 13, color: "#64748b", margin: "4px 0 0" }}>Build and launch your Meta Ads campaign step by step.</p>
-      </div>
+    <EditorialPage wide>
+      <EditorialPageHeader
+        eyebrow="Meta Ads Manager"
+        title="Campaign Setup"
+        subtitle="Build and launch your Meta Ads campaign step by step."
+        style={{ marginBottom: 36 }}
+      />
 
       {/* ── No Ad Selected Gate ── */}
       {!activeAd && (
         <div style={{
-          background: "#fff", borderRadius: 16, border: "2px dashed #bfdbfe",
-          padding: "40px 32px", marginBottom: 20, textAlign: "center",
-          boxShadow: "0 2px 12px rgba(37,99,235,0.06)"
+          borderTop: "1px dashed #C2B79A",
+          padding: "40px 0", marginBottom: 40, textAlign: "left",
         }}>
-          <div style={{ width: 64, height: 64, borderRadius: 20, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, margin: "0 auto 16px" }}>🎯</div>
-          <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", margin: "0 0 8px" }}>Select an Ad First</h3>
-          <p style={{ fontSize: 13, color: "#475569", margin: "0 0 24px", lineHeight: 1.7, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-            Before setting up a campaign, go to the <strong>Create Ad</strong> tab, approve an ad in <strong>Ad Previews</strong>, then click <strong>&ldquo;Send to Campaign Setup&rdquo;</strong>.
+          <EditorialSectionHeader title="Select an Ad First" />
+          <p style={{ fontSize: 15, color: "#4A5A64", margin: "16px 0 24px", lineHeight: 1.7, maxWidth: 520 }}>
+            Before setting up a campaign, go to the <strong>Create Ad</strong> tab, approve an ad in <strong>Ad Previews</strong>, then click <strong>&ldquo;Send to setup&rdquo;</strong>.
           </p>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#f1f5f9", borderRadius: 10, fontSize: 13, color: "#475569", fontWeight: 600 }}>
-              <span>1️⃣</span> Go to <strong>Create Ad</strong> tab
-            </div>
-            <span style={{ color: "#cbd5e1", fontSize: 18 }}>→</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#f1f5f9", borderRadius: 10, fontSize: 13, color: "#475569", fontWeight: 600 }}>
-              <span>2️⃣</span> Click <strong>Send to Campaign Setup</strong>
-            </div>
-            <span style={{ color: "#cbd5e1", fontSize: 18 }}>→</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", background: "#eff6ff", borderRadius: 10, fontSize: 13, color: "#1d4ed8", fontWeight: 700, border: "1px solid #bfdbfe" }}>
-              <span>3️⃣</span> Campaign Setup opens here ✓
-            </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap", fontSize: 14, color: "#8C8474" }}>
+            <span>1. Create Ad</span>
+            <span>→</span>
+            <span>2. Send to setup</span>
+            <span>→</span>
+            <span style={{ color: "#003049", fontWeight: 700 }}>3. Campaign Setup</span>
           </div>
         </div>
       )}
 
       {/* ── Stepper ── */}
-      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "20px 28px", marginBottom: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.04)", opacity: activeAd ? 1 : 0.4, pointerEvents: activeAd ? "auto" : "none" }}>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          {STEPS.map((s, i) => {
-            const done = step > s.num;
-            const active = step === s.num;
-            return (
-              <React.Fragment key={s.num}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: done ? "pointer" : "default" }} onClick={() => { if (done) setStep(s.num); }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0, fontSize: 13, fontWeight: 800, transition: "all 0.2s",
-                    background: done ? "#2563eb" : active ? "#2563eb" : "#f1f5f9",
-                    color: done || active ? "#fff" : "#94a3b8",
-                    boxShadow: active ? "0 0 0 4px rgba(37,99,235,0.15)" : "none",
-                  }}>
-                    {done ? "✓" : s.num}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: active ? "#1d4ed8" : "#0f172a" }}>{s.label}</div>
-                    <div style={{ fontSize: 11, color: "#475569", marginTop: 1 }}>{s.sub}</div>
-                  </div>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div style={{ flex: 0, width: 60, height: 2, background: step > s.num ? "#2563eb" : "#e2e8f0", borderRadius: 2, transition: "background 0.3s", margin: "0 8px", flexShrink: 0 }} />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderTop: "1px solid #003049", borderBottom: "1px solid #E8DCC2", marginBottom: 40, opacity: activeAd ? 1 : 0.4, pointerEvents: activeAd ? "auto" : "none" }}>
+        {STEPS.map((s, i) => {
+          const done = step > s.num;
+          const active = step === s.num;
+          return (
+            <div
+              key={s.num}
+              onClick={() => { if (done) setStep(s.num); }}
+              style={{
+                display: "flex", gap: 14, alignItems: "center",
+                padding: i === 0 ? "18px 24px 18px 0" : i === STEPS.length - 1 ? "18px 0 18px 24px" : "18px 24px",
+                borderRight: i < STEPS.length - 1 ? "1px solid #E8DCC2" : "none",
+                cursor: done ? "pointer" : "default",
+              }}
+            >
+              <div style={{
+                width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, fontSize: 14, fontWeight: 700, fontFamily: "var(--font-display)",
+                background: done || active ? "#C1121F" : "transparent",
+                color: done || active ? "#FDF6E3" : "#8C8474",
+                border: done || active ? "none" : "1px solid #C2B79A",
+              }}>
+                {done ? "✓" : s.num}
+              </div>
+              <div>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: active ? 700 : 600, fontSize: 15, color: active ? "#C1121F" : done ? "#003049" : "#4A5A64" }}>{s.label}</div>
+                <div style={{ fontSize: 12.5, color: "#8C8474", marginTop: 2 }}>{s.sub}</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* ══════════════════════════════════════════════
           STEP 1 — CAMPAIGN
       ══════════════════════════════════════════════ */}
       {step === 1 && activeAd && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
+        <>
           {/* Existing Campaigns */}
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Existing Campaigns</div>
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>Select one to append a new Ad Set, or start fresh below.</div>
-              </div>
-              <button onClick={fetchCampaigns} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: "#64748b" }}>
-                ↻
-              </button>
-            </div>
-            <div style={{ padding: "12px 16px", maxHeight: 240, overflowY: "auto" }}>
+          <section>
+            <EditorialSectionHeader
+              title="Existing Campaigns"
+              meta={<EditorialTextLink onClick={fetchCampaigns} style={{ fontSize: 13 }}>Refresh</EditorialTextLink>}
+            />
+            <p style={{ margin: "14px 0 4px", fontSize: 13.5, color: "#8C8474" }}>Select one to append a new ad set, or start fresh below.</p>
+            <div style={{ maxHeight: 320, overflowY: "auto" }}>
               {campaignsLoading ? (
                 <div style={{ display: "flex", justifyContent: "center", padding: 24 }}><Spinner size={20} /></div>
               ) : campaigns.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 24, color: "#94a3b8", fontSize: 13 }}>No campaigns found</div>
+                <div style={{ padding: "24px 0", color: "#9FA8A3", fontSize: 13, borderTop: "1px solid #E8DCC2" }}>No campaigns found</div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {campaigns.map((c: any) => {
-                    const isSelected = selectedId === c.id;
-                    const { color, bg, border } = getStatusColor(c.effective_status);
-                    return (
-                      <div key={c.id} onClick={() => onSelect(isSelected ? null : c)}
-                        style={{
-                          padding: "12px 16px", borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, transition: "all 0.15s",
-                          border: isSelected ? "1.5px solid #2563eb" : `1px solid ${border}`,
-                          background: isSelected ? "#eff6ff" : bg,
-                        }}
-                      >
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: isSelected ? "#1d4ed8" : "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
-                          <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace", marginTop: 2 }}>ID: {c.id}</div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color, background: bg, padding: "2px 8px", borderRadius: 20, border: `1px solid ${border}` }}>{c.effective_status}</span>
-                          {isSelected && <span style={{ fontSize: 12, color: "#2563eb" }}>✓</span>}
-                        </div>
+                campaigns.map((c: any) => {
+                  const isSelected = selectedId === c.id;
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => onSelect(isSelected ? null : c)}
+                      style={{
+                        display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: "0 24px",
+                        padding: "18px 0", borderBottom: "1px solid #E8DCC2", alignItems: "center", cursor: "pointer",
+                      }}
+                    >
+                      <div style={{
+                        width: 18, height: 18, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 700,
+                        background: isSelected ? "#C1121F" : "transparent",
+                        color: isSelected ? "#FDF6E3" : "transparent",
+                        border: isSelected ? "none" : "1px solid #C2B79A",
+                      }}>
+                        {isSelected ? "✓" : ""}
                       </div>
-                    );
-                  })}
-                </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: isSelected ? 700 : 600, fontSize: 16, color: isSelected ? "#C1121F" : "#003049", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>
+                        <div style={{ fontSize: 12.5, color: "#8C8474", marginTop: 2 }}>ID · {c.id}</div>
+                      </div>
+                      <div style={{ fontSize: 13, color: isSelected ? "#003049" : "transparent", fontWeight: 700 }}>{isSelected ? "Selected" : ""}</div>
+                      <EditorialStatusPill variant={c.effective_status === "ACTIVE" ? "active" : "neutral"}>{c.effective_status}</EditorialStatusPill>
+                    </div>
+                  );
+                })
               )}
             </div>
-          </div>
 
-          {/* Campaign Fields */}
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{selectedId ? "Appending to Selected Campaign" : "New Campaign"}</div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>{selectedId ? "Campaign-level fields are locked when appending." : "Configure your new campaign."}</div>
-            </div>
-            {selectedId ? (
-              <div style={{ padding: "16px 24px" }}>
-                <div style={{ padding: 16, background: "#eff6ff", borderRadius: 10, border: "1px solid #bfdbfe" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Appending to</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>{selectedCampaign?.name || selectedId}</div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Select an existing ad set or create a new one in step 2.</div>
-                </div>
-              </div>
-            ) : (
-              <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-                <Label label="Campaign Name">
-                  <input value={config.campaign?.name || ""} onChange={e => setField("campaign", "name", e.target.value)} style={inputSt} />
-                </Label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  <Label label="Campaign Objective">
-                    <CustomSelect
-                      value={config.campaign?.objective || ""}
-                      onChange={v => {
-                        setField("campaign", "objective", v);
-                        // Auto-reset optimization goal if it's not valid for the new objective
-                        const allowed = OBJECTIVE_GOAL_MAP[v] || [];
-                        const currentGoal = config.ad_set?.optimization_goal;
-                        if (currentGoal && !allowed.includes(currentGoal)) {
-                          setField("ad_set", "optimization_goal", allowed[0] || "LINK_CLICKS");
-                        }
-                      }}
-                      options={CAMPAIGN_OBJECTIVES.map(o => ({ value: o.value, label: `${o.icon} ${o.label}` }))}
-                    />
-                  </Label>
-                  <Label label="Buying Type">
-                    <CustomSelect
-                      value={config.campaign?.buying_type || "AUCTION"}
-                      onChange={v => setField("campaign", "buying_type", v)}
-                      options={[{ value: "AUCTION", label: "Auction" }, { value: "REACH", label: "Reach" }]}
-                    />
-                  </Label>
-                </div>
-              </div>
+            {selectedId && (
+              <EditorialDefinitionList>
+                <EditorialDefinitionRow label="Appending to" isLast>
+                  <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: "#003049" }}>
+                    {selectedCampaign?.name || selectedId}
+                  </div>
+                  <div style={{ fontSize: 13.5, color: "#8C8474", marginTop: 3 }}>
+                    Campaign-level fields are locked when appending. Select an existing ad set or create a new one in step 2.
+                  </div>
+                </EditorialDefinitionRow>
+              </EditorialDefinitionList>
             )}
-          </div>
+          </section>
 
-          {/* Placements */}
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Placements</div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>Choose where your ads appear.</div>
-            </div>
-            <div style={{ padding: "20px 24px" }}>
-              <PlacementsSection config={config} setField={setField} />
-            </div>
-          </div>
+          {!selectedId && (
+            <section style={{ marginTop: 48 }}>
+              <EditorialSectionHeader title="New Campaign" meta="Configure your new campaign." />
+              <EditorialDefinitionList>
+                <EditorialDefinitionRow label="Campaign name">
+                  <EditorialField
+                    value={config.campaign?.name || ""}
+                    onChange={(v) => setField("campaign", "name", v)}
+                    placeholder="Enter campaign name"
+                  />
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Campaign objective">
+                  <CustomSelect
+                    value={config.campaign?.objective || ""}
+                    onChange={v => {
+                      setField("campaign", "objective", v);
+                      const allowed = OBJECTIVE_GOAL_MAP[v] || [];
+                      const currentGoal = config.ad_set?.optimization_goal;
+                      if (currentGoal && !allowed.includes(currentGoal)) {
+                        setField("ad_set", "optimization_goal", allowed[0] || "LINK_CLICKS");
+                      }
+                    }}
+                    options={CAMPAIGN_OBJECTIVES.map(o => ({ value: o.value, label: `${o.icon} ${o.label}` }))}
+                  />
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Buying type" isLast>
+                  <CustomSelect
+                    value={config.campaign?.buying_type || "AUCTION"}
+                    onChange={v => setField("campaign", "buying_type", v)}
+                    options={[{ value: "AUCTION", label: "Auction" }, { value: "REACH", label: "Reach" }]}
+                  />
+                </EditorialDefinitionRow>
+              </EditorialDefinitionList>
+            </section>
+          )}
+
+          <section style={{ marginTop: 48 }}>
+            <EditorialSectionHeader title="Placements" meta="Choose where your ads appear" />
+            <PlacementsSection config={config} setField={setField} />
+          </section>
 
           {stepErrors.length > 0 && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#991b1b", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
+            <div style={{ background: "#F9E3E0", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4, marginTop: 24 }}>
+              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#780000", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
             </div>
           )}
           <NavButtons step={step} setStep={setStep} onNext={handleNext} isFirst isLast={false} />
-        </div>
+        </>
       )}
 
       {/* ══════════════════════════════════════════════
           STEP 2 — AD SET
       ══════════════════════════════════════════════ */}
       {step === 2 && activeAd && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "visible", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+        <>
+          <section>
             <SectionHeader title="Targeting" sub="Define your audience and locations." />
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-              <Label label="Ad Set Name">
+            <EditorialDefinitionList>
+              <EditorialDefinitionRow label="Ad set name">
                 {selectedId ? (
                   <AdSetNameInput
                     adSets={adSets}
@@ -873,18 +868,24 @@ export default function CampaignSetup({
                     onChange={setAdSetSelection}
                   />
                 ) : (
-                  <input value={config.ad_set?.name || ""} onChange={e => setField("ad_set", "name", e.target.value)} style={inputSt} />
+                  <EditorialField
+                    value={config.ad_set?.name || ""}
+                    onChange={(v) => setField("ad_set", "name", v)}
+                    placeholder="Enter ad set name"
+                  />
                 )}
-              </Label>
+              </EditorialDefinitionRow>
               {config.ad_set?.existing_id && (
-                <div style={{ padding: "10px 14px", background: "#eff6ff", borderRadius: 9, border: "1px solid #bfdbfe", fontSize: 12, color: "#1d4ed8", fontWeight: 500 }}>
-                  Using existing ad set — budget and targeting on Meta will be kept as-is. Only the new ad creative will be added.
-                </div>
+                <EditorialDefinitionRow label="Note">
+                  <div style={{ fontSize: 13.5, color: "#4A5A64", lineHeight: 1.6 }}>
+                    Using existing ad set — budget and targeting on Meta will be kept as-is. Only the new ad creative will be added.
+                  </div>
+                </EditorialDefinitionRow>
               )}
-              <Label label="Target Locations">
+              <EditorialDefinitionRow label="Target locations">
                 <LocationSearch geoLocations={config.ad_set?.geo_locations} onChange={v => setField("ad_set", "geo_locations", v)} />
-              </Label>
-              <Label label="Optimisation Goal">
+              </EditorialDefinitionRow>
+              <EditorialDefinitionRow label="Optimisation goal" isLast>
                 <CustomSelect
                   value={config.ad_set?.optimization_goal || ""}
                   onChange={v => setField("ad_set", "optimization_goal", v)}
@@ -894,565 +895,556 @@ export default function CampaignSetup({
                     return OPTIMIZATION_GOALS.filter(g => allowed.includes(g.value)).map(g => ({ value: g.value, label: g.label }));
                   })()}
                 />
-              </Label>
-            </div>
-          </div>
+              </EditorialDefinitionRow>
+            </EditorialDefinitionList>
+          </section>
 
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+          <section style={{ marginTop: 48 }}>
             <SectionHeader title="Budget & Schedule" sub="Set your spending limits and campaign dates." />
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
-                <Label label="Budget Type">
-                  <CustomSelect
-                    value={config.ad_set?.budget_type || "DAILY"}
-                    onChange={v => setField("ad_set", "budget_type", v)}
-                    options={BUDGET_TYPES.map(b => ({ value: b.value, label: b.label }))}
+            <EditorialDefinitionList>
+              <EditorialDefinitionRow label="Budget type">
+                <CustomSelect
+                  value={config.ad_set?.budget_type || "DAILY"}
+                  onChange={v => setField("ad_set", "budget_type", v)}
+                  options={BUDGET_TYPES.map(b => ({ value: b.value, label: b.label }))}
+                />
+              </EditorialDefinitionRow>
+              <EditorialDefinitionRow label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) USD`}>
+                <div style={{ position: "relative", maxWidth: 220 }}>
+                  <span style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", color: "#8C8474", fontWeight: 600 }}>$</span>
+                  <EditorialField
+                    value={
+                      config.ad_set?.budget_type === "DAILY"
+                        ? String(config.ad_set?.daily_budget / 100 || "")
+                        : String(config.ad_set?.lifetime_budget / 100 || "")
+                    }
+                    onChange={(v) => {
+                      const key = config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget";
+                      setField("ad_set", key, Math.round(Number(v) * 100));
+                    }}
+                    placeholder="0.00"
                   />
-                </Label>
-                <Label label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) USD`}>
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b", fontWeight: 600 }}>$</span>
-                    <input type="number" style={{ ...inputSt, paddingLeft: 26 }}
-                      value={config.ad_set?.budget_type === "DAILY"
-                        ? (config.ad_set?.daily_budget / 100 || "")
-                        : (config.ad_set?.lifetime_budget / 100 || "")}
-                      onChange={e => {
-                        const key = config.ad_set?.budget_type === "DAILY" ? "daily_budget" : "lifetime_budget";
-                        setField("ad_set", key, Math.round(Number(e.target.value) * 100));
-                      }}
+                </div>
+              </EditorialDefinitionRow>
+              <EditorialDefinitionRow label="Start date">
+                <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={{ ...inputSt, border: "none", borderBottom: "1px solid #C2B79A", borderRadius: 0, padding: "10px 0", background: "transparent" }} />
+              </EditorialDefinitionRow>
+              <EditorialDefinitionRow label="End date" isLast>
+                {config.ad_set?.has_end_date ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <input
+                      type="datetime-local"
+                      value={config.ad_set?.stop_time || ""}
+                      onChange={e => setField("ad_set", "stop_time", e.target.value)}
+                      style={{ ...inputSt, flex: 1, border: "none", borderBottom: "1px solid #C2B79A", borderRadius: 0, padding: "10px 0", background: "transparent", boxSizing: "border-box" }}
                     />
+                    <EditorialTextLink onClick={() => { setField("ad_set", "has_end_date", false); setField("ad_set", "stop_time", ""); }}>
+                      Remove
+                    </EditorialTextLink>
                   </div>
-                </Label>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <Label label="Start Date">
-                  <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={{ ...inputSt, width: "100%", boxSizing: "border-box" }} />
-                </Label>
-                <Label label="End Date">
-                  {config.ad_set?.has_end_date ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <input
-                        type="datetime-local"
-                        value={config.ad_set?.stop_time || ""}
-                        onChange={e => setField("ad_set", "stop_time", e.target.value)}
-                        style={{ ...inputSt, flex: 1, boxSizing: "border-box" }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => { setField("ad_set", "has_end_date", false); setField("ad_set", "stop_time", ""); }}
-                        style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: "#f1f5f9", border: "1.5px solid #e2e8f0", color: "#94a3b8", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}
-                        title="Remove end date"
-                      >×</button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => setField("ad_set", "has_end_date", true)}
-                      style={{ ...inputSt, cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box" }}
-                    >
-                      <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-                      <span>Add end date</span>
-                    </div>
-                  )}
-                </Label>
-              </div>
-            </div>
-          </div>
+                ) : (
+                  <EditorialTextLink onClick={() => setField("ad_set", "has_end_date", true)}>
+                    + Add end date
+                  </EditorialTextLink>
+                )}
+              </EditorialDefinitionRow>
+            </EditorialDefinitionList>
+          </section>
 
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+          <section style={{ marginTop: 48 }}>
             <SectionHeader title="Demographics" sub="Define age range and gender targeting." />
-            <div style={{ padding: "20px 24px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 16 }}>
-                <Label label="Gender">
-                  <CustomSelect
-                    value={String(config.ad_set?.gender ?? 0)}
-                    onChange={v => setField("ad_set", "gender", Number(v))}
-                    options={[{ value: "0", label: "All" }, { value: "1", label: "Male" }, { value: "2", label: "Female" }]}
-                  />
-                </Label>
-                <Label label="Min Age (18–100)">
-                  <input
-                    type="number" min={18} max={100}
-                    value={config.ad_set?.age_min ?? ""}
-                    onChange={e => setField("ad_set", "age_min", e.target.value === "" ? "" : Number(e.target.value))}
-                    onBlur={e => {
-                      const v = Number(e.target.value);
-                      if (!isNaN(v) && e.target.value !== "") setField("ad_set", "age_min", Math.min(100, Math.max(18, v)));
-                    }}
-                    style={inputSt}
-                  />
-                </Label>
-                <Label label="Max Age (18–100)">
-                  <input
-                    type="number" min={18} max={100}
-                    value={config.ad_set?.age_max ?? ""}
-                    onChange={e => setField("ad_set", "age_max", e.target.value === "" ? "" : Number(e.target.value))}
-                    onBlur={e => {
-                      const v = Number(e.target.value);
-                      if (!isNaN(v) && e.target.value !== "") setField("ad_set", "age_max", Math.min(100, Math.max(18, v)));
-                    }}
-                    style={inputSt}
-                  />
-                </Label>
-              </div>
-            </div>
-          </div>
+            <EditorialDefinitionList>
+              <EditorialDefinitionRow label="Gender">
+                <CustomSelect
+                  value={String(config.ad_set?.gender ?? 0)}
+                  onChange={v => setField("ad_set", "gender", Number(v))}
+                  options={[{ value: "0", label: "All" }, { value: "1", label: "Male" }, { value: "2", label: "Female" }]}
+                />
+              </EditorialDefinitionRow>
+              <EditorialDefinitionRow label="Min age">
+                <EditorialField
+                  value={String(config.ad_set?.age_min ?? "")}
+                  onChange={(v) => setField("ad_set", "age_min", v === "" ? "" : Number(v))}
+                  placeholder="18"
+                />
+              </EditorialDefinitionRow>
+              <EditorialDefinitionRow label="Max age" isLast>
+                <EditorialField
+                  value={String(config.ad_set?.age_max ?? "")}
+                  onChange={(v) => setField("ad_set", "age_max", v === "" ? "" : Number(v))}
+                  placeholder="65"
+                />
+              </EditorialDefinitionRow>
+            </EditorialDefinitionList>
+          </section>
 
           {stepErrors.length > 0 && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#991b1b", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
+            <div style={{ background: "#F9E3E0", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4, marginTop: 24 }}>
+              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#780000", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
             </div>
           )}
           <NavButtons step={step} setStep={setStep} onNext={handleNext} isFirst={false} isLast={false} />
-        </div>
+        </>
       )}
 
       {/* ══════════════════════════════════════════════
           STEP 3 — AD CREATIVE
       ══════════════════════════════════════════════ */}
       {step === 3 && activeAd && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-          {/* Select Approved Ad / Variant Set */}
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-                {hasVariantLaunch ? "Variant set" : "Selected Ad"}
-              </div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>
-                {hasVariantLaunch
+        <>
+          <section>
+            <SectionHeader
+              title={hasVariantLaunch ? "Variant set" : "Selected ad"}
+              sub={
+                hasVariantLaunch
                   ? `${variantAds.length} ads will launch together in one ad set.`
                   : selectedAd
                     ? "Ad selected from Create Ad."
-                    : `Pick an approved creative. ${approvedAdsProp.length > 0 ? approvedAdsProp.length + " available" : ""}`}
-              </div>
-            </div>
-            <div style={{ padding: "16px 24px" }}>
-              {(() => {
-                const adsToShow = hasVariantLaunch
-                  ? variantAds.map((variant) => ({
-                      id: variant.id,
-                      text: variant.mediaUrl,
-                      format: variant.format,
-                      role: variant.role,
-                    }))
-                  : selectedAd
-                    ? [selectedAd]
-                    : approvedAdsProp;
-                if (adsToShow.length === 0) return (
-                  <div style={{ textAlign: "center", padding: "32px 0", color: "#94a3b8", fontSize: 13 }}>No approved ads yet. Go to the <b>Create Ad</b> tab and approve a creative in Ad Previews first.</div>
-                );
+                    : `Pick an approved creative.${approvedAdsProp.length > 0 ? ` ${approvedAdsProp.length} available.` : ""}`
+              }
+            />
+            {(() => {
+              const adsToShow = hasVariantLaunch
+                ? variantAds.map((variant) => ({
+                    id: variant.id,
+                    text: variant.mediaUrl,
+                    format: variant.format,
+                    role: variant.role,
+                  }))
+                : selectedAd
+                  ? [selectedAd]
+                  : approvedAdsProp;
+              if (adsToShow.length === 0) {
                 return (
-                <div style={{ display: "grid", gridTemplateColumns: hasVariantLaunch || selectedAd ? "repeat(auto-fill, minmax(200px, 280px))" : "repeat(auto-fill, minmax(130px, 1fr))", gap: 12 }}>
+                  <div style={{ padding: "32px 0", color: "#9FA8A3", fontSize: 13.5, lineHeight: 1.6 }}>
+                    No approved ads yet. Go to the <strong>Create Ad</strong> tab and approve a creative in Ad Previews first.
+                  </div>
+                );
+              }
+              const gridCols = hasVariantLaunch || selectedAd
+                ? "repeat(auto-fill, minmax(180px, 220px))"
+                : "repeat(auto-fill, minmax(160px, 1fr))";
+              return (
+                <div
+                  className="editorial-preview-grid"
+                  style={{ display: "grid", gridTemplateColumns: gridCols, gap: 28, paddingTop: 24 }}
+                >
                   {adsToShow.map((ad: any, adIdx: number) => {
                     const isVid = (ad.format || "").toLowerCase() === "video";
                     const isSelected = hasVariantLaunch || selectedApprovedAd?.text === ad.text;
+                    const formatLabel = ad.role === "base" ? "Base variant" : isVid ? "Video" : "Image";
                     return (
-                      <div key={`${ad.id}-${adIdx}`} onClick={() => {
-                        if (hasVariantLaunch) return;
-                        setSelectedApprovedAd(ad);
-                        setConfig((prev: any) => ({ ...prev, link_data: ad.text, ad: { ...prev.ad, media_type: isVid ? "video" : "image", type: isVid ? "video" : "image" } }));
-                      }}
-                        style={{
-                          borderRadius: 12, overflow: "hidden", cursor: hasVariantLaunch ? "default" : "pointer", transition: "all 0.18s",
-                          border: isSelected ? "2.5px solid #2563eb" : "1.5px solid #e2e8f0",
-                          boxShadow: isSelected ? "0 0 0 4px rgba(37,99,235,0.12)" : "0 1px 4px rgba(0,0,0,0.04)",
-                          position: "relative",
+                      <AdCreativePreviewCard
+                        key={`${ad.id}-${adIdx}`}
+                        ad={ad}
+                        isVideo={isVid}
+                        isSelected={isSelected}
+                        formatLabel={formatLabel}
+                        selectable={!hasVariantLaunch}
+                        onSelect={() => {
+                          if (hasVariantLaunch) return;
+                          setSelectedApprovedAd(ad);
+                          setConfig((prev: any) => ({
+                            ...prev,
+                            link_data: ad.text,
+                            ad: { ...prev.ad, media_type: isVid ? "video" : "image", type: isVid ? "video" : "image" },
+                          }));
                         }}
-                      >
-                        {(isSelected || hasVariantLaunch) && (
-                          <div style={{ position: "absolute", top: 6, right: 6, zIndex: 2, width: 20, height: 20, borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 800 }}>✓</div>
-                        )}
-                        <div style={{ background: "#0f172a", aspectRatio: "9/16", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                          {isVid ? (
-                            <video src={ad.text} controls controlsList="nodownload" style={{ width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />
-                          ) : (
-                            <img src={ad.text} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.target as any).style.display = "none"; }} />
-                          )}
-                        </div>
-                        <div style={{ padding: "8px 8px 6px", background: "#fff" }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: isVid ? "#1d4ed8" : "#475569", display: "flex", alignItems: "center", gap: 3 }}>
-                            {isVid ? "🎬" : "🖼️"} {ad.role === "base" ? "Base variant" : isVid ? "Video" : "Image"}
-                          </div>
-                        </div>
-                      </div>
+                      />
                     );
                   })}
                 </div>
-                );
-              })()}
-            </div>
-          </div>
+              );
+            })()}
+          </section>
 
-          {/* Ad Copy */}
-          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+          <section style={{ marginTop: 48 }}>
             <SectionHeader
-              title="Ad Copy & Identity"
+              title="Ad copy & identity"
               sub={
                 hasMultiVariantLaunch
                   ? "Each variant needs its own ad name, primary text, and description. Fill in the base variant, then generate the rest."
                   : "Customize the text and CTA for your ad."
               }
             />
-            <div style={{ padding: "20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-              {hasMultiVariantLaunch ? (
-                <>
-                  {variantAds.map((variant, index) => {
-                    const copy = variantCopyById[variant.id] || {
-                      name: "",
-                      primary_text: "",
-                      description: "",
-                    };
-                    const isVideo = variant.format === "Video";
-                    const label = variantLabel(variant, index);
-                    return (
-                      <div
-                        key={variant.id}
-                        style={{
-                          border: "1px solid #e2e8f0",
-                          borderRadius: 12,
-                          overflow: "hidden",
-                          background: index === 0 ? "#f8fafc" : "#fff",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                            padding: "12px 16px",
-                            borderBottom: "1px solid #eef2f7",
-                            background: "#fff",
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 44,
-                              height: 56,
-                              borderRadius: 8,
-                              overflow: "hidden",
-                              background: "#0f172a",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {isVideo ? (
-                              <video
-                                src={variant.mediaUrl}
-                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                              />
-                            ) : (
-                              <img
-                                src={variant.mediaUrl}
-                                alt=""
-                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                              />
-                            )}
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{label}</div>
-                            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                              {index === 0
-                                ? "Write this first — other variants can be generated from it."
-                                : "Unique ad name, primary text, and description for this creative."}
-                            </div>
+            {hasMultiVariantLaunch ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                {variantAds.map((variant, index) => {
+                  const copy = variantCopyById[variant.id] || { name: "", primary_text: "", description: "" };
+                  const isVideo = variant.format === "Video";
+                  const label = variantLabel(variant, index);
+                  return (
+                    <div key={variant.id} style={{ borderTop: "1px solid #E8DCC2", paddingTop: 24 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+                        <div style={{ width: 48, height: 60, borderRadius: 8, overflow: "hidden", background: "#003049", flexShrink: 0 }}>
+                          {isVideo ? (
+                            <video src={variant.mediaUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <img src={variant.mediaUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "#003049" }}>{label}</div>
+                          <div style={{ fontSize: 13, color: "#8C8474", marginTop: 3, lineHeight: 1.5 }}>
+                            {index === 0
+                              ? "Write this first — other variants can be generated from it."
+                              : "Unique ad name, primary text, and description for this creative."}
                           </div>
                         </div>
-
-                        <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 12 }}>
-                          <Label label="Ad Name *">
-                            <input
-                              value={copy.name}
-                              onChange={(e) => setVariantCopy(variant.id, "name", e.target.value)}
-                              style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
-                            />
-                          </Label>
-
-                          <Label label="Primary Text *">
-                            <textarea
-                              value={copy.primary_text}
-                              onChange={(e) => setVariantCopy(variant.id, "primary_text", e.target.value)}
-                              style={{
-                                ...inputSt,
-                                minHeight: 88,
-                                resize: "vertical",
-                                lineHeight: 1.6,
-                                width: "100%",
-                                boxSizing: "border-box",
-                              }}
-                            />
-                          </Label>
-
-                          <Label label="Ad Description">
-                            <input
-                              value={copy.description}
-                              onChange={(e) => setVariantCopy(variant.id, "description", e.target.value)}
-                              style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
-                            />
-                          </Label>
-                        </div>
                       </div>
-                    );
-                  })}
+                      <EditorialDefinitionList>
+                        <EditorialDefinitionRow label="Ad name">
+                          <EditorialField value={copy.name} onChange={(v) => setVariantCopy(variant.id, "name", v)} />
+                        </EditorialDefinitionRow>
+                        <EditorialDefinitionRow label="Primary text">
+                          <EditorialField value={copy.primary_text} onChange={(v) => setVariantCopy(variant.id, "primary_text", v)} multiline rows={4} />
+                        </EditorialDefinitionRow>
+                        <EditorialDefinitionRow label="Ad description" isLast>
+                          <EditorialField value={copy.description} onChange={(v) => setVariantCopy(variant.id, "description", v)} />
+                        </EditorialDefinitionRow>
+                      </EditorialDefinitionList>
+                    </div>
+                  );
+                })}
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={handleGenerateVariantCopy}
-                      disabled={generatingCopy}
-                      style={{
-                        alignSelf: "flex-start",
-                        padding: "10px 16px",
-                        borderRadius: 10,
-                        border: "1px solid #2563eb",
-                        background: generatingCopy ? "#eff6ff" : "#2563eb",
-                        color: generatingCopy ? "#2563eb" : "#fff",
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: generatingCopy ? "wait" : "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      {generatingCopy ? <Spinner size={14} /> : null}
-                      {generatingCopy
-                        ? "Generating copy..."
-                        : `Generate ad copy for variants 2–${variantAds.length}`}
-                    </button>
-                    {copyError && (
-                      <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>{copyError}</div>
-                    )}
-                  </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 8 }}>
+                  <EditorialPillButton onClick={handleGenerateVariantCopy} disabled={generatingCopy} style={{ alignSelf: "flex-start" }}>
+                    {generatingCopy ? <Spinner size={14} color="#FDF0D5" /> : null}
+                    {generatingCopy ? "Generating copy..." : `Generate ad copy for variants 2–${variantAds.length}`}
+                  </EditorialPillButton>
+                  {copyError && <div style={{ fontSize: 13, color: "#C1121F", fontWeight: 600 }}>{copyError}</div>}
+                </div>
 
-                  <div style={{ height: 1, background: "#e2e8f0", margin: "4px 0" }} />
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>
-                    Shared across all variants
-                  </div>
-
-                  <Label label="Headline *">
-                    <input
-                      value={config.ad?.headline || ""}
-                      onChange={(e) => setField("ad", "headline", e.target.value)}
-                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
-                    />
-                  </Label>
-
-                  <Label label="Call to Action">
+                <EditorialDefinitionList>
+                  <EditorialDefinitionRow label="Headline">
+                    <EditorialField value={config.ad?.headline || ""} onChange={(v) => setField("ad", "headline", v)} />
+                  </EditorialDefinitionRow>
+                  <EditorialDefinitionRow label="Call to action" isLast>
                     <CustomSelect
+                      variant="editorial"
                       value={config.ad?.call_to_action_type || "LEARN_MORE"}
                       onChange={(v) => setField("ad", "call_to_action_type", v)}
-                      options={[
-                        { value: "LEARN_MORE", label: "Learn More" },
-                        { value: "SHOP_NOW", label: "Shop Now" },
-                        { value: "BOOK_TRAVEL", label: "Book Now" },
-                        { value: "SIGN_UP", label: "Sign Up" },
-                        { value: "CONTACT_US", label: "Contact Us" },
-                        { value: "GET_QUOTE", label: "Get Quote" },
-                        { value: "APPLY_NOW", label: "Apply Now" },
-                        { value: "DOWNLOAD", label: "Download" },
-                        { value: "SUBSCRIBE", label: "Subscribe" },
-                        { value: "GET_OFFER", label: "Get Offer" },
-                        { value: "ORDER_NOW", label: "Order Now" },
-                        { value: "WATCH_MORE", label: "Watch More" },
-                      ]}
+                      options={CTA_OPTIONS}
                     />
-                  </Label>
-                </>
-              ) : (
-                <>
-                  <Label label="Ad Name *">
-                    <input
-                      value={config.ad?.name || ""}
-                      onChange={(e) => setField("ad", "name", e.target.value)}
-                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
-                    />
-                  </Label>
+                  </EditorialDefinitionRow>
+                </EditorialDefinitionList>
+              </div>
+            ) : (
+              <EditorialDefinitionList>
+                <EditorialDefinitionRow label="Ad name">
+                  <EditorialField value={config.ad?.name || ""} onChange={(v) => setField("ad", "name", v)} />
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Primary text">
+                  <EditorialField value={config.ad?.primary_text || ""} onChange={(v) => setField("ad", "primary_text", v)} multiline rows={4} />
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Headline">
+                  <EditorialField value={config.ad?.headline || ""} onChange={(v) => setField("ad", "headline", v)} />
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Call to action">
+                  <CustomSelect
+                    variant="editorial"
+                    value={config.ad?.call_to_action_type || "LEARN_MORE"}
+                    onChange={(v) => setField("ad", "call_to_action_type", v)}
+                    options={CTA_OPTIONS}
+                  />
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Ad description" isLast>
+                  <EditorialField value={config.ad?.description || ""} onChange={(v) => setField("ad", "description", v)} />
+                </EditorialDefinitionRow>
+              </EditorialDefinitionList>
+            )}
 
-                  <Label label="Primary Text">
-                    <textarea
-                      value={config.ad?.primary_text || ""}
-                      onChange={(e) => setField("ad", "primary_text", e.target.value)}
-                      style={{
-                        ...inputSt,
-                        minHeight: 88,
-                        resize: "vertical",
-                        lineHeight: 1.6,
-                        width: "100%",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </Label>
-
-                  <Label label="Headline">
-                    <input
-                      value={config.ad?.headline || ""}
-                      onChange={(e) => setField("ad", "headline", e.target.value)}
-                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
-                    />
-                  </Label>
-
-                  <Label label="Call to Action">
-                    <CustomSelect
-                      value={config.ad?.call_to_action_type || "LEARN_MORE"}
-                      onChange={(v) => setField("ad", "call_to_action_type", v)}
-                      options={[
-                        { value: "LEARN_MORE", label: "Learn More" },
-                        { value: "SHOP_NOW", label: "Shop Now" },
-                        { value: "BOOK_TRAVEL", label: "Book Now" },
-                        { value: "SIGN_UP", label: "Sign Up" },
-                        { value: "CONTACT_US", label: "Contact Us" },
-                        { value: "GET_QUOTE", label: "Get Quote" },
-                        { value: "APPLY_NOW", label: "Apply Now" },
-                        { value: "DOWNLOAD", label: "Download" },
-                        { value: "SUBSCRIBE", label: "Subscribe" },
-                        { value: "GET_OFFER", label: "Get Offer" },
-                        { value: "ORDER_NOW", label: "Order Now" },
-                        { value: "WATCH_MORE", label: "Watch More" },
-                      ]}
-                    />
-                  </Label>
-
-                  <Label label="Ad Description">
-                    <input
-                      value={config.ad?.description || ""}
-                      onChange={(e) => setField("ad", "description", e.target.value)}
-                      style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
-                    />
-                  </Label>
-                </>
-              )}
-
-              {/* Destination URL */}
-              {(() => {
-                const url = config.ad?.website_url?.trim();
-                let urlValid = true;
-                if (url) { try { new URL(url); if (!/^https?:\/\/.+\..+/.test(url)) throw new Error(); } catch { urlValid = false; } }
-                return (
-                  <div style={{ padding: "14px 16px", background: urlValid ? "#eff6ff" : "#fef2f2", borderRadius: 12, border: `1px solid ${urlValid ? "#bfdbfe" : "#fca5a5"}` }}>
-                    <Label label="🔗 Destination URL *">
-                      <input value={config.ad?.website_url || ""} onChange={e => setField("ad", "website_url", e.target.value)}
-                        placeholder="https://example.com"
-                        style={{ ...inputSt, background: "#fff", borderColor: urlValid ? "#93c5fd" : "#f87171", width: "100%", boxSizing: "border-box" }} />
-                    </Label>
-                    {url && !urlValid && (
-                      <div style={{ fontSize: 11, color: "#dc2626", marginTop: 6, fontWeight: 600 }}>
-                        ⚠ Invalid URL — must start with https:// or http://
-                      </div>
-                    )}
+            {(() => {
+              const url = config.ad?.website_url?.trim();
+              let urlValid = true;
+              if (url) {
+                try {
+                  new URL(url);
+                  if (!/^https?:\/\/.+\..+/.test(url)) throw new Error();
+                } catch {
+                  urlValid = false;
+                }
+              }
+              return (
+                <div
+                  className={`editorial-field-highlight${urlValid ? "" : " editorial-field-highlight--error"}`}
+                  style={{
+                  marginTop: 8,
+                  padding: "20px 24px",
+                  background: urlValid ? "#E7F0F6" : "#F9E3E0",
+                  borderRadius: 12,
+                  border: `1px solid ${urlValid ? "#C2D6E2" : "#fca5a5"}`,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: urlValid ? "#1A4A66" : "#C1121F", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                    Destination URL *
                   </div>
-                );
-              })()}
-            </div>
-          </div>
+                  <EditorialField
+                    value={config.ad?.website_url || ""}
+                    onChange={(v) => setField("ad", "website_url", v)}
+                    placeholder="https://example.com"
+                  />
+                  {url && !urlValid && (
+                    <div style={{ fontSize: 12, color: "#C1121F", marginTop: 8, fontWeight: 600 }}>
+                      Invalid URL — must start with https:// or http://
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </section>
 
           {stepErrors.length > 0 && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4 }}>
-              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#991b1b", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
+            <div style={{ background: "#F9E3E0", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", display: "flex", flexDirection: "column", gap: 4, marginTop: 24 }}>
+              {stepErrors.map((e, i) => <div key={i} style={{ fontSize: 13, color: "#780000", display: "flex", gap: 6 }}><span>•</span>{e}</div>)}
             </div>
           )}
           <NavButtons step={step} setStep={setStep} onNext={handleNext} isFirst={false} isLast />
 
-          {/* Launch Panel */}
-          {launchSuccess ? (
-            <div style={{ background: "#f0fdf4", borderRadius: 16, padding: "20px 24px", border: "1.5px solid #86efac", display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>✓</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d" }}>Ads successfully launched!</div>
-                <div style={{ fontSize: 12, color: "#16a34a", marginTop: 2 }}>Your campaign is now live on Meta Ads Manager.</div>
-              </div>
-              <a href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID}`} target="_blank" rel="noopener noreferrer"
-                style={{ padding: "8px 16px", borderRadius: 9, background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
-                View in Meta ↗
-              </a>
-            </div>
-          ) : (
-          <div style={{
-            background: "#fff", borderRadius: 16, padding: "24px 24px",
-            border: selectedId ? "1.5px solid #fde68a" : "1.5px solid #bfdbfe",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
-          }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                {selectedId ? "📥" : "🚀"}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", marginBottom: 3 }}>
-                  {selectedId ? `Inject to: ${selectedCampaign?.name}` : "Launch Campaign on Meta"}
-                </div>
-                <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16, lineHeight: 1.6 }}>
-                  {selectedId
-                    ? (config.ad_set?.existing_id
-                      ? `Ad will be added to ad set "${config.ad_set?.name}" in ${selectedCampaign?.name}.`
-                      : "Add ads to an existing ad set or create a new one in the selected campaign.")
-                    : "Deploy your campaign, targeting, and ad creative directly to Meta Ads Manager."}
-                </div>
-
-                {launching ? (
-                  <div style={{ padding: "16px 20px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                      <Spinner size={14} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>
-                        {launchStep === 1 ? "Uploading media assets..." : launchStep === 2 ? "Compiling schema..." : launchStep === 3 ? "Building ad sets..." : "Finalising delivery..."}
-                      </span>
-                    </div>
-                    <div style={{ height: 5, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
-                      <div style={{ height: "100%", background: "linear-gradient(90deg, #2563eb, #0ea5e9)", width: `${(launchStep / 4) * 100}%`, transition: "width 0.4s ease", borderRadius: 3 }} />
-                    </div>
-                  </div>
-                ) : launchSuccess ? null : (
-                  <button onClick={() => { const errs = validateStep(3); if (errs.length > 0) { setStepErrors(errs); return; } setStepErrors([]); handleFullLaunch(); }} disabled={launching || hasLaunchedThisSegment}
-                    style={{
-                      padding: "13px 32px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 800, cursor: (launching || hasLaunchedThisSegment) ? "not-allowed" : "pointer",
-                      background: hasLaunchedThisSegment ? "#16a34a" : selectedId ? "#d97706" : "#2563eb",
-                      color: "#fff", opacity: hasLaunchedThisSegment ? 0.85 : 1,
-                      boxShadow: hasLaunchedThisSegment ? "none" : "0 4px 14px rgba(37,99,235,0.35)",
-                    }}>
-                    {hasLaunchedThisSegment ? "✓ Launched" : selectedId ? "Inject Ads →" : "Launch Ads on Facebook →"}
-                  </button>
-                )}
-
-                {launchError && (
-                  <div style={{ marginTop: 14, padding: "12px 16px", background: "#fef2f2", borderRadius: 10, border: "1px solid #fecaca", color: "#991b1b", fontSize: 13, lineHeight: 1.6 }}>
-                    <b>Error: </b>{launchError}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          )}
-        </div>
+          <LaunchPanel
+            launchSuccess={launchSuccess}
+            launching={launching}
+            launchStep={launchStep}
+            launchError={launchError}
+            hasLaunchedThisSegment={hasLaunchedThisSegment}
+            selectedId={selectedId}
+            selectedCampaignName={selectedCampaign?.name}
+            adSetName={config.ad_set?.name}
+            existingAdSetId={config.ad_set?.existing_id}
+            onLaunch={() => {
+              const errs = validateStep(3);
+              if (errs.length > 0) { setStepErrors(errs); return; }
+              setStepErrors([]);
+              handleFullLaunch();
+            }}
+          />
+        </>
       )}
-    </div>
+    </EditorialPage>
   );
 }
 
 // ─── Nav Buttons ─────────────────────────────────────────────────────────────
 function NavButtons({ step, setStep, onNext, isFirst, isLast }: { step: number; setStep: (n: number) => void; onNext?: () => void; isFirst: boolean; isLast: boolean }) {
+  const current = STEPS.find((s) => s.num === step);
   return (
-    <div style={{ display: "flex", justifyContent: isFirst ? "flex-end" : "space-between", paddingTop: 4 }}>
+    <footer style={{ marginTop: 28, display: "flex", alignItems: "baseline", gap: 16, width: "100%" }}>
       {!isFirst && (
-        <button onClick={() => setStep(step - 1)}
-          style={{ padding: "11px 24px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <EditorialPillButton variant="outline" onClick={() => setStep(step - 1)} style={{ padding: "9px 24px" }}>
           ← Back
-        </button>
+        </EditorialPillButton>
       )}
+      <span style={{ fontSize: 13.5, color: "#8C8474", flex: isFirst ? 1 : undefined }}>
+        Step {step} of 3 · {current?.label}
+      </span>
       {!isLast && (
-        <button onClick={onNext ?? (() => setStep(step + 1))}
-          style={{ padding: "11px 28px", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(37,99,235,0.3)" }}>
+        <EditorialPillButton onClick={onNext ?? (() => setStep(step + 1))} style={{ marginLeft: "auto", padding: "10px 28px" }}>
           Next →
-        </button>
+        </EditorialPillButton>
       )}
-    </div>
+    </footer>
   );
 }
 
 // ─── Section Header ───────────────────────────────────────────────────────────
-function SectionHeader({ title, sub }: { title: string; sub: string }) {
+function SectionHeader({ title, sub }: { title: string; sub?: string }) {
+  return <EditorialSectionHeader title={title} meta={sub} />;
+}
+
+function AdCreativePreviewCard({
+  ad,
+  isVideo,
+  isSelected,
+  formatLabel,
+  selectable,
+  onSelect,
+}: {
+  ad: { text: string };
+  isVideo: boolean;
+  isSelected: boolean;
+  formatLabel: string;
+  selectable: boolean;
+  onSelect: () => void;
+}) {
   return (
-    <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc", borderRadius: "16px 16px 0 0" }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{title}</div>
-      <div style={{ fontSize: 11, color: "#475569", marginTop: 1, fontWeight: 500 }}>{sub}</div>
-    </div>
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={!selectable}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        background: "none",
+        border: "none",
+        padding: 0,
+        cursor: selectable ? "pointer" : "default",
+        textAlign: "left",
+        minWidth: 0,
+        width: "100%",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          aspectRatio: "4/5",
+          border: isSelected ? "2px solid var(--red)" : "1px solid var(--border)",
+          borderRadius: 12,
+          padding: isSelected ? 4 : 5,
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
+        <div style={{ width: "100%", height: "100%", borderRadius: 8, overflow: "hidden", background: "var(--primary)" }}>
+          {isVideo ? (
+            <video src={ad.text} controls={false} muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          ) : (
+            <img src={ad.text} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
+        </div>
+        {isSelected && (
+          <div style={{
+            position: "absolute", top: 12, right: 12, width: 22, height: 22, borderRadius: "50%",
+            background: "var(--red)", color: "#FDF6E3", display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 800,
+          }}>
+            ✓
+          </div>
+        )}
+      </div>
+      <div style={{ minWidth: 0, width: "100%" }}>
+        <div style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase",
+          color: isSelected ? "var(--red)" : "var(--text-muted)",
+        }}>
+          {formatLabel}{isSelected ? " · selected" : ""}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function LaunchPanel({
+  launchSuccess,
+  launching,
+  launchStep,
+  launchError,
+  hasLaunchedThisSegment,
+  selectedId,
+  selectedCampaignName,
+  adSetName,
+  existingAdSetId,
+  onLaunch,
+}: {
+  launchSuccess: boolean;
+  launching: boolean;
+  launchStep: number;
+  launchError: string;
+  hasLaunchedThisSegment: boolean;
+  selectedId: string | null | undefined;
+  selectedCampaignName?: string;
+  adSetName?: string;
+  existingAdSetId?: string;
+  onLaunch: () => void;
+}) {
+  const injectDescription = existingAdSetId
+    ? `Ad will be added to ad set "${adSetName}" in ${selectedCampaignName}.`
+    : "Add ads to an existing ad set or create a new one in the selected campaign.";
+
+  if (launchSuccess) {
+    return (
+      <section style={{ marginTop: 48, borderTop: "1px solid var(--border)", paddingTop: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12, background: "var(--green-light)",
+            border: "1px solid var(--green)", display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 18, color: "var(--green)", flexShrink: 0,
+          }}>
+            ✓
+          </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: "var(--green-dark)" }}>
+              Ads successfully launched
+            </div>
+            <div style={{ fontSize: 13.5, color: "#4A5A64", marginTop: 4 }}>
+              Your campaign is now live on Meta Ads Manager.
+            </div>
+          </div>
+          <a
+            href={`https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${process.env.NEXT_PUBLIC_META_AD_ACCOUNT_ID}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              fontFamily: "var(--font-sans)",
+              fontWeight: 700,
+              fontSize: 14,
+              padding: "10px 24px",
+              borderRadius: 999,
+              background: "var(--primary)",
+              color: "#FDF0D5",
+              textDecoration: "none",
+            }}
+          >
+            View in Meta ↗
+          </a>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section style={{ marginTop: 48, borderTop: "1px solid var(--border)", paddingTop: 28 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 12, background: "var(--primary-light)",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0,
+        }}>
+          {selectedId ? "📥" : "🚀"}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: "var(--primary)" }}>
+            {selectedId ? `Inject to: ${selectedCampaignName}` : "Launch campaign on Meta"}
+          </div>
+          <p style={{ fontSize: 13.5, color: "#8C8474", margin: "6px 0 20px", lineHeight: 1.6 }}>
+            {selectedId ? injectDescription : "Deploy your campaign, targeting, and ad creative directly to Meta Ads Manager."}
+          </p>
+
+          {launching ? (
+            <div style={{ padding: "16px 0", maxWidth: 420 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <Spinner size={14} />
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: "#1A4A66" }}>
+                  {launchStep === 1 ? "Uploading media assets..." : launchStep === 2 ? "Compiling schema..." : launchStep === 3 ? "Building ad sets..." : "Finalising delivery..."}
+                </span>
+              </div>
+              <div style={{ height: 4, background: "#E8DCC2", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", background: "var(--primary)", width: `${(launchStep / 4) * 100}%`, transition: "width 0.4s ease", borderRadius: 999 }} />
+              </div>
+            </div>
+          ) : (
+            <EditorialPillButton
+              onClick={onLaunch}
+              disabled={launching || hasLaunchedThisSegment}
+              style={{
+                padding: "11px 28px",
+                background: hasLaunchedThisSegment ? "var(--green)" : selectedId ? "var(--amber)" : undefined,
+                opacity: hasLaunchedThisSegment ? 0.85 : 1,
+              }}
+            >
+              {hasLaunchedThisSegment ? "✓ Launched" : selectedId ? "Inject Ads →" : "Launch Ads on Facebook →"}
+            </EditorialPillButton>
+          )}
+
+          {launchError && (
+            <div style={{ marginTop: 16, padding: "12px 16px", background: "#F9E3E0", borderRadius: 10, border: "1px solid #fecaca", color: "#780000", fontSize: 13, lineHeight: 1.6 }}>
+              <strong>Error: </strong>{launchError}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1460,7 +1452,7 @@ function SectionHeader({ title, sub }: { title: string; sub: string }) {
 function Label({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</label>
+      <label style={{ fontSize: 11, fontWeight: 700, color: "#8C8474", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</label>
       {children}
     </div>
   );
@@ -1471,7 +1463,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   return (
     <label style={{ position: "relative", display: "inline-block", width: 40, height: 22, cursor: "pointer", flexShrink: 0 }}>
       <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
-      <div style={{ position: "absolute", inset: 0, borderRadius: 11, background: checked ? "#2563eb" : "#cbd5e1", transition: "background 0.2s" }}>
+      <div style={{ position: "absolute", inset: 0, borderRadius: 11, background: checked ? "#003049" : "#C2B79A", transition: "background 0.2s" }}>
         <div style={{ position: "absolute", top: 3, left: checked ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
       </div>
     </label>
@@ -1482,11 +1474,11 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 const inputSt: React.CSSProperties = {
   padding: "10px 12px",
   borderRadius: 9,
-  border: "1.5px solid #e2e8f0",
+  border: "1.5px solid #E8DCC2",
   background: "#fff",
   fontSize: 13,
   fontWeight: 500,
-  color: "#0f172a",
+  color: "#003049",
   width: "100%",
   boxSizing: "border-box",
   outline: "none",
@@ -1527,67 +1519,81 @@ function PlacementsSection({ config, setField }: { config: any; setField: (s: st
     setField("ad_set", key, next);
   };
 
+  const platformPill = (on: boolean): React.CSSProperties => ({
+    border: on ? "none" : "1px solid #C2B79A",
+    borderRadius: 999,
+    padding: "7px 18px",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    background: on ? "#003049" : "transparent",
+    color: on ? "#FDF6E3" : "#8C8474",
+  });
+
+  const positionPill = (on: boolean): React.CSSProperties => ({
+    border: `1px solid ${on ? "#003049" : "#C2B79A"}`,
+    borderRadius: 999,
+    padding: "6px 14px",
+    fontSize: 13.5,
+    fontWeight: on ? 700 : 400,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    background: "transparent",
+    color: on ? "#003049" : "#8C8474",
+  });
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Platform</div>
-        <div style={{ display: "flex", gap: 10 }}>
+    <EditorialDefinitionList>
+      <EditorialDefinitionRow label="Platform">
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {[
-            { id: "facebook", label: "Facebook", emoji: "f", color: "#1877f2" },
-            { id: "instagram", label: "Instagram", emoji: "▣", color: "#e1306c" },
+            { id: "facebook", label: "Facebook" },
+            { id: "instagram", label: "Instagram" },
           ].map(p => {
             const on = platforms.includes(p.id);
             return (
-              <button key={p.id} type="button" onClick={() => togglePlatform(p.id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", borderRadius: 10, cursor: "pointer",
-                  border: on ? `2px solid ${p.color}` : "1.5px solid #e2e8f0",
-                  background: on ? p.color : "#fff",
-                  color: on ? "#fff" : "#475569",
-                  fontWeight: 700, fontSize: 13, transition: "all 0.15s",
-                  boxShadow: on ? `0 4px 12px ${p.color}40` : "none",
-                }}>
-                <span style={{ width: 20, height: 20, borderRadius: 6, background: on ? "rgba(255,255,255,0.2)" : p.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900 }}>{p.emoji}</span>
-                {p.label}
-                {on && <span>✓</span>}
+              <button key={p.id} type="button" onClick={() => togglePlatform(p.id)} style={platformPill(on)}>
+                {p.label}{on ? " ✓" : ""}
               </button>
             );
           })}
         </div>
-      </div>
+      </EditorialDefinitionRow>
       {isFb && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#1877f2", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Facebook Positions</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <EditorialDefinitionRow label="Facebook positions" isLast={!isIg}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {FB_POSITIONS.map(pos => {
               const on = fbPositions.includes(pos.value);
               return (
-                <button key={pos.value} type="button" onClick={() => togglePos("facebook_positions", pos.value, fbPositions)}
-                  style={{ padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer", border: on ? "1.5px solid #1877f2" : "1.5px solid #e2e8f0", background: on ? "#eff6ff" : "#fff", color: on ? "#1877f2" : "#64748b" }}>
-                  {on && "✓ "}{pos.label}
+                <button key={pos.value} type="button" onClick={() => togglePos("facebook_positions", pos.value, fbPositions)} style={positionPill(on)}>
+                  {on ? "✓ " : ""}{pos.label}
                 </button>
               );
             })}
           </div>
-        </div>
+        </EditorialDefinitionRow>
       )}
       {isIg && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#e1306c", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Instagram Positions</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <EditorialDefinitionRow label="Instagram positions" isLast>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {IG_POSITIONS.map(pos => {
               const on = igPositions.includes(pos.value);
               return (
-                <button key={pos.value} type="button" onClick={() => togglePos("instagram_positions", pos.value, igPositions)}
-                  style={{ padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: "pointer", border: on ? "1.5px solid #e1306c" : "1.5px solid #e2e8f0", background: on ? "#fff0f6" : "#fff", color: on ? "#e1306c" : "#64748b" }}>
-                  {on && "✓ "}{pos.label}
+                <button key={pos.value} type="button" onClick={() => togglePos("instagram_positions", pos.value, igPositions)} style={positionPill(on)}>
+                  {on ? "✓ " : ""}{pos.label}
                 </button>
               );
             })}
           </div>
-        </div>
+        </EditorialDefinitionRow>
       )}
-    </div>
+      {!isFb && !isIg && (
+        <EditorialDefinitionRow label="Positions" isLast>
+          <div style={{ fontSize: 13.5, color: "#8C8474" }}>Select at least one platform above.</div>
+        </EditorialDefinitionRow>
+      )}
+    </EditorialDefinitionList>
   );
 }
 
@@ -1641,8 +1647,8 @@ function AdSetNameInput({ adSets, loading, name, existingId, onChange }: AdSetNa
           style={{
             ...inputSt,
             paddingRight: loading ? 36 : 12,
-            borderColor: existingId ? "#93c5fd" : inputSt.border as string,
-            background: existingId ? "#eff6ff" : "#fff",
+            borderColor: existingId ? "#669BBC" : inputSt.border as string,
+            background: existingId ? "#E7F0F6" : "#fff",
           }}
         />
         {loading && (
@@ -1652,14 +1658,14 @@ function AdSetNameInput({ adSets, loading, name, existingId, onChange }: AdSetNa
         )}
       </div>
       {existingId && (
-        <div style={{ fontSize: 11, color: "#2563eb", marginTop: 4, fontWeight: 600 }}>
+        <div style={{ fontSize: 11, color: "#003049", marginTop: 4, fontWeight: 600 }}>
           Existing ad set selected
         </div>
       )}
       {showDropdown && (filtered.length > 0 || showCreateNew) && (
         <div style={{
           position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 50,
-          background: "#fff", borderRadius: 10, border: "1.5px solid #e2e8f0",
+          background: "#fff", borderRadius: 10, border: "1.5px solid #E8DCC2",
           boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: 220, overflowY: "auto",
         }}>
           {filtered.map(adSet => (
@@ -1668,13 +1674,13 @@ function AdSetNameInput({ adSets, loading, name, existingId, onChange }: AdSetNa
               onMouseDown={() => handleSelect(adSet)}
               style={{
                 padding: "10px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500,
-                color: adSet.id === existingId ? "#1d4ed8" : "#0f172a",
-                background: adSet.id === existingId ? "#eff6ff" : "transparent",
-                borderBottom: "1px solid #f1f5f9",
+                color: adSet.id === existingId ? "#1A4A66" : "#003049",
+                background: adSet.id === existingId ? "#E7F0F6" : "transparent",
+                borderBottom: "1px solid #FDF0D5",
               }}
             >
               <div>{adSet.name}</div>
-              <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace", marginTop: 2 }}>{adSet.status} · ID: {adSet.id}</div>
+              <div style={{ fontSize: 10, color: "#9FA8A3", fontFamily: "monospace", marginTop: 2 }}>{adSet.status} · ID: {adSet.id}</div>
             </div>
           ))}
           {showCreateNew && (
@@ -1682,14 +1688,14 @@ function AdSetNameInput({ adSets, loading, name, existingId, onChange }: AdSetNa
               onMouseDown={handleCreateNew}
               style={{
                 padding: "10px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600,
-                color: "#2563eb", background: "#f8fafc",
+                color: "#003049", background: "#FDF6E3",
               }}
             >
               + Create new ad set: &ldquo;{inputValue.trim()}&rdquo;
             </div>
           )}
           {!loading && adSets.length === 0 && !showCreateNew && (
-            <div style={{ padding: "12px 14px", fontSize: 12, color: "#94a3b8" }}>
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "#9FA8A3" }}>
               No ad sets found — type a name to create one.
             </div>
           )}
@@ -1805,14 +1811,14 @@ function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
         {loading && <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)" }}><Spinner size={13} /></div>}
       </div>
       {showDropdown && results.length > 0 && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", zIndex: 50, maxHeight: 320, overflowY: "auto" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1.5px solid #E8DCC2", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", zIndex: 50, maxHeight: 320, overflowY: "auto" }}>
           {results.map((r: any) => (
             <div key={r.key} onMouseDown={e => { e.preventDefault(); handleSelect(r); }}
-              style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f1f5f9", fontSize: 13 }}
-              onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+              style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #FDF0D5", fontSize: 13 }}
+              onMouseEnter={e => e.currentTarget.style.background = "#FDF6E3"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div style={{ fontWeight: 600, color: "#0f172a" }}>{r.name}</div>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{r.type?.toUpperCase()} · {r.country_name || r.country_code}</div>
+              <div style={{ fontWeight: 600, color: "#003049" }}>{r.name}</div>
+              <div style={{ fontSize: 11, color: "#9FA8A3", marginTop: 1 }}>{r.type?.toUpperCase()} · {r.country_name || r.country_code}</div>
             </div>
           ))}
         </div>
@@ -1820,9 +1826,9 @@ function LocationSearch({ geoLocations, onChange }: LocationSearchProps) {
       {selectedPills.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
           {selectedPills.map((p: any) => (
-            <div key={`${p.type}-${p.key}`} style={{ display: "flex", alignItems: "center", gap: 5, background: "#eff6ff", color: "#1d4ed8", padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "1px solid #bfdbfe" }}>
+            <div key={`${p.type}-${p.key}`} style={{ display: "flex", alignItems: "center", gap: 5, background: "#E7F0F6", color: "#1A4A66", padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "1px solid #C2D6E2" }}>
               {p.type === "country" ? "🌐" : p.type === "city" ? "🏙️" : "🗺️"} {p.name}
-              <button onClick={e => { e.preventDefault(); handleRemove(p); }} style={{ border: "none", background: "transparent", color: "#3b82f6", cursor: "pointer", fontSize: 13, padding: 0, marginLeft: 2, lineHeight: 1 }}>×</button>
+              <button onClick={e => { e.preventDefault(); handleRemove(p); }} style={{ border: "none", background: "transparent", color: "#669BBC", cursor: "pointer", fontSize: 13, padding: 0, marginLeft: 2, lineHeight: 1 }}>×</button>
             </div>
           ))}
         </div>

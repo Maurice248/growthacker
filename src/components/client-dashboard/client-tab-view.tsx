@@ -8,7 +8,7 @@ import {
 
 /**
  * Renders the content for non-main-app tabs (Newsletter, Cold Email, Blog).
- * Main-app tabs (Ads Lab, Create Ad, Overview, etc.) are handled by the
+ * Main-app tabs (Competitors, Create Ad, Overview, etc.) are handled by the
  * persistent iframe in workspace/layout.tsx and never render here.
  */
 export function ClientTabView({ tabId }: { tabId: string }) {

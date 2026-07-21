@@ -233,7 +233,7 @@ export async function startBlogGeneration(
 
   const wpConfig = await getBlogWordPressConfig(companyId);
   if (!wpConfig) {
-    throw new Error('WordPress is not configured. Add credentials in API key management.');
+    throw new Error('WordPress is not configured. Add credentials in API Keys.');
   }
 
   const category = await getBlogCategoryById(companyId, options.categoryId);

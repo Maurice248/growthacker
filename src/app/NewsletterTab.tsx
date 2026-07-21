@@ -32,7 +32,7 @@ export default function NewsletterTab({ activeTab }: { activeTab: string }) {
           height: '100%',
           border: 'none',
           display: 'block',
-          background: '#f9fafb',
+          background: '#FDF6E3',
         }}
       />
     </div>

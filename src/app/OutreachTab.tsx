@@ -32,7 +32,7 @@ export default function OutreachTab({ activeTab }: { activeTab: string }) {
           height: '100%',
           border: 'none',
           display: 'block',
-          background: '#f8f9fa',
+          background: '#FDF6E3',
         }}
       />
     </div>

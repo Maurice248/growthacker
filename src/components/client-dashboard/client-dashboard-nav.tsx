@@ -2,18 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Megaphone, Newspaper, Send, FileText, Settings, Share2 } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Megaphone, Newspaper, Send, FileText, Settings, Share2, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CLIENT_BLOG_TABS,
-  CLIENT_BRAND_CONTEXT_TAB_ID,
+  CLIENT_CONFIGURATION_IDS,
+  CLIENT_CONFIGURATION_TABS,
   CLIENT_META_ADS_TABS,
   CLIENT_NEWSLETTER_TABS,
   CLIENT_OUTREACH_TABS,
   CLIENT_OUTREACH_FUTURE_TABS,
   CLIENT_SOCIAL_TABS,
-  CLIENT_TOP_TABS,
   clientWorkspaceHref,
 } from '@/lib/client-dashboard-nav';
 import {
@@ -56,22 +56,19 @@ function NavLink({
   onNavigate?: () => void;
 }) {
   const className = cn(
-    'relative flex items-center rounded-[var(--radius-md)] text-[13px] font-medium transition-colors',
-    collapsed ? 'justify-center px-0 py-2.5' : indent ? 'gap-2.5 px-3 py-2 pl-7' : 'gap-2.5 px-3 py-2',
+    'relative flex items-center rounded-none border-l-2 text-[15px] transition-colors',
+    collapsed ? 'justify-center border-transparent px-0 py-2.5' : indent ? 'gap-2.5 px-4 py-2 pl-7' : 'gap-2.5 px-4 py-2',
     disabled
-      ? 'cursor-not-allowed opacity-40'
+      ? 'cursor-not-allowed border-transparent opacity-40'
       : active
-        ? 'bg-[var(--primary-light)] font-bold text-[var(--primary-dark)] shadow-[0_1px_3px_rgba(37,99,235,0.12)]'
-        : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
+        ? 'border-[var(--sidebar-active-border)] bg-[rgba(250,237,205,0.12)] font-bold text-[var(--sidebar-text)]'
+        : 'border-transparent font-normal text-[var(--sidebar-muted)] hover:border-[#7FA6BC] hover:bg-[rgba(250,237,205,0.08)] hover:text-[var(--sidebar-text)]'
   );
 
   if (disabled) {
     return (
       <span title={disabledTitle} className={className}>
-        {active && !collapsed && (
-          <span className="absolute left-0 top-[20%] h-[60%] w-[3px] rounded-r bg-[var(--primary)]" />
-        )}
-        <Icon size={15} className="shrink-0" />
+        {(collapsed && !indent) && <Icon size={15} className="shrink-0" />}
         {!collapsed && <span className="truncate">{label}</span>}
       </span>
     );
@@ -84,10 +81,7 @@ function NavLink({
       onClick={onNavigate}
       className={className}
     >
-      {active && !collapsed && (
-        <span className="absolute left-0 top-[20%] h-[60%] w-[3px] rounded-r bg-[var(--primary)]" />
-      )}
-      <Icon size={15} className="shrink-0" />
+      {(collapsed && !indent) && <Icon size={15} className="shrink-0" />}
       {!collapsed && <span className="truncate">{label}</span>}
     </Link>
   );
@@ -97,7 +91,7 @@ function NavGroup({
   label,
   icon: Icon,
   open,
-  onToggle,
+  onHeaderClick,
   active,
   collapsed,
   disabled,
@@ -107,7 +101,7 @@ function NavGroup({
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   open: boolean;
-  onToggle: () => void;
+  onHeaderClick: () => void;
   active: boolean;
   collapsed: boolean;
   disabled?: boolean;
@@ -119,24 +113,21 @@ function NavGroup({
       <button
         type="button"
         title={disabled ? disabledTitle : collapsed ? label : undefined}
-        onClick={disabled ? undefined : onToggle}
+        onClick={disabled ? undefined : onHeaderClick}
         disabled={disabled}
         className={cn(
-          'relative flex w-full items-center rounded-[var(--radius-md)] border-none text-left text-[13px] font-medium transition-colors',
-          collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2',
+          'relative flex w-full items-center rounded-none border-l-2 border-transparent text-left text-[15px] transition-colors',
+          collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-4 py-2',
           disabled
             ? 'cursor-not-allowed opacity-40'
             : active
-              ? 'bg-[var(--primary-light)] font-bold text-[var(--primary-dark)]'
+              ? 'border-[var(--sidebar-active-border)] bg-[rgba(250,237,205,0.12)] font-bold text-[var(--sidebar-text)]'
               : open
-                ? 'bg-[var(--surface)] text-[var(--text)]'
-                : 'text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]'
+                ? 'bg-[rgba(250,237,205,0.06)] text-[var(--sidebar-text)]'
+                : 'font-normal text-[var(--sidebar-muted)] hover:border-[#7FA6BC] hover:bg-[rgba(250,237,205,0.08)] hover:text-[var(--sidebar-text)]'
         )}
       >
-        {active && !collapsed && (
-          <span className="absolute left-0 top-[20%] h-[60%] w-[3px] rounded-r bg-[var(--primary)]" />
-        )}
-        <Icon size={15} className="shrink-0" />
+        {collapsed && <Icon size={15} className="shrink-0" />}
         {!collapsed && (
           <>
             <span className="flex-1 truncate">{label}</span>
@@ -152,7 +143,7 @@ function NavGroup({
         )}
       </button>
       {!collapsed && open && (
-        <div className="overflow-hidden rounded-b-[var(--radius-md)] border-t border-[var(--border-light)] bg-[var(--surface)] pb-1">
+        <div className="overflow-hidden border-t border-[var(--sidebar-border)] bg-[rgba(250,237,205,0.06)] pb-1">
           {children}
         </div>
       )}
@@ -167,16 +158,22 @@ export function ClientDashboardNav({
   onNavigate,
 }: ClientDashboardNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const activeTab = tabFromPathname(pathname);
 
   const moduleConfigured = (moduleId: ModuleId) =>
     moduleStatuses.find((m) => m.id === moduleId)?.configured === true;
 
+  const moduleEnabled = (moduleId: ModuleId) =>
+    moduleStatuses.find((m) => m.id === moduleId)?.enabled !== false;
+
   const isTabDisabled = (tabId: string) => {
-    if (tabId === CLIENT_BRAND_CONTEXT_TAB_ID) return false;
+    if (CLIENT_CONFIGURATION_IDS.has(tabId)) return false;
     const moduleId = moduleForTab(tabId);
     if (!moduleId) return !integrationsConfigured;
-    return !moduleStatuses.find((m) => m.id === moduleId)?.configured;
+    const status = moduleStatuses.find((m) => m.id === moduleId);
+    if (!status?.enabled) return true;
+    return !status.configured;
   };
 
   const disabledTitle = 'Configure required API keys in Settings first';
@@ -186,48 +183,64 @@ export function ClientDashboardNav({
   const newsletterActive = activeTab ? CLIENT_NEWSLETTER_TABS.some((t) => t.id === activeTab) : false;
   const outreachActive = activeTab ? CLIENT_OUTREACH_TABS.some((t) => t.id === activeTab) : false;
   const blogActive = activeTab ? CLIENT_BLOG_TABS.some((t) => t.id === activeTab) : false;
+  const configurationActive = activeTab
+    ? CLIENT_CONFIGURATION_TABS.some((t) => t.id === activeTab)
+    : false;
 
   const [metaAdsOpen, setMetaAdsOpen] = useState(metaAdsActive);
   const [socialOpen, setSocialOpen] = useState(socialActive);
   const [newsletterOpen, setNewsletterOpen] = useState(newsletterActive);
   const [outreachOpen, setOutreachOpen] = useState(outreachActive);
   const [blogOpen, setBlogOpen] = useState(blogActive);
+  const [configurationOpen, setConfigurationOpen] = useState(configurationActive);
+
+  const collapseAllModules = () => {
+    setMetaAdsOpen(false);
+    setSocialOpen(false);
+    setNewsletterOpen(false);
+    setOutreachOpen(false);
+    setBlogOpen(false);
+    setConfigurationOpen(false);
+  };
+
+  const activateModule = (module: 'meta' | 'social' | 'outreach' | 'newsletter' | 'blog' | 'configuration', firstTabId: string) => {
+    collapseAllModules();
+    if (module === 'meta') setMetaAdsOpen(true);
+    else if (module === 'social') setSocialOpen(true);
+    else if (module === 'outreach') setOutreachOpen(true);
+    else if (module === 'newsletter') setNewsletterOpen(true);
+    else if (module === 'blog') setBlogOpen(true);
+    else setConfigurationOpen(true);
+
+    if (isTabDisabled(firstTabId)) return;
+
+    router.push(clientWorkspaceHref(firstTabId));
+    onNavigate?.();
+  };
 
   useEffect(() => {
-    if (metaAdsActive) setMetaAdsOpen(true);
-    if (socialActive) setSocialOpen(true);
-    if (newsletterActive) setNewsletterOpen(true);
-    if (outreachActive) setOutreachOpen(true);
-    if (blogActive) setBlogOpen(true);
-  }, [metaAdsActive, socialActive, newsletterActive, outreachActive, blogActive]);
+    setMetaAdsOpen(metaAdsActive);
+    setSocialOpen(socialActive);
+    setNewsletterOpen(newsletterActive);
+    setOutreachOpen(outreachActive);
+    setBlogOpen(blogActive);
+    setConfigurationOpen(configurationActive);
+  }, [metaAdsActive, socialActive, newsletterActive, outreachActive, blogActive, configurationActive]);
 
-  const metaLocked = !moduleConfigured('meta');
-  const socialLocked = !moduleConfigured('social');
-  const newsletterLocked = !moduleConfigured('newsletter');
-  const outreachLocked = !moduleConfigured('outreach');
-  const blogLocked = !moduleConfigured('blog');
+  const metaLocked = moduleEnabled('meta') && !moduleConfigured('meta');
+  const socialLocked = moduleEnabled('social') && !moduleConfigured('social');
+  const newsletterLocked = moduleEnabled('newsletter') && !moduleConfigured('newsletter');
+  const outreachLocked = moduleEnabled('outreach') && !moduleConfigured('outreach');
+  const blogLocked = moduleEnabled('blog') && !moduleConfigured('blog');
 
   return (
     <nav className="flex flex-col gap-1">
-      {CLIENT_TOP_TABS.map((item) => (
-        <NavLink
-          key={item.id}
-          href={clientWorkspaceHref(item.id)}
-          label={item.label}
-          icon={item.icon}
-          active={activeTab === item.id}
-          collapsed={collapsed}
-          disabled={isTabDisabled(item.id)}
-          disabledTitle={disabledTitle}
-          onNavigate={onNavigate}
-        />
-      ))}
-
+      {moduleEnabled('meta') && (
       <NavGroup
         label="Meta Ads"
         icon={Megaphone}
         open={metaAdsOpen}
-        onToggle={() => setMetaAdsOpen((o) => !o)}
+        onHeaderClick={() => activateModule('meta', CLIENT_META_ADS_TABS[0].id)}
         active={metaAdsActive}
         collapsed={collapsed}
         disabled={metaLocked}
@@ -248,12 +261,14 @@ export function ClientDashboardNav({
           />
         ))}
       </NavGroup>
+      )}
 
+      {moduleEnabled('social') && (
       <NavGroup
         label="Social Channels"
         icon={Share2}
         open={socialOpen}
-        onToggle={() => setSocialOpen((o) => !o)}
+        onHeaderClick={() => activateModule('social', CLIENT_SOCIAL_TABS[0].id)}
         active={socialActive}
         collapsed={collapsed}
         disabled={socialLocked}
@@ -274,38 +289,14 @@ export function ClientDashboardNav({
           />
         ))}
       </NavGroup>
+      )}
 
-      <NavGroup
-        label="Newsletter"
-        icon={Newspaper}
-        open={newsletterOpen}
-        onToggle={() => setNewsletterOpen((o) => !o)}
-        active={newsletterActive}
-        collapsed={collapsed}
-        disabled={newsletterLocked}
-        disabledTitle={disabledTitle}
-      >
-        {CLIENT_NEWSLETTER_TABS.map((item) => (
-          <NavLink
-            key={item.id}
-            href={clientWorkspaceHref(item.id)}
-            label={item.label}
-            icon={item.icon}
-            active={activeTab === item.id}
-            collapsed={false}
-            indent
-            disabled={isTabDisabled(item.id)}
-            disabledTitle={disabledTitle}
-            onNavigate={onNavigate}
-          />
-        ))}
-      </NavGroup>
-
+      {moduleEnabled('outreach') && (
       <NavGroup
         label="Cold Email"
         icon={Send}
         open={outreachOpen}
-        onToggle={() => setOutreachOpen((o) => !o)}
+        onHeaderClick={() => activateModule('outreach', CLIENT_OUTREACH_TABS[0].id)}
         active={outreachActive}
         collapsed={collapsed}
         disabled={outreachLocked}
@@ -326,8 +317,12 @@ export function ClientDashboardNav({
           />
         ))}
       </NavGroup>
+      )}
 
-      {CLIENT_OUTREACH_FUTURE_TABS.map((item) => (
+      {CLIENT_OUTREACH_FUTURE_TABS.filter((item) => {
+        const moduleId = moduleForTab(item.id);
+        return moduleId ? moduleEnabled(moduleId) : false;
+      }).map((item) => (
         <NavLink
           key={item.id}
           href={clientWorkspaceHref(item.id)}
@@ -341,11 +336,40 @@ export function ClientDashboardNav({
         />
       ))}
 
+      {moduleEnabled('newsletter') && (
+      <NavGroup
+        label="Newsletter"
+        icon={Newspaper}
+        open={newsletterOpen}
+        onHeaderClick={() => activateModule('newsletter', CLIENT_NEWSLETTER_TABS[0].id)}
+        active={newsletterActive}
+        collapsed={collapsed}
+        disabled={newsletterLocked}
+        disabledTitle={disabledTitle}
+      >
+        {CLIENT_NEWSLETTER_TABS.map((item) => (
+          <NavLink
+            key={item.id}
+            href={clientWorkspaceHref(item.id)}
+            label={item.label}
+            icon={item.icon}
+            active={activeTab === item.id}
+            collapsed={false}
+            indent
+            disabled={isTabDisabled(item.id)}
+            disabledTitle={disabledTitle}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </NavGroup>
+      )}
+
+      {moduleEnabled('blog') && (
       <NavGroup
         label="Blog"
         icon={FileText}
         open={blogOpen}
-        onToggle={() => setBlogOpen((o) => !o)}
+        onHeaderClick={() => activateModule('blog', CLIENT_BLOG_TABS[0].id)}
         active={blogActive}
         collapsed={collapsed}
         disabled={blogLocked}
@@ -366,22 +390,47 @@ export function ClientDashboardNav({
           />
         ))}
       </NavGroup>
+      )}
+
+      <NavGroup
+        label="Configuration"
+        icon={SlidersHorizontal}
+        open={configurationOpen}
+        onHeaderClick={() => activateModule('configuration', CLIENT_CONFIGURATION_TABS[0].id)}
+        active={configurationActive}
+        collapsed={collapsed}
+      >
+        {CLIENT_CONFIGURATION_TABS.map((item) => (
+          <NavLink
+            key={item.id}
+            href={clientWorkspaceHref(item.id)}
+            label={item.label}
+            icon={item.icon}
+            active={activeTab === item.id}
+            collapsed={false}
+            indent
+            disabled={false}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </NavGroup>
 
       <Link
         href="/client-dashboard/apis"
         title={collapsed ? 'Settings' : undefined}
         onClick={onNavigate}
         className={cn(
-          'relative mt-2 flex items-center rounded-[var(--radius-md)] text-[13px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]',
-          collapsed ? 'justify-center px-0 py-2.5' : 'gap-2.5 px-3 py-2',
-          pathname === '/client-dashboard/apis' &&
-            'bg-[var(--primary-light)] font-bold text-[var(--primary-dark)] shadow-[0_1px_3px_rgba(37,99,235,0.12)]'
+          'relative mt-2 flex items-center rounded-none border-l-2 text-[15px] transition-colors',
+          collapsed ? 'justify-center border-transparent px-0 py-2.5' : 'gap-2.5 px-4 py-2',
+          pathname.startsWith('/client-dashboard/profile') ||
+            pathname.startsWith('/client-dashboard/members') ||
+            pathname.startsWith('/client-dashboard/security') ||
+            pathname.startsWith('/client-dashboard/apis')
+            ? 'border-[var(--sidebar-active-border)] bg-[rgba(250,237,205,0.12)] font-bold text-[var(--sidebar-text)]'
+            : 'border-transparent font-normal text-[var(--sidebar-muted)] hover:border-[#7FA6BC] hover:bg-[rgba(250,237,205,0.08)] hover:text-[var(--sidebar-text)]'
         )}
       >
-        {pathname === '/client-dashboard/apis' && !collapsed && (
-          <span className="absolute left-0 top-[20%] h-[60%] w-[3px] rounded-r bg-[var(--primary)]" />
-        )}
-        <Settings size={15} className="shrink-0" />
+        {collapsed && <Settings size={15} className="shrink-0" />}
         {!collapsed && <span className="truncate">Settings</span>}
       </Link>
     </nav>

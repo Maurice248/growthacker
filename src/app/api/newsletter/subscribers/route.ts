@@ -55,6 +55,10 @@ export async function POST(request: Request) {
         .map((row: Record<string, unknown>) => parseSubscriberRow(row, companyId))
         .filter(Boolean) as Array<ReturnType<typeof parseSubscriberRow> & object>;
 
+      if (rows.length === 0) {
+        return NextResponse.json({ error: 'No valid subscriber rows found. Each line needs a valid email.' }, { status: 400 });
+      }
+
       let created = 0;
       for (const row of rows) {
         await prisma.newsletterSubscriber.upsert({

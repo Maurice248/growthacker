@@ -171,7 +171,7 @@ export function ScraperForm() {
 
         <Button
           type="submit"
-          className="w-full bg-[#0077b6] hover:bg-[#005f8f] text-white"
+          className="w-full bg-[#003049] hover:bg-[#1A4A66] text-white"
           size="lg"
           disabled={startScraper.isPending}
         >

@@ -36,6 +36,7 @@ model Company {
   blogJobs            BlogJob[]
   adAutomationDefaults AdAutomationDefaults?
   adAutomations        AdAutomation[]
+  moduleAccess         CompanyModuleAccess?
 
   @@map("companies")
 }
@@ -617,4 +618,22 @@ model AdminAuditLog {
   @@index([actorUserId])
   @@index([targetType, targetId])
   @@map("admin_audit_logs")
+}
+
+model CompanyModuleAccess {
+  id                 String   @id @default(cuid())
+  companyId          String   @unique @map("company_id")
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  metaEnabled        Boolean  @default(true) @map("meta_enabled")
+  socialEnabled      Boolean  @default(true) @map("social_enabled")
+  newsletterEnabled  Boolean  @default(true) @map("newsletter_enabled")
+  outreachEnabled    Boolean  @default(true) @map("outreach_enabled")
+  blogEnabled        Boolean  @default(true) @map("blog_enabled")
+  coldDmEnabled      Boolean  @default(true) @map("cold_dm_enabled")
+  coldCallEnabled    Boolean  @default(true) @map("cold_call_enabled")
+  coldSmsEnabled     Boolean  @default(true) @map("cold_sms_enabled")
+  maintenanceMessage String   @default("This module is under maintenance. Please check back later.") @map("maintenance_message")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("company_module_access")
 }

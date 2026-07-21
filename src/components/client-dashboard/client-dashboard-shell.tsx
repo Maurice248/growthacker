@@ -57,8 +57,13 @@ function SidebarBrand({
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2.5">
       {logo}
-      <div className="min-w-0 truncate text-base font-extrabold leading-tight tracking-tight text-[var(--text)]">
-        {companyName}
+      <div className="min-w-0">
+        <div className="truncate font-[family-name:var(--font-display)] text-[17px] font-bold leading-tight tracking-tight text-[var(--sidebar-text)]">
+          {companyName}
+        </div>
+        <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-[#7FA6BC]">
+          Growthacker
+        </div>
       </div>
     </div>
   );
@@ -173,7 +178,7 @@ export function ClientDashboardShell({
     <>
       <div
         className={cn(
-          'flex shrink-0 items-center border-b border-[var(--border-light)] pb-3.5',
+          'flex shrink-0 items-center border-b border-[var(--sidebar-border)] pb-3.5',
           collapsed ? 'justify-center' : 'justify-between gap-2'
         )}
       >
@@ -185,7 +190,7 @@ export function ClientDashboardShell({
             type="button"
             onClick={toggleCollapsed}
             title="Collapse sidebar"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--primary-light)] hover:text-[var(--primary)]"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[var(--sidebar-border)] bg-[rgba(250,237,205,0.08)] text-[11px] text-[var(--sidebar-muted)] transition-colors hover:bg-[rgba(250,237,205,0.16)] hover:text-[var(--sidebar-text)]"
           >
             ‹
           </button>
@@ -197,7 +202,7 @@ export function ClientDashboardShell({
           type="button"
           onClick={toggleCollapsed}
           title="Expand sidebar"
-          className="mx-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--primary-light)] hover:text-[var(--primary)]"
+          className="mx-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[var(--sidebar-border)] bg-[rgba(250,237,205,0.08)] text-[11px] text-[var(--sidebar-muted)] transition-colors hover:bg-[rgba(250,237,205,0.16)] hover:text-[var(--sidebar-text)]"
         >
           ›
         </button>
@@ -212,7 +217,7 @@ export function ClientDashboardShell({
         />
       </div>
 
-      <div className="shrink-0 border-t border-[var(--border-light)] pt-3">
+      <div className="shrink-0 border-t border-[var(--sidebar-border)] pt-3">
         <div className="flex flex-col gap-2">
           {isAppAdmin && !collapsed && (
             <Link
@@ -228,21 +233,21 @@ export function ClientDashboardShell({
             onClick={openProfile}
             title={collapsed ? 'View profile' : undefined}
             className={cn(
-              'flex w-full items-center gap-2 rounded-[var(--radius-md)] border border-transparent text-left transition-colors hover:bg-[var(--surface-hover)]',
+              'flex w-full items-center gap-2 rounded-none border border-transparent text-left transition-colors hover:bg-[rgba(250,237,205,0.08)]',
               collapsed ? 'justify-center p-1.5' : 'px-1.5 py-1.5',
-              profileActive && 'border-[var(--primary-mid)] bg-[var(--primary-light)]'
+              profileActive && 'border-[var(--sidebar-border)] bg-[rgba(250,237,205,0.12)]'
             )}
           >
-            <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border-2 border-[var(--primary-mid)] bg-[var(--primary-light)] text-[var(--primary)]">
+            <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border-2 border-[#1A4A66] bg-[#669BBC] text-[#FDF0D5]">
               <User size={13} />
             </div>
             {!collapsed && (
               <>
                 <div className="min-w-0 flex-1 leading-tight">
-                  <div className="truncate text-[11px] font-bold text-[var(--text)]">{displayName}</div>
-                  <div className="truncate text-[10px] text-[var(--text-muted)]">{userEmail}</div>
+                  <div className="truncate text-[13.5px] font-bold text-[var(--sidebar-text)]">{displayName}</div>
+                  <div className="truncate text-[12px] text-[#7FA6BC]">{userEmail}</div>
                 </div>
-                <ChevronRight size={14} className="shrink-0 text-[var(--text-muted)]" />
+                <ChevronRight size={14} className="shrink-0 text-[#7FA6BC]" />
               </>
             )}
           </button>
@@ -250,14 +255,14 @@ export function ClientDashboardShell({
             type="button"
             onClick={() => signOut({ callbackUrl: '/client-login' })}
             title={collapsed ? 'Sign Out' : undefined}
-            className="flex w-full items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card-bg)] px-2 py-2 text-xs font-semibold text-[var(--red)] transition-colors hover:border-[var(--red)] hover:bg-[var(--red-light)]"
+            className="flex w-full items-center justify-center gap-1.5 rounded-none border-b border-[#33607C] bg-transparent px-2 py-2 text-[12.5px] font-semibold text-[#7FA6BC] transition-colors hover:border-[var(--sidebar-text)] hover:text-[var(--sidebar-text)]"
           >
             <LogOut size={13} />
             {!collapsed && 'Sign Out'}
           </button>
           <p
             className={cn(
-              '-mt-0.5 mb-0 text-center font-medium leading-tight text-[var(--text-muted)]',
+              '-mt-0.5 mb-0 text-center font-medium leading-tight text-[#7FA6BC]',
               collapsed ? 'text-[9px]' : 'text-[10px]'
             )}
           >
@@ -282,8 +287,8 @@ export function ClientDashboardShell({
     <div className="flex min-h-screen bg-[var(--bg)]">
       <aside
         className={cn(
-          'sticky top-0 hidden h-screen shrink-0 flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--border)] bg-[var(--card-bg)] shadow-[var(--shadow-xs)] transition-[width,padding] duration-250 ease-out lg:flex',
-          collapsed ? 'w-[68px] px-2.5 py-5' : 'w-[260px] px-3.5 py-5'
+          'sticky top-0 hidden h-screen shrink-0 flex-col gap-5 overflow-y-auto overflow-x-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] transition-[width,padding] duration-250 ease-out lg:flex',
+          collapsed ? 'w-[68px] px-2.5 py-8' : 'w-[224px] px-3 py-8'
         )}
       >
         {sidebarContent}
@@ -300,7 +305,7 @@ export function ClientDashboardShell({
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col gap-5 overflow-y-auto border-r border-[var(--border)] bg-[var(--card-bg)] px-3.5 py-5 shadow-lg transition-transform duration-300 lg:hidden',
+          'fixed inset-y-0 left-0 z-50 flex w-[224px] flex-col gap-5 overflow-y-auto border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] px-3 py-8 text-[var(--sidebar-text)] shadow-lg transition-transform duration-300 lg:hidden',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -331,10 +336,10 @@ export function ClientDashboardShell({
 
         <main
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-auto',
+            'editorial-shell-main flex min-h-0 flex-1 flex-col overflow-auto',
             pathname.startsWith('/client-dashboard/workspace/')
               ? 'p-0'
-              : 'px-6 py-8 lg:px-8'
+              : 'px-5 py-12 md:px-[72px] md:py-14'
           )}
         >
           {children}

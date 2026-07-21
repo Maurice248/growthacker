@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { Card, Badge, SectionTitle, Spinner } from "./components";
+import {
+  Spinner,
+  EditorialPage,
+  EditorialPageHeader,
+  EditorialDefinitionRow,
+  EditorialPillButton,
+  EditorialTextLink,
+} from "./components";
 
 type VariantMetrics = {
   spend?: string;
@@ -44,8 +51,25 @@ function formatMetricMoney(val?: string) {
   return `$${parseFloat(val || "0").toFixed(2)}`;
 }
 
+function formatElapsed(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
+
 const ACTIVE_STATUSES = new Set(["evaluating", "generating"]);
 const DELETABLE_STATUSES = new Set(["pending_review", "generating", "error"]);
+
+function loopStatusLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function loopStatusColor(status: string) {
+  if (status === "pending_review") return "#C1121F";
+  if (status === "running") return "#38678A";
+  if (status === "error") return "#C1121F";
+  return "#8C8474";
+}
 
 export default function AdPerformance() {
   const [automations, setAutomations] = useState<AutomationRow[]>([]);
@@ -219,294 +243,307 @@ export default function AdPerformance() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 960, margin: "0 auto" }}>
-      <div>
-        <SectionTitle>Automated Campaigns</SectionTitle>
-        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -8, lineHeight: 1.6 }}>
-          Evaluates your running ad sets, picks the best performer, archives losers, and generates new variants.
-          Use the toggle to auto-launch new variants to Meta, or review them first before launching.
-        </div>
-      </div>
+    <EditorialPage>
+      <EditorialPageHeader
+        eyebrow="Meta Ads"
+        title="Automated Campaigns"
+        subtitle="Evaluates your running ad sets, picks the best performer, archives losers, and generates new variants. Toggle auto-launch, or review each set before it ships to Meta."
+        actions={
+          <EditorialTextLink onClick={fetchAutomations} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </EditorialTextLink>
+        }
+        style={{ marginBottom: 36 }}
+      />
 
       {error && (
-        <Card style={{ background: "var(--red-light)", border: "1px solid var(--red-strong)", padding: 12 }}>
-          <div style={{ color: "var(--red-strong)", fontSize: 13 }}>{error}</div>
-        </Card>
+        <div
+          style={{
+            padding: "14px 0",
+            marginBottom: 24,
+            borderBottom: "1px solid var(--red)",
+            color: "var(--red)",
+            fontSize: 14,
+          }}
+        >
+          {error}
+        </div>
       )}
 
-      <Card style={{ padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>Your automation loops</div>
-          <button
-            type="button"
-            onClick={fetchAutomations}
-            disabled={loading}
-            style={secondaryBtn}
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
+      {loading && automations.length === 0 ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "48px 0" }}>
+          <Spinner />
+          <span style={{ fontSize: 14, color: "var(--text-muted)" }}>Loading automations…</span>
         </div>
-
-        {loading && automations.length === 0 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 24, justifyContent: "center" }}>
-            <Spinner />
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Loading automations...</span>
-          </div>
-        ) : automations.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
-            No automated campaigns yet. Use <strong>Generate Ad Variants</strong> to create your first variant set,
-            launch it in <strong>Campaign Setup</strong>, then return here to manage the evaluation loop.
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {automations.map((automation) => {
-              const busy =
-                actionId === automation.id ||
-                launchingId === automation.id ||
-                ACTIVE_STATUSES.has(automation.status);
-              const cardFeedback =
-                feedback?.automationId === automation.id ? feedback : null;
-              const currentVariants = automation.variants.filter(
-                (v) => v.generation === automation.generation
-              );
-              const archived = automation.variants.filter((v) => v.role === "archived");
-              const winner = automation.variants.find((v) => v.role === "winner");
-              const canEvaluate =
-                automation.status === "running" && Boolean(automation.metaAdSetId);
-              const canLaunch =
-                automation.status === "pending_review" && currentVariants.length > 0;
-              const canDelete = DELETABLE_STATUSES.has(automation.status);
-
-              return (
-                <div
-                  key={automation.id}
-                  style={{
-                    border: "1px solid var(--border-light)",
-                    borderRadius: 12,
-                    padding: 16,
-                    background: "var(--surface)",
-                  }}
-                >
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between" }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700 }}>
-                        Campaign {automation.metaCampaignId || "—"} · Ad set {automation.metaAdSetId || "—"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-                        Generation {automation.generation} · {automation.numVariants} variants · evaluates every{" "}
-                        {automation.evalLengthDays} day{automation.evalLengthDays === 1 ? "" : "s"} ·{" "}
-                        {formatMoney(automation.dailyBudgetCents)}/day per ad
-                      </div>
-                      {automation.nextEvaluationAt && automation.status === "running" && (
-                        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
-                          Next scheduled evaluation: {new Date(automation.nextEvaluationAt).toLocaleString()}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                      {canEvaluate && (
-                        <button
-                          type="button"
-                          onClick={() => runEvaluation(automation.id)}
-                          disabled={busy}
-                          style={primaryBtn}
-                        >
-                          {automation.status === "evaluating" || automation.status === "generating"
-                            ? "Evaluating..."
-                            : "Run evaluation now"}
-                        </button>
-                      )}
-                      {canLaunch && !automation.automationEnabled && (
-                        <button
-                          type="button"
-                          onClick={() => launchReviewedVariants(automation)}
-                          disabled={busy}
-                          style={{
-                            ...primaryBtn,
-                            opacity: launchingId === automation.id ? 0.85 : 1,
-                          }}
-                        >
-                          {launchingId === automation.id ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                              <Spinner size={14} color="#fff" />
-                              Launching to Meta...
-                            </span>
-                          ) : (
-                            "Launch new variants to Meta"
-                          )}
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          type="button"
-                          onClick={() => deleteAutomation(automation)}
-                          disabled={actionId === automation.id}
-                          style={dangerBtn}
-                        >
-                          Delete loop
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12, alignItems: "center" }}>
-                    <Badge
-                      text={automation.status.replace(/_/g, " ")}
-                      color={
-                        automation.status === "running"
-                          ? "var(--green)"
-                          : automation.status === "pending_review"
-                            ? "var(--primary)"
-                            : "var(--amber)"
-                      }
-                      bg={
-                        automation.status === "running"
-                          ? "var(--green-light)"
-                          : automation.status === "pending_review"
-                            ? "var(--primary-light)"
-                            : "var(--amber-light)"
-                      }
-                    />
-                    {winner &&
-                      (automation.status === "pending_review" ||
-                        automation.status === "evaluating" ||
-                        automation.status === "generating") && (
-                      <Badge text="Winner selected" color="var(--green)" bg="var(--green-light)" />
-                    )}
-                    {automation.status === "pending_review" && (
-                      <Badge text="New variants ready" color="var(--primary)" bg="var(--primary-light)" />
-                    )}
-                  </div>
-
-                  {cardFeedback && (
-                    <div
-                      style={{
-                        marginTop: 12,
-                        padding: 12,
-                        borderRadius: 10,
-                        border:
-                          cardFeedback.type === "success"
-                            ? "1px solid var(--green)"
-                            : "1px solid var(--red-strong)",
-                        background:
-                          cardFeedback.type === "success"
-                            ? "var(--green-light)"
-                            : "var(--red-light)",
-                        fontSize: 12,
-                        color:
-                          cardFeedback.type === "success"
-                            ? "var(--green)"
-                            : "var(--red-strong)",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      {cardFeedback.message}
-                    </div>
-                  )}
-
-                  {automation.status === "generating" && (
-                    <GenerationProgressBar automation={automation} />
-                  )}
-
-                  {automation.status === "pending_review" && !automation.automationEnabled && (
-                    <div
-                      style={{
-                        marginTop: 14,
-                        padding: 12,
-                        borderRadius: 10,
-                        border: "1px solid var(--primary-light)",
-                        background: "var(--primary-light)",
-                        fontSize: 12,
-                        color: "var(--text)",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      <strong>Review before launch:</strong> Click a variant to preview it full-screen.
-                      Reject any challenger you do not want and a replacement will be generated.
-                      When you are happy with the set, click{" "}
-                      <strong>Launch new variants to Meta</strong>.
-                    </div>
-                  )}
-
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 10,
-                      marginTop: 14,
-                      padding: 12,
-                      borderRadius: 10,
-                      border: "1px solid var(--border-light)",
-                      background: "var(--card-bg)",
-                      cursor: busy ? "not-allowed" : "pointer",
-                      opacity: busy ? 0.7 : 1,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(automation.automationEnabled)}
-                      disabled={busy}
-                      onChange={(e) => toggleAutoLaunch(automation.id, e.target.checked)}
-                      style={{ marginTop: 2 }}
-                    />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>Auto-launch new variants</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>
-                        When on, newly generated variants are launched to Meta automatically after each evaluation.
-                        When off, evaluation and generation still run — you review and launch manually.
-                      </div>
-                    </div>
-                  </label>
-
-                  {currentVariants.length > 0 && (
-                    <div style={{ marginTop: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--text-muted)" }}>
-                        Current generation (gen {automation.generation})
-                      </div>
-                      <VariantGrid
-                        variants={currentVariants}
-                        onOpen={setPreview}
-                        onReject={
-                          automation.status === "pending_review" && !automation.automationEnabled
-                            ? (variant) => rejectVariant(automation, variant)
-                            : undefined
-                        }
-                        rejectingId={rejectingId}
-                      />
-                    </div>
-                  )}
-
-                  {archived.length > 0 && (
-                    <div style={{ marginTop: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--text-muted)" }}>
-                        Archived after last evaluation ({archived.length})
-                      </div>
-                      <VariantGrid variants={archived} showMetrics onOpen={setPreview} />
-                    </div>
-                  )}
-
-                  {automation.error && (
-                    <div style={{ marginTop: 12, fontSize: 12, color: "var(--red-strong)" }}>
-                      {automation.error}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+      ) : automations.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: "#4A5A64", maxWidth: 640 }}>
+          No automated campaigns yet. Use <strong>Generate Ad Variants</strong> to create your first
+          variant set, launch it in <strong>Campaign Setup</strong>, then return here to manage the
+          evaluation loop.
+        </p>
+      ) : (
+        automations.map((automation, loopIndex) => (
+          <AutomationLoopSection
+            key={automation.id}
+            automation={automation}
+            loopNumber={loopIndex + 1}
+            busy={
+              actionId === automation.id ||
+              launchingId === automation.id ||
+              ACTIVE_STATUSES.has(automation.status)
+            }
+            launching={launchingId === automation.id}
+            rejectingId={rejectingId}
+            feedback={feedback?.automationId === automation.id ? feedback : null}
+            onToggleAutoLaunch={toggleAutoLaunch}
+            onRunEvaluation={runEvaluation}
+            onLaunch={launchReviewedVariants}
+            onDelete={deleteAutomation}
+            onReject={rejectVariant}
+            onOpenPreview={setPreview}
+            isFirst={loopIndex === 0}
+          />
+        ))
+      )}
 
       {preview && <VariantPreviewOverlay variant={preview} onClose={() => setPreview(null)} />}
-    </div>
+
+      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+    </EditorialPage>
   );
 }
 
-function formatElapsed(seconds: number) {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+function AutomationLoopSection({
+  automation,
+  loopNumber,
+  busy,
+  launching,
+  rejectingId,
+  feedback,
+  onToggleAutoLaunch,
+  onRunEvaluation,
+  onLaunch,
+  onDelete,
+  onReject,
+  onOpenPreview,
+  isFirst,
+}: {
+  automation: AutomationRow;
+  loopNumber: number;
+  busy: boolean;
+  launching: boolean;
+  rejectingId: string | null;
+  feedback: { type: "success" | "error"; message: string } | null;
+  onToggleAutoLaunch: (id: string, enabled: boolean) => void;
+  onRunEvaluation: (id: string) => void;
+  onLaunch: (automation: AutomationRow) => void;
+  onDelete: (automation: AutomationRow) => void;
+  onReject: (automation: AutomationRow, variant: VariantRow) => void;
+  onOpenPreview: (variant: VariantRow) => void;
+  isFirst: boolean;
+}) {
+  const currentVariants = automation.variants.filter((v) => v.generation === automation.generation);
+  const archived = automation.variants.filter((v) => v.role === "archived");
+  const canEvaluate = automation.status === "running" && Boolean(automation.metaAdSetId);
+  const canLaunch = automation.status === "pending_review" && currentVariants.length > 0;
+  const canDelete = DELETABLE_STATUSES.has(automation.status);
+  const isPendingReview = automation.status === "pending_review";
+  const showReject = isPendingReview && !automation.automationEnabled;
+
+  const metaParts = [
+    `Generation ${automation.generation}`,
+    `${automation.numVariants} variant${automation.numVariants === 1 ? "" : "s"}`,
+    `evaluates every ${automation.evalLengthDays} day${automation.evalLengthDays === 1 ? "" : "s"}`,
+    `${formatMoney(automation.dailyBudgetCents)}/day per ad`,
+  ];
+  if (automation.nextEvaluationAt && automation.status === "running") {
+    metaParts.push(`next evaluation ${new Date(automation.nextEvaluationAt).toLocaleString()}`);
+  }
+
+  return (
+    <section style={{ marginTop: isFirst ? 0 : 56 }}>
+      {/* Loop header */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 24,
+          paddingBottom: 14,
+          borderBottom: "1px solid var(--primary)",
+          alignItems: "end",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 11.5,
+              letterSpacing: "1.6px",
+              textTransform: "uppercase",
+              color: loopStatusColor(automation.status),
+              fontWeight: 700,
+            }}
+          >
+            Loop {loopNumber} · {loopStatusLabel(automation.status)}
+          </div>
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontWeight: 700,
+              fontSize: 20,
+              color: "var(--primary)",
+              letterSpacing: "-0.3px",
+              marginTop: 8,
+              overflowWrap: "anywhere",
+            }}
+          >
+            Campaign {automation.metaCampaignId || "—"} · Ad set {automation.metaAdSetId || "—"}
+          </div>
+          <div style={{ fontSize: 13, color: "#8C8474", marginTop: 3 }}>
+            {metaParts.join(" · ")}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
+          {canDelete && (
+            <EditorialTextLink
+              onClick={() => onDelete(automation)}
+              disabled={busy}
+              style={{ fontSize: 13.5, color: "#8C8474", fontWeight: 400 }}
+            >
+              Delete loop
+            </EditorialTextLink>
+          )}
+          {canLaunch && !automation.automationEnabled && (
+            <EditorialPillButton
+              onClick={() => onLaunch(automation)}
+              disabled={busy}
+            >
+              {launching ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <Spinner size={14} color="#FDF0D5" />
+                  Launching…
+                </span>
+              ) : (
+                "Launch new variants to Meta"
+              )}
+            </EditorialPillButton>
+          )}
+          {canEvaluate && (
+            <EditorialPillButton
+              variant="outline"
+              onClick={() => onRunEvaluation(automation.id)}
+              disabled={busy}
+            >
+              {automation.status === "evaluating" || automation.status === "generating"
+                ? "Evaluating…"
+                : "Run evaluation now"}
+            </EditorialPillButton>
+          )}
+        </div>
+      </div>
+
+      {feedback && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: "12px 0",
+            borderBottom: `1px solid ${feedback.type === "success" ? "var(--green)" : "var(--red)"}`,
+            fontSize: 14,
+            color: feedback.type === "success" ? "var(--green)" : "var(--red)",
+            lineHeight: 1.6,
+          }}
+        >
+          {feedback.message}
+        </div>
+      )}
+
+      {automation.status === "generating" && (
+        <GenerationProgressBar automation={automation} />
+      )}
+
+      {isPendingReview && !automation.automationEnabled && (
+        <EditorialDefinitionRow label="Review before launch">
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
+            Click a variant to preview it full-screen. Reject any challenger you don&apos;t want and a
+            replacement will be generated. When you&apos;re happy with the set, launch the new variants
+            to Meta.
+          </p>
+        </EditorialDefinitionRow>
+      )}
+
+      <EditorialDefinitionRow label="Auto-launch" isLast={currentVariants.length === 0 && archived.length === 0}>
+        <label
+          style={{
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
+            cursor: busy ? "not-allowed" : "pointer",
+            opacity: busy ? 0.7 : 1,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={Boolean(automation.automationEnabled)}
+            disabled={busy}
+            onChange={(e) => onToggleAutoLaunch(automation.id, e.target.checked)}
+            style={{ accentColor: "#C1121F", width: 15, height: 15, marginTop: 3, flexShrink: 0 }}
+          />
+          <span style={{ fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
+            Launch newly generated variants to Meta automatically after each evaluation. When off,
+            evaluation and generation still run — you review and launch manually.
+          </span>
+        </label>
+      </EditorialDefinitionRow>
+
+      {currentVariants.length > 0 && (
+        <div style={{ padding: "22px 0 8px" }}>
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: "1px",
+              textTransform: "uppercase",
+              color: "#8C8474",
+              marginBottom: 14,
+            }}
+          >
+            Current generation · gen {automation.generation}
+          </div>
+          <VariantGrid
+            variants={currentVariants}
+            isPendingReview={showReject}
+            onOpen={onOpenPreview}
+            onReject={showReject ? (variant) => onReject(automation, variant) : undefined}
+            rejectingId={rejectingId}
+          />
+        </div>
+      )}
+
+      {archived.length > 0 && (
+        <div style={{ padding: "22px 0 8px", borderTop: "1px solid var(--border)" }}>
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: "1px",
+              textTransform: "uppercase",
+              color: "#8C8474",
+              marginBottom: 14,
+            }}
+          >
+            Archived after last evaluation ({archived.length})
+          </div>
+          <VariantGrid
+            variants={archived}
+            showMetrics
+            onOpen={onOpenPreview}
+          />
+        </div>
+      )}
+
+      {automation.error && (
+        <div style={{ marginTop: 16, fontSize: 14, color: "var(--red)" }}>{automation.error}</div>
+      )}
+    </section>
+  );
 }
 
 function GenerationProgressBar({ automation }: { automation: AutomationRow }) {
@@ -560,7 +597,7 @@ function GenerationProgressBar({ automation }: { automation: AutomationRow }) {
     } else if (challengersDone === 0) {
       label =
         challengersNeeded === 0
-          ? "Preparing new variant set..."
+          ? "Preparing new variant set…"
           : `Generating AI variant 1 of ${challengersNeeded}${
               isVideoBase ? " — video variants may take several minutes" : ""
             }`;
@@ -579,15 +616,8 @@ function GenerationProgressBar({ automation }: { automation: AutomationRow }) {
   ]);
 
   return (
-    <Card
-      style={{
-        marginTop: 14,
-        border: "1px solid var(--primary-light)",
-        background: "var(--primary-light)",
-        padding: 14,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+    <div style={{ padding: "22px 0", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Spinner />
           <div>
@@ -611,10 +641,9 @@ function GenerationProgressBar({ automation }: { automation: AutomationRow }) {
 
       <div
         style={{
-          height: 10,
+          height: 6,
           borderRadius: 999,
-          background: "rgba(255,255,255,0.7)",
-          border: "1px solid var(--border-light)",
+          background: "var(--border)",
           overflow: "hidden",
         }}
       >
@@ -623,13 +652,12 @@ function GenerationProgressBar({ automation }: { automation: AutomationRow }) {
             height: "100%",
             width: `${Math.max(progressPercent, 4)}%`,
             borderRadius: 999,
-            background: "linear-gradient(90deg, var(--primary), #60a5fa)",
+            background: "var(--primary)",
             transition: "width 1s linear",
-            boxShadow: progressPercent < 100 ? "0 0 8px rgba(59,130,246,0.35)" : "none",
           }}
         />
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -722,24 +750,41 @@ function VariantPreviewOverlay({
             }}
           />
         )}
-        <Badge
-          text={variant.role}
-          color="var(--primary)"
-          bg="var(--primary-light)"
-        />
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "1.2px",
+            textTransform: "uppercase",
+            color: "#38678A",
+          }}
+        >
+          {variant.role}
+        </div>
       </div>
     </div>
   );
 }
 
+function variantDisplayLabel(variant: VariantRow, index: number, isPendingReview: boolean) {
+  if (isPendingReview) {
+    if (variant.role === "base") return "Base";
+    return "Challenger";
+  }
+  if (variant.role === "archived") return `Archived ${index + 1}`;
+  return `Variant ${index + 1}`;
+}
+
 function VariantGrid({
   variants,
+  isPendingReview = false,
   showMetrics = false,
   onOpen,
   onReject,
   rejectingId,
 }: {
   variants: VariantRow[];
+  isPendingReview?: boolean;
   showMetrics?: boolean;
   onOpen?: (variant: VariantRow) => void;
   onReject?: (variant: VariantRow) => void;
@@ -747,21 +792,21 @@ function VariantGrid({
 }) {
   return (
     <div
+      className="editorial-preview-grid"
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-        gap: 10,
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gap: 24,
       }}
     >
-      {variants.map((variant) => {
+      {variants.map((variant, index) => {
         const canReject = onReject && variant.role === "challenger";
         const isRejecting = rejectingId === variant.id;
+        const label = variantDisplayLabel(variant, index, isPendingReview);
+        const isBase = variant.role === "base";
 
         return (
-          <div
-            key={variant.id}
-            style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}
-          >
+          <div key={variant.id} style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
             <button
               type="button"
               onClick={() => onOpen?.(variant)}
@@ -775,70 +820,62 @@ function VariantGrid({
                 cursor: onOpen ? "pointer" : "default",
               }}
             >
-              <div style={{ aspectRatio: "9/16", background: "#0f172a", position: "relative" }}>
+              <div style={{ width: "100%", aspectRatio: "4/5", borderRadius: 10, overflow: "hidden" }}>
                 {variant.format === "Video" ? (
                   <video
                     src={variant.mediaUrl}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }}
+                    muted
+                    playsInline
                   />
                 ) : (
                   <img
                     src={variant.mediaUrl}
                     alt=""
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                   />
                 )}
               </div>
             </button>
-            <div style={{ padding: 8 }}>
-              <Badge
-                text={variant.role}
-                color={
-                  variant.role === "winner"
-                    ? "var(--green)"
-                    : variant.role === "archived"
-                      ? "var(--text-muted)"
-                      : "var(--primary)"
-                }
-                bg={
-                  variant.role === "winner"
-                    ? "var(--green-light)"
-                    : variant.role === "archived"
-                      ? "var(--surface)"
-                      : "var(--primary-light)"
-                }
-              />
-              {showMetrics && variant.metrics && (
-                <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.5 }}>
-                  Spend {formatMetricMoney(variant.metrics.spend)}
-                  <br />
-                  Clicks {variant.metrics.clicks || "0"}
-                  {variant.metrics.ctr ? ` · CTR ${variant.metrics.ctr}%` : ""}
-                </div>
-              )}
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "1.2px",
+                  textTransform: "uppercase",
+                  color: isBase ? "#38678A" : "#8C8474",
+                }}
+              >
+                {label}
+              </div>
               {canReject && (
                 <button
                   type="button"
                   onClick={() => onReject(variant)}
                   disabled={Boolean(rejectingId)}
-                  style={{
-                    marginTop: 8,
-                    width: "100%",
-                    padding: "6px 8px",
-                    borderRadius: 6,
-                    border: "1px solid var(--red-strong)",
-                    background: "#fff",
-                    color: "var(--red-strong)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    cursor: rejectingId ? "not-allowed" : "pointer",
-                    opacity: rejectingId && !isRejecting ? 0.5 : 1,
-                  }}
+                  style={rejectLinkStyle}
                 >
-                  {isRejecting ? "Regenerating..." : "Reject & regenerate"}
+                  {isRejecting ? "Regenerating…" : "Reject & regenerate"}
                 </button>
               )}
             </div>
+
+            {showMetrics && variant.metrics && (
+              <div style={{ fontSize: 11, color: "#8C8474", lineHeight: 1.5 }}>
+                Spend {formatMetricMoney(variant.metrics.spend)} · Clicks {variant.metrics.clicks || "0"}
+                {variant.metrics.ctr ? ` · CTR ${variant.metrics.ctr}%` : ""}
+              </div>
+            )}
           </div>
         );
       })}
@@ -846,33 +883,14 @@ function VariantGrid({
   );
 }
 
-const primaryBtn: CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 8,
+const rejectLinkStyle: CSSProperties = {
+  background: "none",
   border: "none",
-  background: "var(--primary)",
-  color: "#fff",
-  fontSize: 12,
+  borderBottom: "1px solid #C1121F",
+  padding: 0,
+  fontFamily: "inherit",
+  fontSize: 12.5,
   fontWeight: 700,
-  cursor: "pointer",
-};
-
-const secondaryBtn: CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: 8,
-  border: "1px solid var(--border)",
-  background: "#fff",
-  fontSize: 12,
-  cursor: "pointer",
-};
-
-const dangerBtn: CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 8,
-  border: "1px solid var(--red-strong)",
-  background: "#fff",
-  color: "var(--red-strong)",
-  fontSize: 12,
-  fontWeight: 700,
+  color: "#C1121F",
   cursor: "pointer",
 };

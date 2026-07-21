@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
+import { notifyParentEmbedNavigate } from '@/lib/client-dashboard-nav';
 import { AppSectionProvider } from '@/lib/app-section';
 import { HideNextDevIndicator } from '@/components/HideNextDevIndicator';
+import { EditorialPageShell } from '@/components/outreach/page-body';
 
 export function OutreachShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -17,6 +19,8 @@ export function OutreachShell({ children }: { children: React.ReactNode }) {
 
       event.preventDefault();
       const url = new URL(href, window.location.origin);
+      if (notifyParentEmbedNavigate(url.pathname)) return;
+
       url.searchParams.set('embed', '1');
       window.location.assign(`${url.pathname}${url.search}${url.hash}`);
     };
@@ -28,8 +32,10 @@ export function OutreachShell({ children }: { children: React.ReactNode }) {
   return (
     <AppSectionProvider section="outreach">
       <HideNextDevIndicator />
-      <div className="min-h-screen bg-[#f8f9fa]">
-        <main>{children}</main>
+      <div className="min-h-screen bg-[var(--background)]">
+        <main className="editorial-shell-main">
+          <EditorialPageShell>{children}</EditorialPageShell>
+        </main>
       </div>
     </AppSectionProvider>
   );

@@ -16,8 +16,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CleanupLog } from '@/types';
+import { useAppSection } from '@/lib/app-section';
 
 export function CleanupHistory() {
+  const { section } = useAppSection();
   const { data, isLoading, error } = useQuery({
     queryKey: ['cleanup-logs'],
     queryFn: async () => {
@@ -25,6 +27,8 @@ export function CleanupHistory() {
       return res.data.logs ?? [];
     },
   });
+
+  if (section === 'outreach') return null;
 
   if (isLoading) {
     return (
@@ -58,7 +62,7 @@ export function CleanupHistory() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <Trash2 className="h-4 w-4 text-[#0077b6]" />
+          <Trash2 className="h-4 w-4 text-[#003049]" />
           Cleanup History ({data.length})
         </CardTitle>
       </CardHeader>

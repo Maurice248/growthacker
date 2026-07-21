@@ -40,21 +40,12 @@ export function Card({ children, style = {}, className = "" }: CardProps) {
     <div
       className={`animate-slide-up ${className}`}
       style={{
-        background: "var(--card-bg)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-lg)",
-        padding: "var(--card-padding, 20px)",
-        boxShadow: "var(--shadow-sm)",
-        transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+        background: "transparent",
+        border: "none",
+        borderRadius: 0,
+        padding: 0,
+        boxShadow: "none",
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "var(--shadow-md)";
-        e.currentTarget.style.borderColor = "var(--border-mid)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "var(--shadow-sm)";
-        e.currentTarget.style.borderColor = "var(--border)";
       }}
     >
       {children}
@@ -73,73 +64,34 @@ interface MetricCardProps {
 }
 
 export function MetricCard({ label, value, sub, color, bg, dot, icon }: MetricCardProps) {
+  void color;
+  void bg;
+  void dot;
+  void icon;
   return (
     <div
-      className="animate-scale-in"
+      className="animate-scale-in editorial-metric-cell"
       style={{
-        background: bg || "var(--surface)",
-        borderRadius: "var(--radius-lg)",
-        padding: "var(--card-padding, 20px)",
+        padding: "24px 24px 24px 0",
+        borderRight: "1px solid var(--border)",
         position: "relative",
-        border: `1px solid ${color}20`,
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-        cursor: "default",
-        overflow: "hidden",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "var(--shadow-md)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "none";
       }}
     >
-      {/* Subtle background accent */}
       <div style={{
-        position: "absolute", top: -20, right: -20,
-        width: 80, height: 80, borderRadius: "50%",
-        background: color, opacity: 0.06,
-        pointerEvents: "none",
-      }} />
-
-      {dot && (
-        <div
-          className="animate-pulse"
-          style={{
-            position: "absolute", top: 14, right: 14,
-            width: 8, height: 8, borderRadius: "50%",
-            background: color,
-            boxShadow: `0 0 0 3px ${color}25`,
-          }}
-        />
-      )}
-
-      {icon && (
-        <div style={{
-          width: 36, height: 36, borderRadius: "var(--radius-md)",
-          background: `${color}15`, display: "flex", alignItems: "center",
-          justifyContent: "center", fontSize: 18, marginBottom: 12,
-        }}>
-          {icon}
-        </div>
-      )}
-
-      <div style={{
-        fontSize: 11, fontWeight: 700, color,
-        textTransform: "uppercase", letterSpacing: "0.07em",
-        marginBottom: 8, opacity: 0.75,
+        fontSize: 12, letterSpacing: "1px", textTransform: "uppercase",
+        color: "var(--text-muted)", marginBottom: 8,
       }}>
         {label}
       </div>
       <div style={{
-        fontSize: "var(--metric-value-size, 26px)", fontWeight: 800,
-        color: "var(--text)", marginBottom: 4, lineHeight: 1.1,
-        letterSpacing: "-0.02em",
+        fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 700,
+        color: "var(--primary)", lineHeight: 1,
       }}>
         {value}
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{sub}</div>
+      {sub && (
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 8 }}>{sub}</div>
+      )}
     </div>
   );
 }
@@ -153,13 +105,17 @@ interface SectionTitleProps {
 export function SectionTitle({ children, style = {}, action }: SectionTitleProps) {
   return (
     <div style={{
-      display: "flex", alignItems: "center",
+      display: "flex", alignItems: "baseline",
       justifyContent: action ? "space-between" : "flex-start",
-      marginBottom: 16, ...style,
+      paddingBottom: 14,
+      borderBottom: "1px solid var(--primary)",
+      marginBottom: 0,
+      ...style,
     }}>
       <div style={{
-        fontSize: 12, fontWeight: 800, color: "var(--text-muted)",
-        textTransform: "uppercase", letterSpacing: "0.1em",
+        fontSize: 11.5, fontWeight: 700, color: "var(--red)",
+        textTransform: "uppercase", letterSpacing: "1.6px",
+        fontFamily: "var(--font-display)",
       }}>
         {children}
       </div>
@@ -286,9 +242,9 @@ export function PrimaryButton({ children, onClick, disabled, style = {}, size = 
       style={{
         width: "100%",
         background: disabled ? "var(--border)" : "var(--primary)",
-        color: disabled ? "var(--text-muted)" : "#fff",
+        color: disabled ? "var(--text-muted)" : "#FDF0D5",
         border: "none",
-        borderRadius: "var(--radius-md)",
+        borderRadius: "var(--radius-pill)",
         padding: pad,
         fontSize: fs,
         fontWeight: 700,
@@ -301,8 +257,8 @@ export function PrimaryButton({ children, onClick, disabled, style = {}, size = 
       }}
       onMouseEnter={(e) => {
         if (!disabled) {
-          e.currentTarget.style.background = "var(--primary-dark)";
-          e.currentTarget.style.boxShadow = "0 6px 16px -4px rgba(37,99,235,0.35)";
+          e.currentTarget.style.background = "var(--red)";
+          e.currentTarget.style.boxShadow = "0 6px 16px -4px rgba(193,18,31,0.35)";
           e.currentTarget.style.transform = "translateY(-1px)";
         }
       }}
@@ -335,8 +291,8 @@ export function SecondaryButton({ children, onClick, style = {}, size = "md" }: 
       style={{
         width: "100%",
         background: "var(--card-bg)",
-        border: "1.5px solid var(--border)",
-        borderRadius: "var(--radius-md)",
+        border: "1.5px solid var(--primary)",
+        borderRadius: "var(--radius-pill)",
         padding: pad,
         fontSize: fs,
         fontWeight: 600,
@@ -360,5 +316,443 @@ export function SecondaryButton({ children, onClick, style = {}, size = "md" }: 
     >
       {children}
     </button>
+  );
+}
+
+/* ── Editorial layout (v4 design system) ── */
+
+interface EditorialPageProps {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  wide?: boolean;
+}
+
+export function EditorialPage({ children, style = {}, wide }: EditorialPageProps) {
+  return (
+    <div
+      className="editorial-page animate-fade-in"
+      style={{ width: "100%", maxWidth: wide ? 1080 : 980, margin: "0 auto", paddingBottom: 96, boxSizing: "border-box", ...style }}
+    >
+      {children}
+    </div>
+  );
+}
+
+interface EditorialPageHeaderProps {
+  eyebrow?: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+  style?: React.CSSProperties;
+}
+
+export function EditorialPageHeader({ eyebrow, title, subtitle, actions, style = {} }: EditorialPageHeaderProps) {
+  return (
+    <header style={{ marginBottom: 48, ...style }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          {eyebrow && (
+            <div style={{ fontSize: 11.5, letterSpacing: "1.6px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 10 }}>
+              {eyebrow}
+            </div>
+          )}
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 700, margin: 0, letterSpacing: "-0.8px", color: "var(--text)", lineHeight: 1.1 }}>
+            {title}
+          </h1>
+          {subtitle && (
+            <p style={{ margin: "8px 0 0", color: "#4A5A64", fontSize: 15, lineHeight: 1.5 }}>{subtitle}</p>
+          )}
+        </div>
+        {actions && (
+          <div style={{ display: "flex", gap: 24, alignItems: "baseline", flexWrap: "wrap" }}>{actions}</div>
+        )}
+      </div>
+    </header>
+  );
+}
+
+interface EditorialSectionHeaderProps {
+  title: React.ReactNode;
+  meta?: React.ReactNode;
+  style?: React.CSSProperties;
+}
+
+export function EditorialSectionHeader({ title, meta, style = {} }: EditorialSectionHeaderProps) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingBottom: 14, borderBottom: "1px solid var(--primary)", marginBottom: 0, ...style }}>
+      <div style={{ fontSize: 11.5, letterSpacing: "1.6px", textTransform: "uppercase", color: "var(--red)", fontWeight: 700, fontFamily: "var(--font-display)" }}>
+        {title}
+      </div>
+      {meta && <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{meta}</div>}
+    </div>
+  );
+}
+
+interface EditorialStatRibbonProps {
+  children: React.ReactNode;
+  columns?: number;
+}
+
+export function EditorialStatRibbon({ children, columns = 4 }: EditorialStatRibbonProps) {
+  return (
+    <section
+      className="editorial-stat-ribbon"
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        borderTop: "1px solid var(--primary)",
+      }}
+    >
+      {children}
+    </section>
+  );
+}
+
+interface EditorialStatCellProps {
+  value: React.ReactNode;
+  label: React.ReactNode;
+  sub?: React.ReactNode;
+  accent?: "default" | "danger" | "muted";
+  isFirst?: boolean;
+  isLast?: boolean;
+}
+
+export function EditorialStatCell({ value, label, sub, accent = "default", isFirst, isLast }: EditorialStatCellProps) {
+  const valueColor = accent === "danger" ? "var(--red)" : accent === "muted" ? "var(--text-muted)" : "var(--primary)";
+  const labelColor = accent === "danger" ? "var(--red)" : "var(--text-muted)";
+  return (
+    <div
+      style={{
+        padding: isFirst ? "24px 24px 24px 0" : isLast ? "24px 0 24px 24px" : "24px",
+        borderRight: isLast ? "none" : "1px solid var(--border)",
+      }}
+    >
+      <div style={{ fontFamily: "var(--font-display)", fontSize: 40, fontWeight: 700, color: valueColor, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: labelColor, marginTop: 10 }}>{label}</div>
+      {sub && <div style={{ fontSize: 13, color: "#4A5A64", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+interface EditorialPanelStatCellProps {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  isFirst?: boolean;
+  isLast?: boolean;
+}
+
+/** Account-health style stat: label above value at 30px (v4 Meta Ads Overview). */
+export function EditorialPanelStatCell({ label, value, isFirst, isLast }: EditorialPanelStatCellProps) {
+  return (
+    <div
+      style={{
+        padding: isFirst ? "24px 24px 24px 0" : isLast ? "24px 0 24px 24px" : "24px",
+        borderRight: isLast ? "none" : "1px solid var(--border)",
+      }}
+    >
+      <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "var(--text-muted)" }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: 30, fontWeight: 700, color: "var(--primary)", marginTop: 8, lineHeight: 1 }}>{value}</div>
+    </div>
+  );
+}
+
+interface EditorialMetricItemProps {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  accent?: "default" | "danger";
+  size?: "md" | "sm";
+}
+
+export function EditorialMetricItem({ label, value, accent = "default", size = "md" }: EditorialMetricItemProps) {
+  const valueColor = accent === "danger" ? "var(--red)" : "var(--primary)";
+  const valueSize = size === "sm" ? 15 : 19;
+  const labelSize = size === "sm" ? 11.5 : 12;
+  return (
+    <div style={{ textAlign: "right" }}>
+      <div style={{ fontSize: labelSize, letterSpacing: "1px", textTransform: "uppercase", color: "var(--text-muted)" }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-display)", fontSize: valueSize, fontWeight: 700, color: valueColor, marginTop: size === "sm" ? 3 : 4 }}>{value}</div>
+    </div>
+  );
+}
+
+interface EditorialDefinitionListProps {
+  children: React.ReactNode;
+}
+
+export function EditorialDefinitionList({ children }: EditorialDefinitionListProps) {
+  return <div>{children}</div>;
+}
+
+interface EditorialDefinitionRowProps {
+  label: React.ReactNode;
+  labelSub?: React.ReactNode;
+  children: React.ReactNode;
+  isLast?: boolean;
+}
+
+export function EditorialDefinitionRow({ label, labelSub, children, isLast }: EditorialDefinitionRowProps) {
+  return (
+    <div
+      className="editorial-definition-row"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "200px 1fr",
+        gap: "0 40px",
+        padding: "26px 0",
+        borderBottom: isLast ? "none" : "1px solid var(--border)",
+        alignItems: labelSub ? "start" : "center",
+      }}
+    >
+      <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15, color: "var(--text)" }}>
+        {label}
+        {labelSub && (
+          <span style={{ display: "block", fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>
+            {labelSub}
+          </span>
+        )}
+      </div>
+      <div style={{ minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+interface EditorialPillButtonProps {
+  children: React.ReactNode;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  variant?: "primary" | "danger" | "outline" | "ghost";
+  style?: React.CSSProperties;
+}
+
+export function EditorialPillButton({ children, onClick, disabled, variant = "primary", style = {} }: EditorialPillButtonProps) {
+  const base: React.CSSProperties = {
+    fontFamily: "var(--font-sans)",
+    fontWeight: 700,
+    fontSize: 14,
+    padding: variant === "ghost" ? "0" : "10px 22px",
+    borderRadius: variant === "ghost" ? 0 : 999,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.7 : 1,
+    border: "none",
+    background: "transparent",
+    transition: "background 0.15s ease, color 0.15s ease, opacity 0.15s ease",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  };
+  if (variant === "primary") {
+    base.background = "var(--primary)";
+    base.color = "#FDF0D5";
+  } else if (variant === "danger") {
+    base.background = "#C1121F";
+    base.color = "#FDF6E3";
+  } else if (variant === "outline") {
+    base.background = "transparent";
+    base.color = "var(--primary)";
+    base.border = "1px solid var(--primary)";
+    base.padding = "9px 24px";
+  } else {
+    base.color = "#4A5A64";
+  }
+  Object.assign(base, style);
+
+  const className =
+    variant === "primary"
+      ? "editorial-pill-btn-primary"
+      : variant === "danger"
+        ? "editorial-pill-btn-danger"
+        : undefined;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+      style={base}
+    >
+      {children}
+    </button>
+  );
+}
+
+interface EditorialTextLinkProps {
+  children: React.ReactNode;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+}
+
+export function EditorialTextLink({ children, onClick, disabled, style = {} }: EditorialTextLinkProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        background: "none",
+        border: "none",
+        padding: 0,
+        fontFamily: "inherit",
+        fontSize: 14,
+        fontWeight: 700,
+        color: "#4A5A64",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+interface EditorialFieldProps {
+  value: string;
+  onChange?: (value: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  multiline?: boolean;
+  rows?: number;
+  type?: "text" | "password" | "email" | "url";
+  style?: React.CSSProperties;
+}
+
+export function EditorialField({ value, onChange, disabled, placeholder, multiline, rows = 3, type = "text", style = {} }: EditorialFieldProps) {
+  const shared: React.CSSProperties = {
+    width: "100%",
+    fontFamily: "var(--font-sans)",
+    fontSize: 15,
+    lineHeight: 1.6,
+    padding: "10px 0",
+    border: "none",
+    borderBottom: disabled ? "none" : "1px solid #C2B79A",
+    background: "transparent",
+    color: disabled ? "#4A5A64" : "var(--primary)",
+    outline: "none",
+    resize: multiline ? "vertical" : "none",
+    boxShadow: "none",
+    ...style,
+  };
+  if (disabled) {
+    return <p style={{ margin: 0, ...shared, whiteSpace: "pre-wrap" }}>{value || "—"}</p>;
+  }
+  if (multiline) {
+    return <textarea className="editorial-field" value={value} onChange={(e) => onChange?.(e.target.value)} placeholder={placeholder} rows={rows} style={shared} />;
+  }
+  return <input type={type} className="editorial-field" value={value} onChange={(e) => onChange?.(e.target.value)} placeholder={placeholder} style={shared} />;
+}
+
+interface EditorialTabItem {
+  id: string;
+  label: React.ReactNode;
+  count?: number;
+}
+
+interface EditorialTabBarProps {
+  tabs: EditorialTabItem[];
+  activeId: string;
+  onChange: (id: string) => void;
+  style?: React.CSSProperties;
+}
+
+export function EditorialTabBar({ tabs, activeId, onChange, style = {} }: EditorialTabBarProps) {
+  return (
+    <div
+      className="editorial-tab-bar"
+      style={{
+        display: "flex",
+        gap: 28,
+        borderBottom: "1px solid var(--primary)",
+        marginBottom: 8,
+        flexWrap: "wrap",
+        ...style,
+      }}
+    >
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeId;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            style={{
+              fontFamily: "inherit",
+              fontSize: 14,
+              fontWeight: isActive ? 700 : 400,
+              color: isActive ? "var(--red)" : "#4A5A64",
+              padding: "0 2px 12px",
+              marginBottom: -1,
+              background: "none",
+              border: "none",
+              borderBottom: isActive ? "2px solid var(--red)" : "2px solid transparent",
+              cursor: "pointer",
+              transition: "color 0.15s ease",
+            }}
+          >
+            {tab.label}
+            {tab.count != null && tab.count > 0 && (
+              <span style={{ color: "#8C8474" }}> · {tab.count}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface EditorialStatusPillProps {
+  children: React.ReactNode;
+  variant?: "approved" | "unapproved" | "active" | "neutral" | "danger";
+}
+
+export function EditorialStatusPill({ children, variant = "neutral" }: EditorialStatusPillProps) {
+  const styles: Record<string, React.CSSProperties> = {
+    approved: { color: "#38678A", border: "1px solid #7FA6BC" },
+    active: { color: "#38678A", border: "1px solid #7FA6BC" },
+    unapproved: { color: "#B0700A", border: "1px solid #E0B75C" },
+    danger: { color: "#C1121F", border: "1px solid #E0A8A8" },
+    neutral: { color: "#8C8474", border: "1px solid #C2B79A" },
+  };
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "1px",
+        textTransform: "uppercase",
+        borderRadius: 999,
+        padding: "3px 10px",
+        whiteSpace: "nowrap",
+        ...styles[variant],
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+interface EditorialListRowProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  style?: React.CSSProperties;
+}
+
+export function EditorialListRow({ children, onClick, style = {} }: EditorialListRowProps) {
+  return (
+    <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      style={{
+        borderTop: "1px solid var(--border)",
+        padding: "18px 0",
+        cursor: onClick ? "pointer" : undefined,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
   );
 }

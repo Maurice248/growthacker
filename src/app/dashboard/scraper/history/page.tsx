@@ -10,6 +10,13 @@ import {
 import { Header } from '@/components/dashboard/header';
 import { PageBody } from '@/components/outreach/page-body';
 import { useAppSection } from '@/lib/app-section';
+import {
+  EditorialSectionHeader,
+  EditorialStatCell,
+  EditorialStatRibbon,
+  OutreachBackLink,
+  editorialPillButtonClass,
+} from '@/components/cold-email/outreach-ui';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,7 +61,8 @@ function SuccessRate({ valid, total }: { valid: number; total: number }) {
 }
 
 export default function ScraperHistoryPage() {
-  const { basePath } = useAppSection();
+  const { basePath, section } = useAppSection();
+  const isOutreach = section === 'outreach';
   const { data, isLoading, error } = useQuery({
     queryKey: ['scraper-jobs'],
     queryFn: async () => {
@@ -67,24 +75,47 @@ export default function ScraperHistoryPage() {
 
   const jobs = data?.jobs ?? [];
 
+  const totalScraped = jobs.reduce((a, j) => a + j.totalScraped, 0);
+  const totalVerified = jobs.reduce((a, j) => a + j.validEmails, 0);
+  const totalInvalid = jobs.reduce((a, j) => a + j.invalidEmails, 0);
+
   return (
     <div>
-      <Header title="Scraper History" description="All past Google Maps scraping runs" />
+      <Header
+        title="Scraper History"
+        description="All past Google Maps scraping runs."
+        eyebrow={
+          isOutreach ? (
+            <>
+              Cold Email ·{' '}
+              <OutreachBackLink href={`${basePath}/scraper`}>back to scraper</OutreachBackLink>
+            </>
+          ) : undefined
+        }
+        actions={
+          isOutreach ? (
+            <Link href={`${basePath}/scraper`} className={editorialPillButtonClass}>
+              New scrape
+            </Link>
+          ) : undefined
+        }
+      />
 
       <PageBody className="space-y-5">
-        {/* Back + New Scrape */}
+        {!isOutreach && (
         <div className="flex items-center justify-between">
           <Button variant="ghost" asChild className="text-gray-600 gap-2">
             <Link href={`${basePath}/scraper`}>
               <ArrowLeft className="h-4 w-4" /> Back to Scraper
             </Link>
           </Button>
-          <Button asChild className="bg-[#0077b6] hover:bg-[#005f8f] text-white gap-2">
+          <Button asChild className="bg-[#003049] hover:bg-[#1A4A66] text-white gap-2">
             <Link href={`${basePath}/scraper`}>
               <Search className="h-4 w-4" /> New Scrape
             </Link>
           </Button>
         </div>
+        )}
 
         {/* Loading */}
         {isLoading && (
@@ -106,7 +137,7 @@ export default function ScraperHistoryPage() {
             <Search className="h-12 w-12 mb-3 opacity-30" />
             <p className="text-lg font-medium">No scraper runs yet</p>
             <p className="text-sm mb-4">Start a scrape to find leads on Google Maps</p>
-            <Button asChild className="bg-[#0077b6] hover:bg-[#005f8f] text-white">
+            <Button asChild className="bg-[#003049] hover:bg-[#1A4A66] text-white">
               <Link href={`${basePath}/scraper`}>Start Scraping</Link>
             </Button>
           </div>
@@ -115,12 +146,61 @@ export default function ScraperHistoryPage() {
         {/* Summary cards */}
         {!isLoading && jobs.length > 0 && (
           <>
+            {isOutreach ? (
+              <>
+                <EditorialStatRibbon columns={4} className="mb-10">
+                  <EditorialStatCell isFirst label="Total runs" value={jobs.length} className="py-5 text-[30px]" />
+                  <EditorialStatCell label="Total scraped" value={totalScraped.toLocaleString()} className="py-5 text-[30px]" />
+                  <EditorialStatCell label="Verified leads" value={totalVerified.toLocaleString()} className="py-5 text-[30px]" accent="muted" />
+                  <EditorialStatCell isLast label="Invalid" value={totalInvalid.toLocaleString()} className="py-5 text-[30px]" accent="danger" />
+                </EditorialStatRibbon>
+
+                <section>
+                  <EditorialSectionHeader title="All Scraper Runs" meta={`${jobs.length} runs`} />
+                  <div className="grid grid-cols-[minmax(140px,1.4fr)_minmax(0,1fr)_56px_64px_56px_48px_auto_auto] items-baseline gap-3.5 px-0 py-3 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)] max-lg:hidden">
+                    <div>Niches · location</div>
+                    <div>Sheet</div>
+                    <div className="text-right">Total</div>
+                    <div className="text-right">Verified</div>
+                    <div className="text-right">Invalid</div>
+                    <div className="text-right">Rate</div>
+                    <div>Duration</div>
+                    <div>Date</div>
+                  </div>
+                  {jobs.map((job) => (
+                    <div
+                      key={job.id}
+                      className="grid grid-cols-1 gap-2 border-t border-[var(--border)] py-3.5 max-lg:gap-1 lg:grid-cols-[minmax(140px,1.4fr)_minmax(0,1fr)_56px_64px_56px_48px_auto_auto] lg:items-center lg:gap-3.5"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold text-[var(--primary)]">{job.niches}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{job.location}</div>
+                      </div>
+                      <div className="truncate text-[12.5px] text-[var(--text-muted)]">{job.targetSheet}</div>
+                      <div className="text-sm text-[#4A5A64] lg:text-right">{job.totalScraped}</div>
+                      <div className="text-sm font-bold text-[#38678A] lg:text-right">{job.validEmails}</div>
+                      <div className="text-sm text-[var(--red)] lg:text-right">{job.invalidEmails}</div>
+                      <div className="text-sm font-bold text-[var(--primary)] lg:text-right">
+                        <SuccessRate valid={job.validEmails} total={job.totalScraped} />
+                      </div>
+                      <div className="text-[12.5px] text-[var(--text-muted)]">
+                        {formatDuration(job.execution.duration)}
+                      </div>
+                      <div className="text-[12.5px] text-[var(--text-muted)]">
+                        {format(new Date(job.createdAt), 'MMM dd, HH:mm')}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              </>
+            ) : (
+              <>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {[
                 { label: 'Total Runs', value: jobs.length, icon: Search },
-                { label: 'Total Scraped', value: jobs.reduce((a, j) => a + j.totalScraped, 0).toLocaleString(), icon: Search },
-                { label: 'Verified Leads', value: jobs.reduce((a, j) => a + j.validEmails, 0).toLocaleString(), icon: CheckCircle },
-                { label: 'Invalid', value: jobs.reduce((a, j) => a + j.invalidEmails, 0).toLocaleString(), icon: XCircle },
+                { label: 'Total Scraped', value: totalScraped.toLocaleString(), icon: Search },
+                { label: 'Verified Leads', value: totalVerified.toLocaleString(), icon: CheckCircle },
+                { label: 'Invalid', value: totalInvalid.toLocaleString(), icon: XCircle },
               ].map(({ label, value, icon: Icon }) => (
                 <Card key={label} className="text-center">
                   <CardContent className="pt-4 pb-3">
@@ -135,7 +215,7 @@ export default function ScraperHistoryPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-[#0077b6]" />
+                  <Clock className="h-4 w-4 text-[#003049]" />
                   All Scraper Runs ({jobs.length})
                 </CardTitle>
               </CardHeader>
@@ -213,7 +293,7 @@ export default function ScraperHistoryPage() {
                                 href={sheetUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-[#0077b6] hover:underline"
+                                className="inline-flex items-center gap-1 text-xs text-[#003049] hover:underline"
                               >
                                 <ExternalLink className="h-3 w-3" /> Open
                               </a>
@@ -228,6 +308,8 @@ export default function ScraperHistoryPage() {
                 </Table>
               </CardContent>
             </Card>
+              </>
+            )}
           </>
         )}
       </PageBody>

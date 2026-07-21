@@ -126,7 +126,7 @@ export default function EmailPreview({ data }: { data: NewsletterData }) {
 
             {/* Key Insights */}
             {keyInsights && keyInsights.bullets.length > 0 && (
-              <div style={{ backgroundColor: '#f5f3ff', borderRadius: '20px', padding: '32px' }}>
+              <div style={{ backgroundColor: '#E7F0F6', borderRadius: '20px', padding: '32px' }}>
                 {keyInsights.title && (
                   <p style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#4f46e5', marginBottom: '16px', fontWeight: 800 }}>
                     {keyInsights.title}

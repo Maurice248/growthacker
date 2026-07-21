@@ -215,7 +215,7 @@ export default function LoginPage() {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#F8FAFC",
+      backgroundColor: "#FDF6E3",
       padding: "24px",
       position: "relative",
       overflow: "hidden",
@@ -230,7 +230,7 @@ export default function LoginPage() {
         opacity: 0.15,
         width: "400px",
         height: "400px",
-        backgroundColor: "#3B82F6",
+        backgroundColor: "#669BBC",
         top: "-100px",
         right: "-100px"
       }}></div>
@@ -260,27 +260,27 @@ export default function LoginPage() {
         <div style={{
           padding: "clamp(24px, 6vw, 40px) clamp(20px, 6vw, 40px) 24px",
           textAlign: "center",
-          background: "linear-gradient(to bottom, #EFF6FF, transparent)"
+          background: "linear-gradient(to bottom, #E7F0F6, transparent)"
         }}>
           <div style={{
             width: "64px",
             height: "64px",
             backgroundColor: "#FFFFFF",
-            color: "#2563EB",
+            color: "#003049",
             borderRadius: "16px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             margin: "0 auto 20px auto",
             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)",
-            border: "1px solid #E2E8F0"
+            border: "1px solid #E8DCC2"
           }}>
             <Building2 size={28} />
           </div>
           <h1 style={{
             fontSize: "28px",
             fontWeight: 800,
-            color: "#0F172A",
+            color: "#003049",
             marginBottom: "12px",
             letterSpacing: "-0.025em",
             lineHeight: 1.2
@@ -289,12 +289,12 @@ export default function LoginPage() {
             <span style={{
               display: "inline-block",
               padding: "4px 12px",
-              backgroundColor: "#EFF6FF",
-              border: "1px solid #DBEAFE",
+              backgroundColor: "#E7F0F6",
+              border: "1px solid #C2D6E2",
               borderRadius: "9999px",
               fontSize: "11px",
               fontWeight: 700,
-              color: "#2563EB",
+              color: "#003049",
               textTransform: "uppercase",
               letterSpacing: "0.05em"
             }}>Marketing Platform</span>
@@ -308,13 +308,13 @@ export default function LoginPage() {
               <h2 style={{
                 fontSize: "20px",
                 fontWeight: 700,
-                color: "#0F172A",
+                color: "#003049",
                 textAlign: "center",
                 marginBottom: "8px"
               }}>Reset Password</h2>
               <p style={{
                 fontSize: "14px",
-                color: "#64748B",
+                color: "#8C8474",
                 textAlign: "center",
                 marginBottom: "28px",
                 lineHeight: "1.5"
@@ -335,7 +335,7 @@ export default function LoginPage() {
                   <label style={{
                     fontSize: "11px",
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "#8C8474",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     paddingLeft: "4px"
@@ -348,7 +348,7 @@ export default function LoginPage() {
                     <div style={{
                       position: "absolute",
                       left: "14px",
-                      color: "#94A3B8",
+                      color: "#9FA8A3",
                       pointerEvents: "none",
                       display: "flex",
                       alignItems: "center",
@@ -365,10 +365,10 @@ export default function LoginPage() {
                         width: "100%",
                         padding: "12px 40px 12px 44px",
                         backgroundColor: "#FFFFFF",
-                        border: "1px solid #CBD5E1",
+                        border: "1px solid #C2B79A",
                         borderRadius: "10px",
                         fontSize: "14px",
-                        color: "#0F172A",
+                        color: "#003049",
                         outline: "none",
                         transition: "all 0.15s ease",
                         boxSizing: "border-box",
@@ -388,7 +388,7 @@ export default function LoginPage() {
                   <label style={{
                     fontSize: "11px",
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "#8C8474",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     paddingLeft: "4px"
@@ -401,7 +401,7 @@ export default function LoginPage() {
                     <div style={{
                       position: "absolute",
                       left: "14px",
-                      color: "#94A3B8",
+                      color: "#9FA8A3",
                       pointerEvents: "none",
                       display: "flex",
                       alignItems: "center",
@@ -418,10 +418,10 @@ export default function LoginPage() {
                         width: "100%",
                         padding: "12px 40px 12px 44px",
                         backgroundColor: "#FFFFFF",
-                        border: "1px solid #CBD5E1",
+                        border: "1px solid #C2B79A",
                         borderRadius: "10px",
                         fontSize: "14px",
-                        color: "#0F172A",
+                        color: "#003049",
                         outline: "none",
                         transition: "all 0.15s ease",
                         boxSizing: "border-box",
@@ -438,7 +438,7 @@ export default function LoginPage() {
                   style={{
                     width: "100%",
                     padding: "14px",
-                    backgroundColor: "#2563EB",
+                    backgroundColor: "#003049",
                     color: "#FFFFFF",
                     borderRadius: "10px",
                     fontSize: "14px",
@@ -450,7 +450,7 @@ export default function LoginPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
-                    boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
+                    boxShadow: "0 4px 6px -1px rgba(0, 48, 73, 0.2), 0 2px 4px -2px rgba(0, 48, 73, 0.2)",
                     marginTop: "8px",
                     height: "48px"
                   }}
@@ -467,13 +467,13 @@ export default function LoginPage() {
               <h2 style={{
                 fontSize: "20px",
                 fontWeight: 700,
-                color: "#0F172A",
+                color: "#003049",
                 textAlign: "center",
                 marginBottom: "8px"
               }}>Forgot Password</h2>
               <p style={{
                 fontSize: "14px",
-                color: "#64748B",
+                color: "#8C8474",
                 textAlign: "center",
                 marginBottom: "28px",
                 lineHeight: "1.5"
@@ -494,7 +494,7 @@ export default function LoginPage() {
                   <label style={{
                     fontSize: "11px",
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "#8C8474",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     paddingLeft: "4px"
@@ -507,7 +507,7 @@ export default function LoginPage() {
                     <div style={{
                       position: "absolute",
                       left: "14px",
-                      color: "#94A3B8",
+                      color: "#9FA8A3",
                       pointerEvents: "none",
                       display: "flex",
                       alignItems: "center",
@@ -524,10 +524,10 @@ export default function LoginPage() {
                         width: "100%",
                         padding: "12px 16px 12px 44px",
                         backgroundColor: "#FFFFFF",
-                        border: "1px solid #CBD5E1",
+                        border: "1px solid #C2B79A",
                         borderRadius: "10px",
                         fontSize: "14px",
-                        color: "#0F172A",
+                        color: "#003049",
                         outline: "none",
                         transition: "all 0.15s ease",
                         boxSizing: "border-box",
@@ -544,7 +544,7 @@ export default function LoginPage() {
                   style={{
                     width: "100%",
                     padding: "14px",
-                    backgroundColor: "#2563EB",
+                    backgroundColor: "#003049",
                     color: "#FFFFFF",
                     borderRadius: "10px",
                     fontSize: "14px",
@@ -556,7 +556,7 @@ export default function LoginPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
-                    boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
+                    boxShadow: "0 4px 6px -1px rgba(0, 48, 73, 0.2), 0 2px 4px -2px rgba(0, 48, 73, 0.2)",
                     marginTop: "8px",
                     height: "48px"
                   }}
@@ -575,7 +575,7 @@ export default function LoginPage() {
                   }}
                   style={{
                     fontSize: "13px",
-                    color: "#2563EB",
+                    color: "#003049",
                     fontWeight: 600,
                     background: "none",
                     border: "none",
@@ -594,13 +594,13 @@ export default function LoginPage() {
               <h2 style={{
                 fontSize: "20px",
                 fontWeight: 700,
-                color: "#0F172A",
+                color: "#003049",
                 textAlign: "center",
                 marginBottom: "8px"
               }}>Administrator Login</h2>
               <p style={{
                 fontSize: "14px",
-                color: "#64748B",
+                color: "#8C8474",
                 textAlign: "center",
                 marginBottom: "28px",
                 lineHeight: "1.5"
@@ -610,9 +610,9 @@ export default function LoginPage() {
 
               {/* Error / Success messages */}
               {errorStatus && (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, marginBottom: 16 }}>
-                  <AlertCircle size={16} style={{ color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
-                  <span style={{ fontSize: 13, color: "#991b1b", lineHeight: 1.5 }}>{errorStatus}</span>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "#F9E3E0", border: "1px solid #fecaca", borderRadius: 10, marginBottom: 16 }}>
+                  <AlertCircle size={16} style={{ color: "#C1121F", flexShrink: 0, marginTop: 1 }} />
+                  <span style={{ fontSize: 13, color: "#780000", lineHeight: 1.5 }}>{errorStatus}</span>
                 </div>
               )}
               {successStatus && (
@@ -635,7 +635,7 @@ export default function LoginPage() {
                   <label style={{
                     fontSize: "11px",
                     fontWeight: 700,
-                    color: "#64748B",
+                    color: "#8C8474",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     paddingLeft: "4px"
@@ -648,7 +648,7 @@ export default function LoginPage() {
                     <div style={{
                       position: "absolute",
                       left: "14px",
-                      color: "#94A3B8",
+                      color: "#9FA8A3",
                       pointerEvents: "none",
                       display: "flex",
                       alignItems: "center",
@@ -665,10 +665,10 @@ export default function LoginPage() {
                         width: "100%",
                         padding: "12px 16px 12px 44px",
                         backgroundColor: "#FFFFFF",
-                        border: "1px solid #CBD5E1",
+                        border: "1px solid #C2B79A",
                         borderRadius: "10px",
                         fontSize: "14px",
-                        color: "#0F172A",
+                        color: "#003049",
                         outline: "none",
                         transition: "all 0.15s ease",
                         boxSizing: "border-box",
@@ -689,7 +689,7 @@ export default function LoginPage() {
                     <label style={{
                       fontSize: "11px",
                       fontWeight: 700,
-                      color: "#64748B",
+                      color: "#8C8474",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       paddingLeft: "4px",
@@ -705,7 +705,7 @@ export default function LoginPage() {
                       }}
                       style={{
                         fontSize: "11px",
-                        color: "#2563EB",
+                        color: "#003049",
                         fontWeight: 700,
                         background: "none",
                         border: "none",
@@ -726,7 +726,7 @@ export default function LoginPage() {
                     <div style={{
                       position: "absolute",
                       left: "14px",
-                      color: "#94A3B8",
+                      color: "#9FA8A3",
                       pointerEvents: "none",
                       display: "flex",
                       alignItems: "center",
@@ -743,10 +743,10 @@ export default function LoginPage() {
                         width: "100%",
                         padding: "12px 40px 12px 44px",
                         backgroundColor: "#FFFFFF",
-                        border: "1px solid #CBD5E1",
+                        border: "1px solid #C2B79A",
                         borderRadius: "10px",
                         fontSize: "14px",
-                        color: "#0F172A",
+                        color: "#003049",
                         outline: "none",
                         transition: "all 0.15s ease",
                         boxSizing: "border-box",
@@ -762,7 +762,7 @@ export default function LoginPage() {
                         right: "12px",
                         backgroundColor: "transparent",
                         border: "none",
-                        color: "#94A3B8",
+                        color: "#9FA8A3",
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
@@ -784,7 +784,7 @@ export default function LoginPage() {
                   style={{
                     width: "100%",
                     padding: "14px",
-                    backgroundColor: "#2563EB",
+                    backgroundColor: "#003049",
                     color: "#FFFFFF",
                     borderRadius: "10px",
                     fontSize: "14px",
@@ -796,7 +796,7 @@ export default function LoginPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
-                    boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2)",
+                    boxShadow: "0 4px 6px -1px rgba(0, 48, 73, 0.2), 0 2px 4px -2px rgba(0, 48, 73, 0.2)",
                     marginTop: "8px",
                     height: "48px"
                   }}
@@ -830,23 +830,23 @@ export default function LoginPage() {
             gap: "16px",
             marginBottom: "20px"
           }}>
-            <div style={{ flex: 1, height: "1px", backgroundColor: "#E2E8F0" }}></div>
+            <div style={{ flex: 1, height: "1px", backgroundColor: "#E8DCC2" }}></div>
             <span style={{
               fontSize: "11px",
               fontWeight: 700,
-              color: "#94A3B8",
+              color: "#9FA8A3",
               textTransform: "uppercase",
               letterSpacing: "0.05em"
             }}>Personnel Access Only</span>
-            <div style={{ flex: 1, height: "1px", backgroundColor: "#E2E8F0" }}></div>
+            <div style={{ flex: 1, height: "1px", backgroundColor: "#E8DCC2" }}></div>
           </div>
           <p style={{
             fontSize: "13px",
-            color: "#64748B",
+            color: "#8C8474",
             margin: 0
           }}>
             Restricted to authorized administrator accounts only.{" "}
-            <a href="/client-login" style={{ color: "#2563EB", fontWeight: 600, textDecoration: "none" }}>
+            <a href="/client-login" style={{ color: "#003049", fontWeight: 600, textDecoration: "none" }}>
               Company login
             </a>
           </p>
@@ -857,7 +857,7 @@ export default function LoginPage() {
         marginTop: "32px",
         textAlign: "center",
         fontSize: "12px",
-        color: "#94A3B8",
+        color: "#9FA8A3",
         opacity: 0.8,
         position: "relative",
         zIndex: 10

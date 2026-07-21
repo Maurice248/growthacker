@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { ensureCompanyBrandConfig } from '@/lib/company-brand-config';
+import { ensureCompanyModuleAccess } from '@/lib/company-module-access';
 
 function slugify(name: string): string {
   return name
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
     });
 
     await ensureCompanyBrandConfig(company.id);
+    await ensureCompanyModuleAccess(company.id);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

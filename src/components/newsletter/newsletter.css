@@ -1,14 +1,6 @@
-/* =========================================
-   Newsletter Module — Scoped Styles
-   All selectors are prefixed with .nl-root
-   to avoid leaking into other dashboard sections.
-   ========================================= */
+/* Newsletter Module — Editorial v4 (scoped under .nl-root) */
 
-/* ---- Root wrapper ---- */
 .nl-root {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding-bottom: 48px;
   animation: nlFadeIn 0.3s ease-out forwards;
 }
 
@@ -17,272 +9,266 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- Card base (also defines the previously-undefined .section-card) ---- */
-.nl-root .section-card,
-.nl-card {
-  background: #ffffff;
-  border-radius: 16px;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
-}
-
-/* ---- Two-column grid layout (shared across sub-tabs) ---- */
+/* Two-column layout */
 .nl-grid {
   display: grid;
-  gap: 24px;
+  gap: 48px;
   align-items: start;
 }
 
 .nl-grid-2 {
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 300px 1fr;
 }
 
 @media (max-width: 1024px) {
   .nl-grid-2 { grid-template-columns: 1fr; }
 }
 
-/* ---- Card panels (left / right) ---- */
+/* Section panels — flat editorial */
 .nl-panel {
-  background: #ffffff;
-  border-radius: 16px;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .nl-panel-body {
-  padding: 28px 32px;
+  padding: 0;
 }
 
 .nl-panel-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 18px 24px;
-  border-bottom: 1px solid #f1f5f9;
-  background: #fafafa;
+  padding: 0 0 14px;
+  border-bottom: 1px solid #003049;
+  background: transparent;
 }
 
 .nl-panel-title {
-  font-size: 15px;
-  font-weight: 900;
-  color: #111827;
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #C1121F;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 1.6px;
   margin: 0;
 }
 
-.nl-count-badge {
-  background: #4f46e5;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 3px 10px;
-  border-radius: 6px;
+.nl-section-title {
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #C1121F;
+  text-transform: uppercase;
+  letter-spacing: 1.6px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #003049;
+  margin: 0;
 }
 
-/* ---- Section labels inside forms ---- */
+.nl-count-meta {
+  font-size: 13px;
+  color: #8C8474;
+}
+
+/* Inputs */
 .nl-root .nl-label {
   display: block;
-  font-size: 11px;
-  font-weight: 800;
-  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8C8474;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: 8px;
-  padding-left: 2px;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
 }
 
-/* ---- Inputs and textareas ---- */
 .nl-root .nl-input,
 .nl-root .nl-textarea,
 .nl-root .nl-select {
   width: 100%;
-  border: 2px solid #f1f5f9;
-  border-radius: 12px;
-  font-size: 14px;
-  color: #111827;
-  background: #f9fafb;
-  padding: 12px 16px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  border: none;
+  border-bottom: 1px solid #C2B79A;
+  border-radius: 0;
+  font-family: var(--font-sans, 'Karla', sans-serif);
+  font-size: 14.5px;
+  color: #003049;
+  background: transparent;
+  padding: 8px 0;
+  transition: border-color 0.15s ease;
   outline: none;
 }
 
 .nl-root .nl-input:focus,
 .nl-root .nl-textarea:focus,
 .nl-root .nl-select:focus {
-  border-color: #6366f1;
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+  border-bottom-color: #C1121F;
+  box-shadow: none;
 }
 
 .nl-root .nl-textarea {
-  resize: none;
-  min-height: 110px;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
 }
 
-/* ---- Primary action button ---- */
+.nl-root .nl-textarea-box {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  background: var(--bg-light);
+}
+
+.nl-root .nl-textarea-box:focus {
+  border-color: #7FA6BC;
+  background: var(--bg-light);
+  box-shadow: 0 0 0 2px rgba(127, 166, 188, 0.22);
+}
+
+/* Primary pill button */
 .nl-root .nl-btn-primary {
   width: 100%;
-  padding: 14px 20px;
-  border-radius: 12px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  font-family: var(--font-sans, 'Karla', sans-serif);
   font-size: 14px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  display: flex;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.15s ease;
   border: none;
 }
 
 .nl-root .nl-btn-primary:not(:disabled) {
-  background: #4f46e5;
-  color: #ffffff;
-  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+  background: #003049;
+  color: #FDF6E3;
 }
 
 .nl-root .nl-btn-primary:not(:disabled):hover {
-  background: #4338ca;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
-}
-
-.nl-root .nl-btn-primary:not(:disabled):active {
-  transform: translateY(0) scale(0.98);
+  background: #C1121F;
 }
 
 .nl-root .nl-btn-primary:disabled {
-  background: #f3f4f6;
-  color: #9ca3af;
+  background: transparent;
+  color: #8C8474;
+  border: 1px solid #E8DCC2;
   cursor: not-allowed;
 }
 
-/* ---- Secondary / ghost button ---- */
+.nl-root .nl-btn-primary.nl-btn-auto {
+  width: auto;
+}
+
+/* Outline / ghost button */
 .nl-root .nl-btn-ghost {
-  padding: 12px 20px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  border: 2px solid #f1f5f9;
-  background: #ffffff;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.nl-root .nl-btn-ghost:hover {
-  background: #f9fafb;
-  color: #111827;
-  border-color: #e5e7eb;
-}
-
-/* ---- Service selection buttons (Generate tab) ---- */
-.nl-root .nl-service-btn {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-radius: 10px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-family: var(--font-sans, 'Karla', sans-serif);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+  border: 1px solid #003049;
+  background: transparent;
+  color: #003049;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 2px solid transparent;
-  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.nl-root .nl-service-btn.selected {
-  border-color: #6366f1;
-  background: #eef2ff;
-  color: #3730a3;
-  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.15);
+.nl-root .nl-btn-ghost:hover:not(:disabled) {
+  background: #003049;
+  color: #FDF6E3;
 }
 
-.nl-root .nl-service-btn:not(.selected) {
-  background: #f9fafb;
-  color: #6b7280;
+.nl-root .nl-btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.nl-root .nl-service-btn:not(.selected):hover {
-  background: #f3f4f6;
-  color: #111827;
-}
-
-.nl-radio-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
-}
-
-.nl-radio-dot.active {
-  background: #4f46e5;
-  box-shadow: 0 0 10px rgba(79, 70, 229, 0.5);
-}
-
-.nl-radio-dot.inactive {
-  background: #d1d5db;
-}
-
-.nl-check-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #4f46e5;
+/* Service radio list (Generate tab) */
+.nl-root .nl-service-radio {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #E8DCC2;
+  font-size: 14.5px;
+  cursor: pointer;
+  color: #2B3A4A;
 }
 
-/* ---- Output panel (Generate tab right side) ---- */
+.nl-root .nl-service-radio input {
+  accent-color: #C1121F;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* Output panel — flat editorial */
 .nl-output-panel {
-  background: #ffffff;
-  border-radius: 16px;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-  min-height: 560px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+  min-height: 340px;
   display: flex;
   flex-direction: column;
 }
 
 .nl-output-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 16px 22px;
-  border-bottom: 1px solid #f1f5f9;
-  background: #ffffff;
-}
-
-.nl-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  padding: 0 0 14px;
+  border-bottom: 1px solid #003049;
+  background: transparent;
 }
 
 .nl-output-body {
   flex: 1;
-  padding: 24px;
+  padding: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  border-bottom: 1px solid #E8DCC2;
+  min-height: 340px;
+}
+
+.nl-output-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  color: #B0A88F;
+  font-size: 14px;
+  min-height: 280px;
+}
+
+.nl-output-empty-title {
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-weight: 700;
+  font-size: 17px;
+  color: #003049;
+}
+
+.nl-output-empty-sub {
+  font-size: 13.5px;
+  color: #8C8474;
+  max-width: 280px;
 }
 
 .nl-output-actions {
-  padding: 18px 22px;
-  border-top: 1px solid #f1f5f9;
+  padding: 18px 0 0;
+  border-top: none;
 }
 
-/* ---- Action buttons at bottom of output panel ---- */
 .nl-root .nl-action-row {
   display: flex;
   gap: 12px;
@@ -290,171 +276,99 @@
 
 .nl-root .nl-btn-send {
   flex: 1;
-  padding: 14px 20px;
-  border-radius: 12px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-family: var(--font-sans, 'Karla', sans-serif);
   font-size: 14px;
-  font-weight: 800;
-  color: #ffffff;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+  font-weight: 700;
+  color: #FDF6E3;
+  background: #003049;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  transition: background 0.15s ease;
 }
 
 .nl-root .nl-btn-send:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  background: #C1121F;
 }
 
 .nl-root .nl-btn-revise {
   flex: 1;
-  padding: 14px 20px;
-  border-radius: 12px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-family: var(--font-sans, 'Karla', sans-serif);
   font-size: 14px;
   font-weight: 700;
-  color: #6b7280;
-  background: #ffffff;
-  border: 2px solid #f1f5f9;
+  color: #003049;
+  background: transparent;
+  border: 1px solid #003049;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .nl-root .nl-btn-revise:hover {
-  background: #f9fafb;
-  color: #111827;
-  border-color: #e5e7eb;
+  background: #003049;
+  color: #FDF6E3;
 }
 
-/* ---- Success / error alert boxes ---- */
+/* Alerts */
 .nl-root .nl-alert-success {
-  border: 3px solid #16a34a;
-  background: #f0fdf4;
-  padding: 20px 24px;
-  margin-top: 16px;
+  border-top: 1px solid #E8DCC2;
+  background: transparent;
+  padding: 16px 0;
+  margin-top: 8px;
 }
 
 .nl-root .nl-alert-error {
-  border: 3px solid #dc2626;
-  background: #fef2f2;
-  padding: 20px 24px;
-  margin-top: 16px;
+  border-top: 1px solid #E8DCC2;
+  background: transparent;
+  padding: 16px 0;
+  margin-top: 8px;
+  color: #C1121F;
+  font-size: 14px;
 }
 
-/* ---- Manage Services items ---- */
-.nl-root .nl-svc-item {
+/* Manage Services list rows */
+.nl-root .nl-svc-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 14px 20px;
-  border-radius: 12px;
-  border: 1px solid #f1f5f9;
-  background: #ffffff;
-  transition: all 0.15s ease;
-}
-
-.nl-root .nl-svc-item:hover {
-  border-color: #e0e7ff;
-  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.08);
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #E8DCC2;
 }
 
 .nl-root .nl-svc-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  color: #111827;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: #003049;
 }
 
-.nl-root .nl-svc-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #4f46e5;
-  box-shadow: 0 0 8px rgba(79, 70, 229, 0.4);
-  flex-shrink: 0;
-}
-
-.nl-root .nl-svc-delete {
-  padding: 8px;
-  border-radius: 8px;
-  color: #9ca3af;
-  background: transparent;
+.nl-root .nl-svc-remove {
+  font-size: 13px;
+  color: #8C8474;
+  background: none;
   border: none;
   cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
+  padding: 0;
+  transition: color 0.15s ease;
 }
 
-.nl-root .nl-svc-delete:hover {
-  color: #dc2626;
-  background: #fef2f2;
+.nl-root .nl-svc-remove:hover {
+  color: #C1121F;
 }
 
-/* ---- History filter tabs ---- */
-.nl-root .nl-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 16px;
-  padding: 4px;
-  background: #f9fafb;
-  border: 1px solid #f1f5f9;
-  border-radius: 12px;
-  width: fit-content;
-}
-
-.nl-root .nl-filter-btn {
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  border: none;
-  background: transparent;
-}
-
-.nl-root .nl-filter-btn.active {
-  background: #ffffff;
-  color: #4f46e5;
-  box-shadow: 0 1px 6px rgba(99, 102, 241, 0.12);
-}
-
-.nl-root .nl-filter-btn:not(.active) {
-  color: #9ca3af;
-}
-
-.nl-root .nl-filter-btn:not(.active):hover {
-  color: #374151;
-  background: rgba(255, 255, 255, 0.6);
-}
-
-/* ---- History items ---- */
+/* History items */
 .nl-root .nl-history-item {
-  background: #ffffff;
-  border: 1px solid #f1f5f9;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.15s ease;
-}
-
-.nl-root .nl-history-item:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border-top: 1px solid #E8DCC2;
 }
 
 .nl-root .nl-history-row {
@@ -462,32 +376,18 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-  padding: 18px 24px;
-}
-
-.nl-root .nl-history-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #eef2ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #4f46e5;
-  flex-shrink: 0;
+  padding: 18px 0;
 }
 
 .nl-root .nl-history-topic {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  color: #111827;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+  color: #003049;
 }
 
 .nl-root .nl-history-meta {
-  font-size: 11px;
-  color: #9ca3af;
+  font-size: 13px;
+  color: #8C8474;
 }
 
 .nl-root .nl-history-actions {
@@ -498,51 +398,105 @@
 }
 
 .nl-root .nl-btn-view {
-  padding: 8px 20px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  border: none;
+  border: 1px solid #C2B79A;
+  background: transparent;
+  color: #003049;
 }
 
+.nl-root .nl-btn-view:hover,
 .nl-root .nl-btn-view.open {
-  background: #111827;
-  color: #ffffff;
-}
-
-.nl-root .nl-btn-view:not(.open) {
-  background: #4f46e5;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
-}
-
-.nl-root .nl-btn-view:not(.open):hover {
-  background: #4338ca;
+  background: #003049;
+  color: #FDF6E3;
+  border-color: #003049;
 }
 
 .nl-root .nl-btn-delete {
-  padding: 8px;
-  border-radius: 8px;
-  background: #fef2f2;
-  color: #f87171;
-  border: 1px solid #fee2e2;
+  padding: 6px 8px;
+  border-radius: 0;
+  background: transparent;
+  color: #8C8474;
+  border: none;
   cursor: pointer;
   display: flex;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .nl-root .nl-btn-delete:hover {
-  background: #ef4444;
-  color: #ffffff;
-  border-color: #ef4444;
+  color: #C1121F;
 }
 
 .nl-root .nl-history-expanded {
-  border-top: 1px solid #f1f5f9;
-  background: #fafafa;
-  padding: 20px;
+  border-top: 1px solid #E8DCC2;
+  background: transparent;
+  padding: 20px 0;
+}
+
+/* Campaign history rows */
+.nl-root .nl-campaign-row {
+  padding: 16px 0;
+  border-bottom: 1px solid #E8DCC2;
+}
+
+.nl-root .nl-campaign-row:last-child {
+  border-bottom: none;
+}
+
+/* Subscriber list rows */
+.nl-root .nl-subscriber-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #E8DCC2;
+}
+
+/* Chart panels */
+.nl-chart-panel {
+  min-height: 220px;
+}
+
+.nl-chart-empty {
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #E8DCC2;
+  color: #B0A88F;
+  font-size: 14px;
+}
+
+/* Form field row in campaign setup */
+.nl-root .nl-field-row {
+  padding: 16px 0;
+  border-bottom: 1px solid #E8DCC2;
+}
+
+/* Schedule grid cells */
+.nl-schedule-cell {
+  padding: 22px 24px;
+  border-right: 1px solid #E8DCC2;
+}
+
+.nl-schedule-cell:first-child {
+  padding-left: 0;
+}
+
+.nl-schedule-cell:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+@media (max-width: 768px) {
+  .nl-schedule-cell {
+    border-right: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }

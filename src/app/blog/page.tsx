@@ -3,13 +3,18 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Plus, FileText, AlertCircle, ExternalLink, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { AlertCircle, FileText } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { CreatePostDialog } from '@/components/blog/CreatePostDialog';
+import { OutreachActionLink } from '@/components/cold-email/outreach-ui';
+import {
+  EditorialPage,
+  EditorialPageHeader,
+  EditorialSectionHeader,
+  editorialPillButtonClass,
+} from '@/components/editorial/editorial-layout';
+import { EditorialStatusPill } from '@/app/components';
 
 interface WordPressPost {
   id: number;
@@ -30,18 +35,17 @@ function stripHtml(html: string) {
   return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const variant =
-    status === 'publish' ? 'success' :
-    status === 'draft' ? 'secondary' :
-    status === 'pending' ? 'warning' :
-    'secondary';
+function postStatusLabel(status: string) {
+  if (status === 'publish') return 'Published';
+  if (status === 'draft') return 'Draft';
+  if (status === 'pending') return 'Pending';
+  return status.replace(/_/g, ' ');
+}
 
-  return (
-    <Badge variant={variant as 'success' | 'secondary' | 'warning'}>
-      {status.replace(/_/g, ' ')}
-    </Badge>
-  );
+function postStatusVariant(status: string): 'approved' | 'unapproved' | 'neutral' {
+  if (status === 'publish') return 'approved';
+  if (status === 'pending') return 'unapproved';
+  return 'neutral';
 }
 
 export default function BlogManagementPage() {
@@ -86,22 +90,17 @@ export default function BlogManagementPage() {
   const notConfigured = data?.configured === false;
 
   return (
-    <div>
-      <div className="flex items-start justify-between gap-6 px-8 pb-6 pt-8">
-        <div>
-          <h1 className="text-[28px] font-bold leading-tight text-gray-900">Blog Posts Management</h1>
-          <p className="mt-1 text-[15px] text-gray-500">
-            Manage AI-generated blog posts with in-dashboard approval
-          </p>
-        </div>
-        <Button
-          className="shrink-0 bg-[#0077b6] text-white hover:bg-[#005f8f]"
-          onClick={() => setCreatePostOpen(true)}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create Post
-        </Button>
-      </div>
+    <EditorialPage>
+      <EditorialPageHeader
+        eyebrow="Blog"
+        title="Blog Posts Management"
+        subtitle="Manage AI-generated blog posts with in-dashboard approval."
+        actions={
+          <button type="button" className={editorialPillButtonClass} onClick={() => setCreatePostOpen(true)}>
+            + Create post
+          </button>
+        }
+      />
 
       <CreatePostDialog
         open={createPostOpen}
@@ -109,96 +108,93 @@ export default function BlogManagementPage() {
         onCreated={() => queryClient.invalidateQueries({ queryKey: ['wordpress-posts'] })}
       />
 
-      <div className="space-y-6 px-8 pb-8">
-        {notConfigured && (
-          <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <div>
-              <p className="font-medium">WordPress is not configured</p>
-              <p className="mt-1 text-amber-800">
-                Add WordPress credentials in{' '}
-                <strong>Client Dashboard → API keys</strong>, or set{' '}
-                <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs">WORDPRESS_*</code> in your{' '}
-                <code className="rounded bg-amber-100 px-1.5 py-0.5 text-xs">.env</code> for server defaults.
-              </p>
-            </div>
+      {notConfigured && (
+        <div className="mb-8 border-t border-[var(--border)] py-4 text-sm text-[var(--red)]">
+          <p className="font-medium">WordPress is not configured</p>
+          <p className="mt-1 text-[#6B7A6E]">
+            Add WordPress credentials in Client Dashboard → API keys, or set WORDPRESS_* in your .env.
+          </p>
+        </div>
+      )}
+
+      <section>
+        <EditorialSectionHeader title="Post History" meta={`${posts.length} posts`} />
+
+        {isLoading && (
+          <div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="border-b border-[var(--border)] py-5">
+                <Skeleton className="mb-2 h-5 w-3/4 max-w-md" />
+                <Skeleton className="mb-2 h-4 w-full max-w-lg" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            ))}
           </div>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Post History</h2>
-
-          {isLoading && (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-24 w-full" />
-              ))}
-            </div>
-          )}
-
-          {error && !notConfigured && (
-            <div className="flex items-center justify-center gap-2 py-8 text-red-600">
-              <AlertCircle className="h-5 w-5" />
-              {error instanceof Error ? error.message : 'Failed to load posts'}
-            </div>
-          )}
-
-          {!isLoading && !error && posts.length === 0 && !notConfigured && (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-gray-400">
-              <FileText className="mb-3 h-12 w-12 opacity-30" />
-              <p className="text-lg font-medium">No blog posts yet</p>
-              <p className="text-sm">Create your first post to get started</p>
-            </div>
-          )}
-
-          <div className="grid gap-3">
-            {posts.map((post) => {
-              const title = stripHtml(post.title.rendered) || `Post #${post.id}`;
-              const excerpt = stripHtml(post.excerpt.rendered);
-
-              return (
-                <Card key={post.id} className="hover:shadow-sm transition-shadow">
-                  <CardHeader className="px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-gray-900">{title}</p>
-                        {excerpt && (
-                          <p className="mt-1 line-clamp-2 text-sm text-gray-500">{excerpt}</p>
-                        )}
-                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
-                          <span>{format(new Date(post.date), 'MMM dd, yyyy')}</span>
-                          <span>·</span>
-                          <span>ID {post.id}</span>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <StatusBadge status={post.status} />
-                        <Button asChild variant="outline" size="sm">
-                          <a href={post.link} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                            View
-                          </a>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={deletingId === post.id}
-                          onClick={() => handleDelete(post)}
-                          className="gap-1.5 border-red-200 text-red-500 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="hidden" />
-                </Card>
-              );
-            })}
+        {error && !notConfigured && (
+          <div className="flex items-center justify-center gap-2 border-b border-[var(--border)] py-8 text-[var(--red)]">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            {error instanceof Error ? error.message : 'Failed to load posts'}
           </div>
-        </section>
-      </div>
-    </div>
+        )}
+
+        {!isLoading && !error && posts.length === 0 && !notConfigured && (
+          <div className="flex flex-col items-center justify-center border-b border-[var(--border)] py-16 text-[#B0A88F]">
+            <FileText className="mb-3 h-12 w-12 opacity-30" />
+            <p className="font-[family-name:var(--font-display)] text-lg font-semibold text-[var(--primary)]">
+              No blog posts yet
+            </p>
+            <p className="mt-1 text-sm">Create your first post to get started</p>
+          </div>
+        )}
+
+        {posts.map((post) => {
+          const title = stripHtml(post.title.rendered) || `Post #${post.id}`;
+          const excerpt = stripHtml(post.excerpt.rendered);
+
+          return (
+            <div
+              key={post.id}
+              className="grid grid-cols-1 items-center gap-8 border-b border-[var(--border)] py-5 sm:grid-cols-[minmax(0,1fr)_auto]"
+            >
+              <div className="min-w-0">
+                <div className="font-[family-name:var(--font-display)] text-[16.5px] font-semibold tracking-[-0.2px] text-[var(--primary)]">
+                  {title}
+                </div>
+                {excerpt && (
+                  <div className="mt-1 truncate text-[13.5px] text-[var(--text-muted)]">{excerpt}</div>
+                )}
+                <div className="mt-1.5 text-xs text-[#B0A88F]">
+                  {format(new Date(post.date), 'MMM dd, yyyy')} · ID {post.id}
+                </div>
+              </div>
+              <div className="flex items-baseline gap-4">
+                <EditorialStatusPill variant={postStatusVariant(post.status)}>
+                  {postStatusLabel(post.status)}
+                </EditorialStatusPill>
+                <a
+                  href={post.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border-b border-[var(--border-mid)] text-[13.5px] font-bold text-[var(--primary)] transition-colors hover:border-[var(--red)] hover:text-[var(--red)]"
+                >
+                  View
+                </a>
+                <OutreachActionLink
+                  variant="muted"
+                  disabled={deletingId === post.id}
+                  onClick={() => handleDelete(post)}
+                >
+                  {deletingId === post.id ? 'Deleting…' : 'Delete'}
+                </OutreachActionLink>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      <div className="mt-14 text-xs text-[#B0A88F]">version 0.2</div>
+    </EditorialPage>
   );
 }

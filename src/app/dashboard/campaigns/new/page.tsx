@@ -17,6 +17,15 @@ import { useToast } from '@/components/ui/use-toast';
 import { Header } from '@/components/dashboard/header';
 import { PageBody } from '@/components/outreach/page-body';
 import { useAppSection } from '@/lib/app-section';
+import {
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialField,
+  EditorialPillButton,
+  EditorialSectionHeader,
+  OutreachBackLink,
+  OutreachSelect,
+} from '@/components/cold-email/outreach-ui';
 
 interface LeadListOption {
   id: string;
@@ -57,16 +66,16 @@ function LoadingOverlay({ elapsed }: { elapsed: number }) {
       <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl text-center space-y-6">
         {/* Animated logo ring */}
         <div className="relative mx-auto h-20 w-20">
-          <div className="absolute inset-0 rounded-full border-4 border-[#0077b6]/20" />
-          <div className="absolute inset-0 rounded-full border-4 border-t-[#0077b6] animate-spin" />
+          <div className="absolute inset-0 rounded-full border-4 border-[#003049]/20" />
+          <div className="absolute inset-0 rounded-full border-4 border-t-[#003049] animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <Sparkles className="h-8 w-8 text-[#0077b6]" />
+            <Sparkles className="h-8 w-8 text-[#003049]" />
           </div>
         </div>
 
         <div className="space-y-2">
           <h3 className="text-lg font-semibold text-gray-900">Generating AI Campaign</h3>
-          <p className="text-sm text-[#0077b6] font-medium min-h-[20px] transition-all">
+          <p className="text-sm text-[#003049] font-medium min-h-[20px] transition-all">
             {step.text}
           </p>
         </div>
@@ -74,7 +83,7 @@ function LoadingOverlay({ elapsed }: { elapsed: number }) {
         {/* Progress bar */}
         <div className="w-full bg-gray-100 rounded-full h-2">
           <div
-            className="bg-[#0077b6] h-2 rounded-full transition-all duration-1000"
+            className="bg-[#003049] h-2 rounded-full transition-all duration-1000"
             style={{ width: `${Math.min((elapsed / 120) * 100, 95)}%` }}
           />
         </div>
@@ -95,7 +104,8 @@ function LoadingOverlay({ elapsed }: { elapsed: number }) {
 export default function NewCampaignPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { basePath, labels } = useAppSection();
+  const { basePath, labels, section } = useAppSection();
+  const isOutreach = section === 'outreach';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [isReuse, setIsReuse] = useState(false);
@@ -194,20 +204,31 @@ export default function NewCampaignPage() {
       <div>
         <Header
           title={isReuse ? 'Reuse Campaign' : 'New Campaign'}
-          description={isReuse ? 'Pre-filled from previous campaign — edit and create new' : 'AI generates email content — approve to push verified leads to your Instantly.ai campaign'}
+          description={
+            isOutreach
+              ? 'AI generates email content — approving pushes verified leads from your selected list into your Instantly.ai campaign, which handles delivery and follow-up sequences.'
+              : isReuse
+                ? 'Pre-filled from previous campaign — edit and create new'
+                : 'AI generates email content — approve to push verified leads to your Instantly.ai campaign'
+          }
         />
 
-        <PageBody className="max-w-2xl mx-auto">
-          <div className="mb-6">
-            <Button variant="ghost" onClick={() => router.back()} className="text-gray-600">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to {labels.campaignsTitle}
-            </Button>
-          </div>
+        <PageBody className={isOutreach ? undefined : 'max-w-2xl mx-auto'}>
+          {isOutreach ? (
+            <OutreachBackLink href={`${basePath}/campaigns`}>
+              ← Back to Email Messages
+            </OutreachBackLink>
+          ) : (
+            <div className="mb-6">
+              <Button variant="ghost" onClick={() => router.back()} className="text-gray-600">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to {labels.campaignsTitle}
+              </Button>
+            </div>
+          )}
 
-          {/* Reuse banner */}
-        {isReuse && (
-          <div className="flex items-center gap-3 rounded-lg border border-[#0077b6]/30 bg-[#0077b6]/5 px-4 py-3 text-sm text-[#0077b6]">
+          {isReuse && !isOutreach && (
+          <div className="flex items-center gap-3 rounded-lg border border-[#003049]/30 bg-[#003049]/5 px-4 py-3 text-sm text-[#003049]">
             <Copy className="h-4 w-4 flex-shrink-0" />
             <p>
               <span className="font-semibold">Reusing previous campaign.</span>{' '}
@@ -216,13 +237,142 @@ export default function NewCampaignPage() {
           </div>
         )}
 
+        {isReuse && isOutreach && (
+          <p className="mt-5 text-sm text-[#4A5A64]">
+            Reusing previous campaign — all fields pre-filled. Edit anything before creating.
+          </p>
+        )}
+
+        {!isOutreach && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           <strong>Instantly.ai:</strong> Approving a campaign pushes verified leads from your selected list into your Instantly campaign. Instantly handles delivery and follow-up sequences.
         </div>
+        )}
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-
-            {/* Campaign Details */}
+        <form onSubmit={form.handleSubmit(onSubmit)} className={isOutreach ? 'mt-8' : 'space-y-6'}>
+          {isOutreach ? (
+            <section>
+              <EditorialSectionHeader title="Campaign Details" className="mb-0" />
+              <EditorialDefinitionList>
+                <EditorialDefinitionRow label="Campaign name">
+                  <EditorialField
+                    value={form.watch('campaign_name') || ''}
+                    onChange={(v) => form.setValue('campaign_name', v)}
+                    placeholder="e.g. April Tenant Screening Awareness"
+                    disabled={isSubmitting}
+                  />
+                  {form.formState.errors.campaign_name && (
+                    <p className="mt-1 text-xs text-[var(--red)]">{form.formState.errors.campaign_name.message}</p>
+                  )}
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Targeting">
+                  <div className="flex flex-wrap gap-8">
+                    <OutreachSelect
+                      value={form.watch('service_type') || ''}
+                      onChange={(v) => form.setValue('service_type', v)}
+                      placeholder="Select service"
+                      disabled={isSubmitting}
+                      options={[
+                        { value: 'Tenant_Reports', label: 'Tenant Reports' },
+                        { value: 'Smart_Tenant_Subscription', label: 'Smart Tenant Subscription' },
+                        { value: 'Rent_Protection', label: 'Rent Promise & Protection' },
+                        { value: 'Background_Screening', label: 'Background Screening' },
+                        { value: 'Property_Management', label: 'Property Management' },
+                        { value: 'All_Services', label: 'All Services' },
+                      ]}
+                      className="min-w-[160px] flex-1"
+                    />
+                    <OutreachSelect
+                      value={form.watch('target_region') || ''}
+                      onChange={(v) => form.setValue('target_region', v)}
+                      placeholder="Select region"
+                      disabled={isSubmitting}
+                      options={[
+                        { value: 'Canada', label: 'Canada' },
+                        { value: 'North America', label: 'North America' },
+                        { value: 'Global', label: 'Global' },
+                      ]}
+                      className="min-w-[160px] flex-1"
+                    />
+                    <OutreachSelect
+                      value={form.watch('selected_sheet') || ''}
+                      onChange={(v) => form.setValue('selected_sheet', v)}
+                      placeholder="Select lead list"
+                      disabled={isSubmitting}
+                      options={leadLists.map((list) => ({
+                        value: list.id,
+                        label: `${list.name} · ${list._count?.leads ?? 0}`,
+                      }))}
+                      className="min-w-[160px] flex-1"
+                    />
+                  </div>
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Email content" labelSub="AI writes the full email from your brief">
+                  <div className="space-y-3">
+                    <OutreachSelect
+                      value={form.watch('campaign_goal') || ''}
+                      onChange={(v) => form.setValue('campaign_goal', v)}
+                      placeholder="What's the goal?"
+                      disabled={isSubmitting}
+                      options={[
+                        { value: 'Get tenant reports', label: 'Get tenant reports' },
+                        { value: 'Share educational content', label: 'Share educational content' },
+                        { value: 'Announce new service', label: 'Announce new service' },
+                        { value: 'Landlord success story spotlight', label: 'Landlord success story spotlight' },
+                        { value: 'Seasonal awareness campaign', label: 'Seasonal awareness campaign' },
+                      ]}
+                      className="max-w-[280px]"
+                    />
+                    <EditorialField
+                      value={form.watch('campaign_message') || ''}
+                      onChange={(v) => form.setValue('campaign_message', v)}
+                      placeholder="Describe what you want to communicate. The AI will write the full email from this brief…"
+                      multiline
+                      rows={3}
+                      disabled={isSubmitting}
+                    />
+                    <OutreachSelect
+                      value={form.watch('tone') || ''}
+                      onChange={(v) => form.setValue('tone', v)}
+                      placeholder="Select tone"
+                      disabled={isSubmitting}
+                      options={[
+                        { value: 'Warm and educational', label: 'Warm and educational' },
+                        { value: 'Professional and authoritative', label: 'Professional and authoritative' },
+                        { value: 'Friendly and conversational', label: 'Friendly and conversational' },
+                        { value: 'Urgent and action-oriented', label: 'Urgent and action-oriented' },
+                      ]}
+                      className="max-w-[280px]"
+                    />
+                  </div>
+                </EditorialDefinitionRow>
+                <EditorialDefinitionRow label="Call to action" isLast>
+                  <div className="flex flex-wrap gap-8">
+                    <EditorialField
+                      value={form.watch('cta_button_text') || ''}
+                      onChange={(v) => form.setValue('cta_button_text', v)}
+                      disabled={isSubmitting}
+                    />
+                    <EditorialField
+                      value={form.watch('cta_link') || ''}
+                      onChange={(v) => form.setValue('cta_link', v)}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </EditorialDefinitionRow>
+              </EditorialDefinitionList>
+              <div className="flex justify-end pt-5">
+                <EditorialPillButton
+                  variant="danger"
+                  disabled={isSubmitting}
+                  onClick={() => form.handleSubmit(onSubmit)()}
+                >
+                  {isSubmitting ? 'Generating…' : 'Create campaign & generate content →'}
+                </EditorialPillButton>
+              </div>
+            </section>
+          ) : (
+            <>
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Campaign Details</CardTitle>
@@ -383,7 +533,7 @@ export default function NewCampaignPage() {
 
             <Button
               type="submit"
-              className="w-full bg-[#0077b6] hover:bg-[#005f8f] text-white"
+              className="w-full bg-[#003049] hover:bg-[#1A4A66] text-white"
               size="lg"
               disabled={isSubmitting}
             >
@@ -393,6 +543,8 @@ export default function NewCampaignPage() {
                 <><Sparkles className="mr-2 h-5 w-5" /> Create Campaign &amp; Generate Content</>
               )}
             </Button>
+            </>
+          )}
           </form>
         </PageBody>
       </div>

@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import type { ModuleId } from "@/lib/company-module-status";
 
 export type BrandProfileData = {
   productsAndServices: string;
@@ -139,15 +140,29 @@ export const BRAND_STRATEGY_FIELDS: { key: keyof BrandProfileData; label: string
   { key: "painPoints", label: "Pain Points" },
 ];
 
-export const BRAND_ICP_FIELDS: { key: keyof BrandProfileData; label: string }[] = [
-  { key: "icpMetaAds", label: "ICP - Meta Ads" },
-  { key: "icpNewsletter", label: "ICP - Newsletter" },
-  { key: "icpOutreach", label: "ICP - Cold Email" },
-  { key: "icpColdDm", label: "ICP - Cold DM" },
-  { key: "icpColdCall", label: "ICP - Cold Call" },
-  { key: "icpColdSms", label: "ICP - Cold SMS" },
-  { key: "icpBlog", label: "ICP - Blog" },
+export type BrandIcpField = {
+  key: keyof BrandProfileData;
+  label: string;
+  moduleId: ModuleId;
+};
+
+export const BRAND_ICP_FIELDS: BrandIcpField[] = [
+  { key: "icpMetaAds", label: "ICP - Meta Ads", moduleId: "meta" },
+  { key: "icpOutreach", label: "ICP - Cold Email", moduleId: "outreach" },
+  { key: "icpColdDm", label: "ICP - Cold DM", moduleId: "coldDm" },
+  { key: "icpColdCall", label: "ICP - Cold Call", moduleId: "coldCall" },
+  { key: "icpColdSms", label: "ICP - Cold SMS", moduleId: "coldSms" },
+  { key: "icpNewsletter", label: "ICP - Newsletter", moduleId: "newsletter" },
+  { key: "icpBlog", label: "ICP - Blog", moduleId: "blog" },
 ];
+
+export function filterBrandIcpFieldsByEnabledModules(
+  fields: BrandIcpField[],
+  enabledModuleIds: Set<ModuleId> | null | undefined
+): BrandIcpField[] {
+  if (!enabledModuleIds) return fields;
+  return fields.filter((field) => enabledModuleIds.has(field.moduleId));
+}
 
 export const BRAND_DESTINATION_FIELD: { key: keyof BrandProfileData; label: string } = {
   key: "destinationUrl",

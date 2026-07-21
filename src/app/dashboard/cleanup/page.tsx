@@ -8,7 +8,7 @@ export default function CleanupPage() {
     <div>
       <Header
         title="Contact Cleanup"
-        description="Automatically remove old contacts from Instantly.ai every 10 days"
+        description="Automatically remove old contacts from Instantly.ai every 10 days."
       />
       <PageBody>
         <CleanupStatus />

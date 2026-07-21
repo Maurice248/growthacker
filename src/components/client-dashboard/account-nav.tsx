@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 const BASE_NAV_ITEMS = [
   { href: '/client-dashboard/profile', label: 'Profile', icon: User },
   { href: '/client-dashboard/security', label: 'Security', icon: KeyRound },
-  { href: '/client-dashboard/apis', label: 'API key management', icon: Plug },
+  { href: '/client-dashboard/apis', label: 'API Keys', icon: Plug },
 ] as const;
 
 const ADMIN_NAV_ITEM = { href: '/client-dashboard/members', label: 'Members', icon: Users } as const;

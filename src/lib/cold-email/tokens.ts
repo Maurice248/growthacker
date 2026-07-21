@@ -18,7 +18,7 @@ export function requireToken(
 ): string {
   const value = tokens[key];
   if (!value) {
-    throw new Error(`${label} is not configured. Add it in API key management.`);
+    throw new Error(`${label} is not configured. Add it in API Keys.`);
   }
   return value;
 }

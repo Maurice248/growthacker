@@ -1,11 +1,18 @@
 import React from "react";
-import { Inter } from "next/font/google";
+import { Karla, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const inter = Inter({
+const karla = Karla({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-karla",
+  display: "swap",
+  adjustFontFallback: false,
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
   display: "swap",
   adjustFontFallback: false,
 });
@@ -27,8 +34,8 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
-      <body style={{ fontFamily: "var(--font-inter), system-ui, -apple-system, sans-serif" }} suppressHydrationWarning>
+    <html lang="en" className={`${karla.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
+      <body style={{ fontFamily: "var(--font-sans)" }} suppressHydrationWarning>
         <Providers>
           {children}
         </Providers>

@@ -2,12 +2,14 @@ import { prisma } from '@/lib/prisma';
 import { requireServerSession } from '@/lib/server-auth';
 import { executionWhere, executionRelationWhere } from '@/lib/workflow-scope';
 import { Header } from '@/components/dashboard/header';
-import { StatsCard } from '@/components/dashboard/stats-card';
 import { CampaignChart } from '@/components/analytics/campaign-chart';
 import { LeadChart } from '@/components/analytics/lead-chart';
 import { SECTION_CONFIG } from '@/lib/app-section-config';
 import { PageBody } from '@/components/outreach/page-body';
-import { Mail, Search, Trash2, TrendingUp } from 'lucide-react';
+import {
+  EditorialStatCell,
+  EditorialStatRibbon,
+} from '@/components/cold-email/outreach-ui';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 const labels = SECTION_CONFIG.outreach.labels;
@@ -87,43 +89,36 @@ export default async function OutreachAnalyticsPage() {
     <div>
       <Header title={labels.analyticsTitle} description={labels.analyticsDescription} />
       <PageBody>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatsCard
-            title={labels.totalCampaignsTitle}
+        <EditorialStatRibbon columns={4}>
+          <EditorialStatCell
+            isFirst
             value={data.totalCampaigns}
-            subtitle="All time"
-            icon={Mail}
-            variant="outreach"
+            label="Templates · all time"
           />
-          <StatsCard
-            title="Valid Leads"
+          <EditorialStatCell
             value={data.totalLeads.toLocaleString()}
-            subtitle="Scraped & validated"
-            icon={Search}
-            variant="outreach"
+            label="Valid leads"
+            accent="muted"
           />
-          <StatsCard
-            title="Contacts Deleted"
+          <EditorialStatCell
             value={data.totalDeleted.toLocaleString()}
-            subtitle="Via cleanup workflows"
-            icon={Trash2}
-            variant="outreach"
+            label="Contacts deleted"
+            accent="muted"
           />
-          <StatsCard
-            title={labels.successRateTitle}
+          <EditorialStatCell
+            isLast
             value={`${data.successRate}%`}
-            subtitle="Across all workflows"
-            icon={TrendingUp}
-            variant="outreach"
+            label="Success rate"
+            accent="danger"
           />
-        </div>
+        </EditorialStatRibbon>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-12 xl:grid-cols-2">
           <CampaignChart data={data.campaignsByMonth} />
           {data.leadsBySheet.length > 0 ? (
             <LeadChart data={data.leadsBySheet} title={labels.leadsByChartTitle} />
           ) : (
-            <div className="flex items-center justify-center rounded-xl border border-gray-100 bg-white p-12 text-gray-400 shadow-sm">
+            <div className="flex items-center justify-center border-t border-[var(--border)] py-12 text-[var(--text-muted)]">
               <p className="text-sm">No lead data yet. Run a scraper to see charts.</p>
             </div>
           )}

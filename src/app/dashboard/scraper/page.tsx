@@ -11,6 +11,17 @@ import {
 import { Header } from '@/components/dashboard/header';
 import { PageBody } from '@/components/outreach/page-body';
 import { useAppSection } from '@/lib/app-section';
+import {
+  EditorialDefinitionList,
+  EditorialDefinitionRow,
+  EditorialField,
+  EditorialPillButton,
+  EditorialSectionHeader,
+  OutreachMetricInput,
+  OutreachSelect,
+  editorialPillButtonClass,
+  editorialTextLinkClass,
+} from '@/components/cold-email/outreach-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -130,7 +141,8 @@ interface LeadListOption {
 export default function ScraperPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { basePath, labels } = useAppSection();
+  const { basePath, labels, section } = useAppSection();
+  const isOutreach = section === 'outreach';
 
   const [pageState, setPageState] = useState<PageState>('form');
   const [elapsed, setElapsed] = useState(0);
@@ -229,6 +241,13 @@ export default function ScraperPage() {
         <Header
           title="Lead Scraper"
           description={labels.scraperDescription}
+          actions={
+            isOutreach ? (
+              <Link href={`${basePath}/scraper/history`} className={editorialTextLinkClass}>
+                View history
+              </Link>
+            ) : undefined
+          }
         />
 
         {/* Full-screen loading overlay */}
@@ -236,21 +255,21 @@ export default function ScraperPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
             <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl text-center space-y-6">
               <div className="relative mx-auto h-20 w-20">
-                <div className="absolute inset-0 rounded-full border-4 border-[#0077b6]/20" />
-                <div className="absolute inset-0 rounded-full border-4 border-t-[#0077b6] animate-spin" />
+                <div className="absolute inset-0 rounded-full border-4 border-[#003049]/20" />
+                <div className="absolute inset-0 rounded-full border-4 border-t-[#003049] animate-spin" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Search className="h-8 w-8 text-[#0077b6]" />
+                  <Search className="h-8 w-8 text-[#003049]" />
                 </div>
               </div>
 
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Scraping Google Maps...</h3>
-                <p className="text-sm text-[#0077b6] mt-1 min-h-[20px] font-medium">{currentStep.text}</p>
+                <p className="text-sm text-[#003049] mt-1 min-h-[20px] font-medium">{currentStep.text}</p>
               </div>
 
               <div className="w-full bg-gray-100 rounded-full h-2.5">
                 <div
-                  className="bg-[#0077b6] h-2.5 rounded-full transition-all duration-1000"
+                  className="bg-[#003049] h-2.5 rounded-full transition-all duration-1000"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
@@ -265,7 +284,8 @@ export default function ScraperPage() {
           </div>
         )}
 
-        <PageBody className="max-w-2xl mx-auto">
+        <PageBody className={isOutreach ? undefined : 'max-w-2xl mx-auto'}>
+          {!isOutreach && (
           <div className="flex justify-end mb-4">
             <Button variant="outline" asChild className="gap-2 text-sm">
               <Link href={`${basePath}/scraper/history`}>
@@ -273,8 +293,91 @@ export default function ScraperPage() {
               </Link>
             </Button>
           </div>
+          )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className={isOutreach ? undefined : 'space-y-6'}>
+            {isOutreach ? (
+              <section>
+                <EditorialSectionHeader title="Search Configuration" meta="Google Maps via Apify" />
+                <EditorialDefinitionList>
+                  <EditorialDefinitionRow
+                    label={
+                      <>
+                        Business niches <span className="text-[var(--red)]">*</span>
+                      </>
+                    }
+                    labelSub="Comma-separated business types"
+                  >
+                    <EditorialField
+                      value={niches}
+                      onChange={setNiches}
+                      placeholder="e.g. property management company, landlord association, real estate investor"
+                      disabled={pageState === 'loading'}
+                    />
+                  </EditorialDefinitionRow>
+                  <EditorialDefinitionRow
+                    label={
+                      <>
+                        Location <span className="text-[var(--red)]">*</span>
+                      </>
+                    }
+                  >
+                    <EditorialField
+                      value={location}
+                      onChange={setLocation}
+                      placeholder="e.g. Toronto Canada, Vancouver Canada, Calgary Canada"
+                      disabled={pageState === 'loading'}
+                    />
+                  </EditorialDefinitionRow>
+                  <EditorialDefinitionRow label="Max results" labelSub="Max 500 per run">
+                    <OutreachMetricInput
+                      value={maxResults}
+                      onChange={setMaxResults}
+                      disabled={pageState === 'loading'}
+                      min={1}
+                      max={500}
+                      width="md"
+                    />
+                  </EditorialDefinitionRow>
+                  <EditorialDefinitionRow
+                    label={
+                      <>
+                        Save verified leads to <span className="text-[var(--red)]">*</span>
+                      </>
+                    }
+                  >
+                    <OutreachSelect
+                      value={targetSheet}
+                      onChange={setTargetSheet}
+                      placeholder={listsLoading ? 'Loading lists...' : 'Select lead list'}
+                      disabled={pageState === 'loading' || listsLoading}
+                      options={leadLists.map((list) => ({
+                        value: list.id,
+                        label: `${list.name} · ${list._count?.leads ?? 0} leads`,
+                      }))}
+                      className="max-w-[320px]"
+                    />
+                  </EditorialDefinitionRow>
+                  <EditorialDefinitionRow label="What gets saved" isLast>
+                    <p className="m-0 text-[13.5px] leading-[1.7] text-[#4A5A64]">
+                      first_name · last_name · mobile_number · email · linkedin · city · country · email_status.
+                      <br />
+                      Invalid and catch-all emails are filtered out automatically. Scraping takes 2–5 minutes depending on result count — keep this tab open.
+                    </p>
+                  </EditorialDefinitionRow>
+                </EditorialDefinitionList>
+                <div className="flex justify-end pt-5">
+                  <button
+                    type="submit"
+                    disabled={pageState === 'loading'}
+                    className={editorialPillButtonClass}
+                  >
+                    {pageState === 'loading' ? 'Scraping…' : 'Start lead scraping →'}
+                  </button>
+                </div>
+              </section>
+            ) : (
+            <>
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Search Configuration</CardTitle>
@@ -343,7 +446,7 @@ export default function ScraperPage() {
                   </Select>
                   <p className="text-xs text-gray-400 mt-1">
                     Only verified emails are saved.{' '}
-                    <Link href={`${basePath}/settings`} className="text-[#0077b6] hover:underline">
+                    <Link href={`${basePath}/settings`} className="text-[#003049] hover:underline">
                       Manage lists in Settings
                     </Link>
                   </p>
@@ -366,7 +469,7 @@ export default function ScraperPage() {
 
             <Button
               type="submit"
-              className="w-full bg-[#0077b6] hover:bg-[#005f8f] text-white"
+              className="w-full bg-[#003049] hover:bg-[#1A4A66] text-white"
               size="lg"
               disabled={pageState === 'loading'}
             >
@@ -376,6 +479,8 @@ export default function ScraperPage() {
                 <><Search className="mr-2 h-5 w-5" /> Start Lead Scraping</>
               )}
             </Button>
+            </>
+            )}
           </form>
         </PageBody>
       </div>
@@ -408,7 +513,7 @@ export default function ScraperPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Clock className="h-4 w-4 text-[#0077b6]" />
+                <Clock className="h-4 w-4 text-[#003049]" />
                 Run Overview
               </CardTitle>
             </CardHeader>
@@ -447,7 +552,7 @@ export default function ScraperPage() {
               </div>
               <div className="flex justify-between text-sm py-2 border-b border-gray-100">
                 <span className="text-gray-500">Leads Requested</span>
-                <span className="font-bold text-[#0077b6]">{supabaseInfo.totalLeadsRequested}</span>
+                <span className="font-bold text-[#003049]">{supabaseInfo.totalLeadsRequested}</span>
               </div>
               <div className="flex justify-between text-sm py-2 border-b border-gray-100">
                 <span className="text-gray-500">Leads Found</span>
@@ -467,7 +572,7 @@ export default function ScraperPage() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-[#0077b6]" />
+                  <Mail className="h-4 w-4 text-[#003049]" />
                   Email Verification
                 </CardTitle>
               </CardHeader>
@@ -532,7 +637,7 @@ export default function ScraperPage() {
               <p className="text-sm text-gray-500 mt-1">Lead scraper returned an error</p>
             </div>
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 text-left">
-              {errorMsg || 'Unknown error occurred. Check your API keys in API key management.'}
+              {errorMsg || 'Unknown error occurred. Check your API keys in API Keys.'}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Button variant="outline" onClick={() => setPageState('form')}>
