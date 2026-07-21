@@ -1145,6 +1145,12 @@ export default function Dashboard() {
       .finally(() => setModuleAccessLoaded(true));
   }, [sessionStatus]);
 
+  useEffect(() => {
+    if (!embed || integrationsConfigured !== false || !moduleAccessLoaded) return;
+    if (CONFIGURATION_IDS.has(tab)) return;
+    setTab("profile");
+  }, [embed, integrationsConfigured, moduleAccessLoaded, tab, setTab]);
+
   // Migrate legacy tab ids from localStorage
   useEffect(() => { if (tab === "outreach") setTab("outreach-dashboard"); }, [tab, setTab]);
   useEffect(() => { if (tab === "newsletter") setTab("newsletter-generate"); }, [tab, setTab]);

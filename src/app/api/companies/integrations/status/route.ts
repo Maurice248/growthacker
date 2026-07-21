@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getCompanyIntegrationStatus } from '@/lib/company-integration-status';
-import { getUnlockedModuleStatusesForAdmin } from '@/lib/company-module-status';
+import {
+  getUnlockedModuleStatusesForAdmin,
+  hasAccessibleIntegrationModule,
+} from '@/lib/company-module-status';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -22,7 +25,7 @@ export async function GET() {
         : getUnlockedModuleStatusesForAdmin();
 
   return NextResponse.json({
-    configured: modules.some((m) => m.accessible),
+    configured: hasAccessibleIntegrationModule(modules),
     modules: modules.map((m) => ({ id: m.id, enabled: m.enabled })),
   });
 }

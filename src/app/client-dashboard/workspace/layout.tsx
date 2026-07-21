@@ -66,7 +66,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener('message', onMessage);
   }, [pathname, router]);
 
-  const iframeSrc = `/?embed=1&tab=${initialTabRef.current ?? 'overview'}`;
+  const iframeSrc = `/?embed=1&tab=${initialTabRef.current ?? CLIENT_BRAND_CONTEXT_TAB_ID}`;
   const showMainIframe = isMainApp && !isHiddenModule;
 
   return (

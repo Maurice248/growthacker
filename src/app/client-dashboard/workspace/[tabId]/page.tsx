@@ -5,8 +5,9 @@ import { getCompanyIntegrationStatus } from '@/lib/company-integration-status';
 import {
   CLIENT_ALL_TAB_IDS,
   CLIENT_BRAND_CONTEXT_TAB_ID,
+  CLIENT_CONFIGURATION_IDS,
 } from '@/lib/client-dashboard-nav';
-import { moduleForTab } from '@/lib/company-module-status';
+import { hasAccessibleIntegrationModule, moduleForTab } from '@/lib/company-module-status';
 import { ClientTabView } from '@/components/client-dashboard/client-tab-view';
 
 export default async function ClientWorkspaceTabPage({
@@ -33,7 +34,7 @@ export default async function ClientWorkspaceTabPage({
     redirect('/client-login');
   }
 
-  if (tabId !== CLIENT_BRAND_CONTEXT_TAB_ID) {
+  if (!CLIENT_CONFIGURATION_IDS.has(tabId)) {
     const companyId = session.user.companyId!;
     const { modules } = await getCompanyIntegrationStatus(companyId);
     const moduleId = moduleForTab(tabId);
@@ -45,7 +46,7 @@ export default async function ClientWorkspaceTabPage({
 
     const allowed = moduleId
       ? status?.accessible === true
-      : modules.some((m) => m.accessible);
+      : hasAccessibleIntegrationModule(modules);
 
     if (!allowed) {
       redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);

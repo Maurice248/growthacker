@@ -7,6 +7,7 @@ import { Megaphone, Newspaper, Send, FileText, Settings, Share2, SlidersHorizont
 import { cn } from '@/lib/utils';
 import {
   CLIENT_BLOG_TABS,
+  CLIENT_BRAND_CONTEXT_TAB_ID,
   CLIENT_CONFIGURATION_IDS,
   CLIENT_CONFIGURATION_TABS,
   CLIENT_META_ADS_TABS,
@@ -192,7 +193,15 @@ export function ClientDashboardNav({
   const [newsletterOpen, setNewsletterOpen] = useState(newsletterActive);
   const [outreachOpen, setOutreachOpen] = useState(outreachActive);
   const [blogOpen, setBlogOpen] = useState(blogActive);
-  const [configurationOpen, setConfigurationOpen] = useState(configurationActive);
+  const [configurationOpen, setConfigurationOpen] = useState(
+    configurationActive || !integrationsConfigured
+  );
+
+  useEffect(() => {
+    if (integrationsConfigured) return;
+    if (!activeTab || CLIENT_CONFIGURATION_IDS.has(activeTab)) return;
+    router.replace(clientWorkspaceHref(CLIENT_BRAND_CONTEXT_TAB_ID));
+  }, [integrationsConfigured, activeTab, router]);
 
   const collapseAllModules = () => {
     setMetaAdsOpen(false);
@@ -224,8 +233,16 @@ export function ClientDashboardNav({
     setNewsletterOpen(newsletterActive);
     setOutreachOpen(outreachActive);
     setBlogOpen(blogActive);
-    setConfigurationOpen(configurationActive);
-  }, [metaAdsActive, socialActive, newsletterActive, outreachActive, blogActive, configurationActive]);
+    setConfigurationOpen(configurationActive || !integrationsConfigured);
+  }, [
+    metaAdsActive,
+    socialActive,
+    newsletterActive,
+    outreachActive,
+    blogActive,
+    configurationActive,
+    integrationsConfigured,
+  ]);
 
   const metaLocked = moduleEnabled('meta') && !moduleConfigured('meta');
   const socialLocked = moduleEnabled('social') && !moduleConfigured('social');

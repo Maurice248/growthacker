@@ -24,6 +24,15 @@ export const MODULE_IDS: ModuleId[] = [
   'blog',
 ];
 
+/** Modules that require real API credentials (excludes future placeholders). */
+export const INTEGRATION_MODULE_IDS: ModuleId[] = [
+  'meta',
+  'social',
+  'newsletter',
+  'outreach',
+  'blog',
+];
+
 export const MODULE_LABELS: Record<ModuleId, string> = {
   meta: 'Meta Ads',
   social: 'Social Channels',
@@ -152,11 +161,17 @@ export function getModuleStatuses(
   }));
 }
 
+export function hasAccessibleIntegrationModule(modules: ModuleStatus[]): boolean {
+  return modules.some((m) => INTEGRATION_MODULE_IDS.includes(m.id) && m.accessible);
+}
+
 export function isAnyModuleConfigured(
   creds: IntegrationCredentials,
   apiSecrets?: ApiTokenSecretsMap
 ): boolean {
-  return getModuleStatuses(creds, apiSecrets).some((m) => m.configured);
+  return getModuleStatuses(creds, apiSecrets).some(
+    (m) => INTEGRATION_MODULE_IDS.includes(m.id) && m.configured
+  );
 }
 
 export function isModuleConfigured(

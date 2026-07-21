@@ -4,7 +4,11 @@ import {
   rowToCredentials,
 } from '@/lib/company-integrations';
 import { getCompanyApiTokenSecrets } from '@/lib/api-token-secrets';
-import { getModuleStatuses, type ModuleStatus } from '@/lib/company-module-status';
+import {
+  getModuleStatuses,
+  hasAccessibleIntegrationModule,
+  type ModuleStatus,
+} from '@/lib/company-module-status';
 import {
   applyCompanyModuleAccess,
   getCompanyModuleAccess,
@@ -18,7 +22,7 @@ export async function companyHasIntegrationsConfigured(companyId: string): Promi
   ]);
   const creds = rowToCredentials(row);
   const modules = applyCompanyModuleAccess(getModuleStatuses(creds, apiSecrets), moduleAccess);
-  return modules.some((m) => m.accessible);
+  return hasAccessibleIntegrationModule(modules);
 }
 
 export async function getCompanyIntegrationStatus(companyId: string) {
@@ -30,7 +34,7 @@ export async function getCompanyIntegrationStatus(companyId: string) {
   const creds = rowToCredentials(row);
   const modules = applyCompanyModuleAccess(getModuleStatuses(creds, apiSecrets), moduleAccess);
   return {
-    configured: modules.some((m) => m.accessible),
+    configured: hasAccessibleIntegrationModule(modules),
     modules,
     credentials: creds,
   };
