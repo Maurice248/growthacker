@@ -266,7 +266,7 @@ export function ClientDashboardShell({
               collapsed ? 'text-[9px]' : 'text-[10px]'
             )}
           >
-            {collapsed ? 'v0.2' : 'version 0.2'}
+            {collapsed ? 'v0.3' : 'version 0.3'}
           </p>
         </div>
       </div>
@@ -339,7 +339,7 @@ export function ClientDashboardShell({
             'editorial-shell-main flex min-h-0 flex-1 flex-col overflow-auto',
             pathname.startsWith('/client-dashboard/workspace/')
               ? 'p-0'
-              : 'px-5 py-12 md:px-[72px] md:py-14'
+              : 'editorial-shell-gutter'
           )}
         >
           {children}

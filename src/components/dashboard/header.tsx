@@ -16,7 +16,8 @@ interface HeaderProps {
 export function Header({ title, description, eyebrow, actions, className }: HeaderProps) {
   const { section } = useAppSection();
   const inShell = useEditorialPageShell();
-  const defaultEyebrow = section === 'dashboard' ? 'Dashboard' : undefined;
+  const defaultEyebrow =
+    section === 'dashboard' ? 'Dashboard' : section === 'outreach' ? 'Cold Email' : undefined;
 
   const header = (
     <EditorialPageHeader
@@ -30,5 +31,5 @@ export function Header({ title, description, eyebrow, actions, className }: Head
 
   if (inShell) return header;
 
-  return <div className={cn(editorialPageShellClass, 'pt-14')}>{header}</div>;
+  return <div className={editorialPageShellClass}>{header}</div>;
 }

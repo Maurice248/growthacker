@@ -1,6 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { getCompanyBrandConfig } from '@/lib/company-brand-config';
-import type { SocialPlatform, SocialStudioConfigData, SocialStudioContext } from './types';
+import type {
+  SocialPlatform,
+  SocialStudioBrandPromptContext,
+  SocialStudioConfigData,
+  SocialStudioContext,
+  SocialStudioPostingConfig,
+} from './types';
 
 const DEFAULT_PLATFORMS: SocialPlatform[] = ['facebook', 'instagram', 'linkedin', 'tiktok'];
 
@@ -9,6 +15,24 @@ function parsePlatforms(raw: unknown): SocialPlatform[] {
   const allowed = new Set<SocialPlatform>(['facebook', 'instagram', 'linkedin', 'tiktok', 'x', 'youtube']);
   const parsed = raw.filter((p): p is SocialPlatform => typeof p === 'string' && allowed.has(p as SocialPlatform));
   return parsed.length ? parsed : DEFAULT_PLATFORMS;
+}
+
+function postingFromRow(row: {
+  defaultImageRatio: string;
+  uploadPostUser: string;
+  facebookPageId: string;
+  linkedinOrgUrn: string;
+  tiktokHandle: string;
+  enabledPlatforms: unknown;
+}): SocialStudioPostingConfig {
+  return {
+    defaultImageRatio: row.defaultImageRatio || '1:1',
+    uploadPostUser: row.uploadPostUser,
+    facebookPageId: row.facebookPageId,
+    linkedinOrgUrn: row.linkedinOrgUrn,
+    tiktokHandle: row.tiktokHandle,
+    enabledPlatforms: parsePlatforms(row.enabledPlatforms),
+  };
 }
 
 function configFromRow(row: {
@@ -26,19 +50,41 @@ function configFromRow(row: {
   enabledPlatforms: unknown;
 }): SocialStudioConfigData {
   return {
+    ...postingFromRow(row),
     brandAbout: row.brandAbout,
     brandMission: row.brandMission,
     brandServices: row.brandServices,
     brandAudience: row.brandAudience,
     brandWebsite: row.brandWebsite,
     tone: row.tone,
-    defaultImageRatio: row.defaultImageRatio || '1:1',
-    uploadPostUser: row.uploadPostUser,
-    facebookPageId: row.facebookPageId,
-    linkedinOrgUrn: row.linkedinOrgUrn,
-    tiktokHandle: row.tiktokHandle,
-    enabledPlatforms: parsePlatforms(row.enabledPlatforms),
   };
+}
+
+function brandPromptContextFromBrandRow(
+  brandRow: {
+    products_services?: string;
+    value_proposition?: string;
+    brand_voice?: string;
+    positioning?: string;
+    destination_url?: string;
+    icp_meta_ads?: string;
+    icp_social?: string;
+  } | null,
+  companySlug?: string | null
+): SocialStudioBrandPromptContext {
+  return {
+    brandAbout: brandRow?.positioning || brandRow?.value_proposition || '',
+    brandMission: brandRow?.value_proposition || '',
+    brandServices: brandRow?.products_services || '',
+    brandAudience: brandRow?.icp_social || brandRow?.icp_meta_ads || '',
+    brandWebsite: brandRow?.destination_url || (companySlug ? `https://${companySlug}.vercel.app` : ''),
+    tone: brandRow?.brand_voice || 'professional and trustworthy',
+  };
+}
+
+export function postingFromConfig(config: SocialStudioConfigData | null): SocialStudioPostingConfig | null {
+  if (!config) return null;
+  return postingFromRow(config);
 }
 
 export function formatSocialBrandBlock(ctx: SocialStudioContext): string {
@@ -61,20 +107,25 @@ export async function getSocialStudioConfig(companyId: string): Promise<SocialSt
   return configFromRow(row);
 }
 
+export async function getSocialStudioPostingConfig(companyId: string): Promise<SocialStudioPostingConfig | null> {
+  const config = await getSocialStudioConfig(companyId);
+  return postingFromConfig(config);
+}
+
 export async function upsertSocialStudioConfig(
   companyId: string,
-  input: Partial<SocialStudioConfigData>
-): Promise<SocialStudioConfigData> {
+  input: Partial<SocialStudioPostingConfig>
+): Promise<SocialStudioPostingConfig> {
   const row = await prisma.socialStudioConfig.upsert({
     where: { companyId },
     create: {
       companyId,
-      brandAbout: input.brandAbout ?? '',
-      brandMission: input.brandMission ?? '',
-      brandServices: input.brandServices ?? '',
-      brandAudience: input.brandAudience ?? '',
-      brandWebsite: input.brandWebsite ?? '',
-      tone: input.tone ?? '',
+      brandAbout: '',
+      brandMission: '',
+      brandServices: '',
+      brandAudience: '',
+      brandWebsite: '',
+      tone: '',
       defaultImageRatio: input.defaultImageRatio ?? '1:1',
       uploadPostUser: input.uploadPostUser ?? '',
       facebookPageId: input.facebookPageId ?? '',
@@ -83,12 +134,6 @@ export async function upsertSocialStudioConfig(
       enabledPlatforms: input.enabledPlatforms ?? DEFAULT_PLATFORMS,
     },
     update: {
-      ...(input.brandAbout !== undefined ? { brandAbout: input.brandAbout } : {}),
-      ...(input.brandMission !== undefined ? { brandMission: input.brandMission } : {}),
-      ...(input.brandServices !== undefined ? { brandServices: input.brandServices } : {}),
-      ...(input.brandAudience !== undefined ? { brandAudience: input.brandAudience } : {}),
-      ...(input.brandWebsite !== undefined ? { brandWebsite: input.brandWebsite } : {}),
-      ...(input.tone !== undefined ? { tone: input.tone } : {}),
       ...(input.defaultImageRatio !== undefined ? { defaultImageRatio: input.defaultImageRatio } : {}),
       ...(input.uploadPostUser !== undefined ? { uploadPostUser: input.uploadPostUser } : {}),
       ...(input.facebookPageId !== undefined ? { facebookPageId: input.facebookPageId } : {}),
@@ -98,44 +143,38 @@ export async function upsertSocialStudioConfig(
     },
   });
 
-  return configFromRow(row);
+  return postingFromRow(row);
 }
 
 export async function resolveSocialContext(companyId: string): Promise<SocialStudioContext> {
-  const [company, config, brandResult] = await Promise.all([
+  const [company, postingConfig, brandResult] = await Promise.all([
     prisma.company.findUnique({ where: { id: companyId }, select: { name: true, slug: true } }),
-    getSocialStudioConfig(companyId),
+    getSocialStudioPostingConfig(companyId),
     getCompanyBrandConfig(companyId).catch(() => null),
   ]);
-  const brand = brandResult;
 
-  const companyName = company?.name || 'Company';
-  const brandRow = brand as {
+  const brandRow = brandResult as {
     products_services?: string;
     value_proposition?: string;
     brand_voice?: string;
     positioning?: string;
     destination_url?: string;
     icp_meta_ads?: string;
+    icp_social?: string;
   } | null;
+
+  const companyName = company?.name || 'Company';
+  const brandPrompt = brandPromptContextFromBrandRow(brandRow, company?.slug);
 
   return {
     companyId,
     companyName,
-    brandAbout: config?.brandAbout || brandRow?.positioning || brandRow?.value_proposition || '',
-    brandMission: config?.brandMission || brandRow?.value_proposition || '',
-    brandServices: config?.brandServices || brandRow?.products_services || '',
-    brandAudience: config?.brandAudience || brandRow?.icp_meta_ads || '',
-    brandWebsite:
-      config?.brandWebsite ||
-      brandRow?.destination_url ||
-      (company?.slug ? `https://${company.slug}.vercel.app` : ''),
-    tone: config?.tone || brandRow?.brand_voice || 'professional and trustworthy',
-    defaultImageRatio: config?.defaultImageRatio || '1:1',
-    uploadPostUser: config?.uploadPostUser || '',
-    facebookPageId: config?.facebookPageId || '',
-    linkedinOrgUrn: config?.linkedinOrgUrn || '',
-    tiktokHandle: config?.tiktokHandle || '',
-    enabledPlatforms: config?.enabledPlatforms || DEFAULT_PLATFORMS,
+    ...brandPrompt,
+    defaultImageRatio: postingConfig?.defaultImageRatio || '1:1',
+    uploadPostUser: postingConfig?.uploadPostUser || '',
+    facebookPageId: postingConfig?.facebookPageId || '',
+    linkedinOrgUrn: postingConfig?.linkedinOrgUrn || '',
+    tiktokHandle: postingConfig?.tiktokHandle || '',
+    enabledPlatforms: postingConfig?.enabledPlatforms || DEFAULT_PLATFORMS,
   };
 }

@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { notifyParentEmbedNavigate } from '@/lib/client-dashboard-nav';
 import { HideNextDevIndicator } from '@/components/HideNextDevIndicator';
+import { EditorialShellGutter } from '@/components/editorial/editorial-shell-gutter';
 
-export function BlogShell({ children }: { children: React.ReactNode }) {
+function BlogShellInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handler = (event: MouseEvent) => {
       if (window.parent === window) return;
@@ -17,8 +18,7 @@ export function BlogShell({ children }: { children: React.ReactNode }) {
 
       event.preventDefault();
       const url = new URL(href, window.location.origin);
-      if (notifyParentEmbedNavigate(url.pathname)) return;
-
+      notifyParentEmbedNavigate(url.pathname);
       url.searchParams.set('embed', '1');
       window.location.assign(`${url.pathname}${url.search}${url.hash}`);
     };
@@ -31,8 +31,16 @@ export function BlogShell({ children }: { children: React.ReactNode }) {
     <>
       <HideNextDevIndicator />
       <div className="min-h-screen bg-[var(--background)]">
-        <main className="editorial-shell-main">{children}</main>
+        <EditorialShellGutter>{children}</EditorialShellGutter>
       </div>
     </>
+  );
+}
+
+export function BlogShell({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--background)]" />}>
+      <BlogShellInner>{children}</BlogShellInner>
+    </Suspense>
   );
 }

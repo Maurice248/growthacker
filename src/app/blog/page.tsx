@@ -12,7 +12,7 @@ import {
   EditorialPage,
   EditorialPageHeader,
   EditorialSectionHeader,
-  editorialPillButtonClass,
+  editorialPillButtonDangerClass,
 } from '@/components/editorial/editorial-layout';
 import { EditorialStatusPill } from '@/app/components';
 
@@ -96,7 +96,7 @@ export default function BlogManagementPage() {
         title="Blog Posts Management"
         subtitle="Manage AI-generated blog posts with in-dashboard approval."
         actions={
-          <button type="button" className={editorialPillButtonClass} onClick={() => setCreatePostOpen(true)}>
+          <button type="button" className={editorialPillButtonDangerClass} onClick={() => setCreatePostOpen(true)}>
             + Create post
           </button>
         }
@@ -194,7 +194,7 @@ export default function BlogManagementPage() {
         })}
       </section>
 
-      <div className="mt-14 text-xs text-[#B0A88F]">version 0.2</div>
+      <div className="mt-14 text-xs text-[#B0A88F]">version 0.3</div>
     </EditorialPage>
   );
 }

@@ -331,7 +331,7 @@ export function EditorialPage({ children, style = {}, wide }: EditorialPageProps
   return (
     <div
       className="editorial-page animate-fade-in"
-      style={{ width: "100%", maxWidth: wide ? 1080 : 980, margin: "0 auto", paddingBottom: 96, boxSizing: "border-box", ...style }}
+      style={{ width: "100%", margin: "0 auto", paddingBottom: 96, boxSizing: "border-box", ...style }}
     >
       {children}
     </div>
@@ -348,25 +348,23 @@ interface EditorialPageHeaderProps {
 
 export function EditorialPageHeader({ eyebrow, title, subtitle, actions, style = {} }: EditorialPageHeaderProps) {
   return (
-    <header style={{ marginBottom: 48, ...style }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0 }}>
-          {eyebrow && (
-            <div style={{ fontSize: 11.5, letterSpacing: "1.6px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 10 }}>
-              {eyebrow}
-            </div>
-          )}
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 700, margin: 0, letterSpacing: "-0.8px", color: "var(--text)", lineHeight: 1.1 }}>
-            {title}
-          </h1>
-          {subtitle && (
-            <p style={{ margin: "8px 0 0", color: "#4A5A64", fontSize: 15, lineHeight: 1.5 }}>{subtitle}</p>
-          )}
+    <header style={{ marginBottom: 40, ...style }}>
+      {eyebrow && (
+        <div style={{ fontSize: 11.5, letterSpacing: "1.4px", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 500, marginBottom: 10 }}>
+          {eyebrow}
         </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 34, fontWeight: 700, margin: 0, letterSpacing: "-0.8px", color: "var(--text)", lineHeight: 1.1 }}>
+          {title}
+        </h1>
         {actions && (
-          <div style={{ display: "flex", gap: 24, alignItems: "baseline", flexWrap: "wrap" }}>{actions}</div>
+          <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap", flexShrink: 0 }}>{actions}</div>
         )}
       </div>
+      {subtitle && (
+        <p style={{ margin: "8px 0 0", color: "#4A5A64", fontSize: 15, lineHeight: 1.5 }}>{subtitle}</p>
+      )}
     </header>
   );
 }
@@ -561,7 +559,9 @@ export function EditorialPillButton({ children, onClick, disabled, variant = "pr
       ? "editorial-pill-btn-primary"
       : variant === "danger"
         ? "editorial-pill-btn-danger"
-        : undefined;
+        : variant === "outline"
+          ? "editorial-pill-btn-outline"
+          : undefined;
 
   return (
     <button

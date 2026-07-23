@@ -2,7 +2,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { requireApiCompanyId } from '@/lib/api-auth';
-import { getSocialStudioConfig, resolveSocialContext, upsertSocialStudioConfig } from '@/lib/social-studio/config';
+import {
+  getSocialStudioPostingConfig,
+  resolveSocialContext,
+  upsertSocialStudioConfig,
+} from '@/lib/social-studio/config';
 import type { SocialPlatform } from '@/lib/social-studio/types';
 
 export async function GET() {
@@ -11,7 +15,7 @@ export async function GET() {
     if (companyId instanceof NextResponse) return companyId;
 
     const [configResult, contextResult] = await Promise.allSettled([
-      getSocialStudioConfig(companyId),
+      getSocialStudioPostingConfig(companyId),
       resolveSocialContext(companyId),
     ]);
 
@@ -45,12 +49,6 @@ export async function PUT(request: Request) {
 
     const body = await request.json();
     const config = await upsertSocialStudioConfig(companyId, {
-      brandAbout: body.brandAbout,
-      brandMission: body.brandMission,
-      brandServices: body.brandServices,
-      brandAudience: body.brandAudience,
-      brandWebsite: body.brandWebsite,
-      tone: body.tone,
       defaultImageRatio: body.defaultImageRatio,
       uploadPostUser: body.uploadPostUser,
       facebookPageId: body.facebookPageId,

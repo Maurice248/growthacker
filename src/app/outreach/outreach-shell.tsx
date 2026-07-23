@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { notifyParentEmbedNavigate } from '@/lib/client-dashboard-nav';
 import { AppSectionProvider } from '@/lib/app-section';
 import { HideNextDevIndicator } from '@/components/HideNextDevIndicator';
+import { EditorialShellGutter } from '@/components/editorial/editorial-shell-gutter';
 import { EditorialPageShell } from '@/components/outreach/page-body';
 
-export function OutreachShell({ children }: { children: React.ReactNode }) {
+function OutreachShellInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handler = (event: MouseEvent) => {
       if (window.parent === window) return;
@@ -19,8 +20,10 @@ export function OutreachShell({ children }: { children: React.ReactNode }) {
 
       event.preventDefault();
       const url = new URL(href, window.location.origin);
-      if (notifyParentEmbedNavigate(url.pathname)) return;
-
+      // Sync parent sidebar when the target maps to a tab; always navigate inside the
+      // iframe too — parent only remounts the iframe when the tab id changes (e.g.
+      // /outreach/campaigns/new → /outreach/campaigns stays on outreach-campaigns).
+      notifyParentEmbedNavigate(url.pathname);
       url.searchParams.set('embed', '1');
       window.location.assign(`${url.pathname}${url.search}${url.hash}`);
     };
@@ -33,10 +36,18 @@ export function OutreachShell({ children }: { children: React.ReactNode }) {
     <AppSectionProvider section="outreach">
       <HideNextDevIndicator />
       <div className="min-h-screen bg-[var(--background)]">
-        <main className="editorial-shell-main">
+        <EditorialShellGutter>
           <EditorialPageShell>{children}</EditorialPageShell>
-        </main>
+        </EditorialShellGutter>
       </div>
     </AppSectionProvider>
+  );
+}
+
+export function OutreachShell({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--background)]" />}>
+      <OutreachShellInner>{children}</OutreachShellInner>
+    </Suspense>
   );
 }

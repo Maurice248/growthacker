@@ -19,7 +19,7 @@ import {
   EditorialSectionHeader,
   OutreachMetricInput,
   OutreachSelect,
-  editorialPillButtonClass,
+  editorialPillButtonDangerClass,
   editorialTextLinkClass,
 } from '@/components/cold-email/outreach-ui';
 import { Button } from '@/components/ui/button';
@@ -370,7 +370,7 @@ export default function ScraperPage() {
                   <button
                     type="submit"
                     disabled={pageState === 'loading'}
-                    className={editorialPillButtonClass}
+                    className={editorialPillButtonDangerClass}
                   >
                     {pageState === 'loading' ? 'Scraping…' : 'Start lead scraping →'}
                   </button>

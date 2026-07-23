@@ -234,7 +234,7 @@ export default function NewsletterOverview() {
             />
             Enable automated newsletter sending
           </label>
-          <EditorialPillButton disabled={saving} onClick={handleSave} style={{ marginLeft: "auto" }}>
+          <EditorialPillButton variant="danger" disabled={saving} onClick={handleSave} style={{ marginLeft: "auto", padding: "10px 24px", whiteSpace: "nowrap" }}>
             {saving ? "Saving…" : "Save settings"}
           </EditorialPillButton>
         </div>

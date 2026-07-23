@@ -145,12 +145,12 @@
 }
 
 .nl-root .nl-btn-primary:not(:disabled) {
-  background: #003049;
+  background: #C1121F;
   color: #FDF6E3;
 }
 
 .nl-root .nl-btn-primary:not(:disabled):hover {
-  background: #C1121F;
+  background: #780000;
 }
 
 .nl-root .nl-btn-primary:disabled {

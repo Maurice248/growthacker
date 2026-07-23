@@ -227,6 +227,24 @@ export function ClientDashboardNav({
     onNavigate?.();
   };
 
+  const toggleModuleHeader = (
+    module: 'meta' | 'social' | 'outreach' | 'newsletter' | 'blog' | 'configuration',
+    isActive: boolean,
+    isOpen: boolean,
+    setOpen: (open: boolean) => void,
+    firstTabId: string
+  ) => {
+    if (isActive && isOpen) {
+      setOpen(false);
+      return;
+    }
+    if (isActive && !isOpen) {
+      setOpen(true);
+      return;
+    }
+    activateModule(module, firstTabId);
+  };
+
   useEffect(() => {
     setMetaAdsOpen(metaAdsActive);
     setSocialOpen(socialActive);
@@ -234,15 +252,7 @@ export function ClientDashboardNav({
     setOutreachOpen(outreachActive);
     setBlogOpen(blogActive);
     setConfigurationOpen(configurationActive || !integrationsConfigured);
-  }, [
-    metaAdsActive,
-    socialActive,
-    newsletterActive,
-    outreachActive,
-    blogActive,
-    configurationActive,
-    integrationsConfigured,
-  ]);
+  }, [pathname, integrationsConfigured]);
 
   const metaLocked = moduleEnabled('meta') && !moduleConfigured('meta');
   const socialLocked = moduleEnabled('social') && !moduleConfigured('social');
@@ -257,7 +267,9 @@ export function ClientDashboardNav({
         label="Meta Ads"
         icon={Megaphone}
         open={metaAdsOpen}
-        onHeaderClick={() => activateModule('meta', CLIENT_META_ADS_TABS[0].id)}
+        onHeaderClick={() =>
+          toggleModuleHeader('meta', metaAdsActive, metaAdsOpen, setMetaAdsOpen, CLIENT_META_ADS_TABS[0].id)
+        }
         active={metaAdsActive}
         collapsed={collapsed}
         disabled={metaLocked}
@@ -285,7 +297,9 @@ export function ClientDashboardNav({
         label="Social Channels"
         icon={Share2}
         open={socialOpen}
-        onHeaderClick={() => activateModule('social', CLIENT_SOCIAL_TABS[0].id)}
+        onHeaderClick={() =>
+          toggleModuleHeader('social', socialActive, socialOpen, setSocialOpen, CLIENT_SOCIAL_TABS[0].id)
+        }
         active={socialActive}
         collapsed={collapsed}
         disabled={socialLocked}
@@ -313,7 +327,9 @@ export function ClientDashboardNav({
         label="Cold Email"
         icon={Send}
         open={outreachOpen}
-        onHeaderClick={() => activateModule('outreach', CLIENT_OUTREACH_TABS[0].id)}
+        onHeaderClick={() =>
+          toggleModuleHeader('outreach', outreachActive, outreachOpen, setOutreachOpen, CLIENT_OUTREACH_TABS[0].id)
+        }
         active={outreachActive}
         collapsed={collapsed}
         disabled={outreachLocked}
@@ -358,7 +374,15 @@ export function ClientDashboardNav({
         label="Newsletter"
         icon={Newspaper}
         open={newsletterOpen}
-        onHeaderClick={() => activateModule('newsletter', CLIENT_NEWSLETTER_TABS[0].id)}
+        onHeaderClick={() =>
+          toggleModuleHeader(
+            'newsletter',
+            newsletterActive,
+            newsletterOpen,
+            setNewsletterOpen,
+            CLIENT_NEWSLETTER_TABS[0].id
+          )
+        }
         active={newsletterActive}
         collapsed={collapsed}
         disabled={newsletterLocked}
@@ -386,7 +410,9 @@ export function ClientDashboardNav({
         label="Blog"
         icon={FileText}
         open={blogOpen}
-        onHeaderClick={() => activateModule('blog', CLIENT_BLOG_TABS[0].id)}
+        onHeaderClick={() =>
+          toggleModuleHeader('blog', blogActive, blogOpen, setBlogOpen, CLIENT_BLOG_TABS[0].id)
+        }
         active={blogActive}
         collapsed={collapsed}
         disabled={blogLocked}
@@ -413,7 +439,15 @@ export function ClientDashboardNav({
         label="Configuration"
         icon={SlidersHorizontal}
         open={configurationOpen}
-        onHeaderClick={() => activateModule('configuration', CLIENT_CONFIGURATION_TABS[0].id)}
+        onHeaderClick={() =>
+          toggleModuleHeader(
+            'configuration',
+            configurationActive,
+            configurationOpen,
+            setConfigurationOpen,
+            CLIENT_CONFIGURATION_TABS[0].id
+          )
+        }
         active={configurationActive}
         collapsed={collapsed}
       >

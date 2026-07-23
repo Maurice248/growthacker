@@ -633,9 +633,10 @@ export default function GenerateVariants({
               </EditorialPillButton>
             )}
             <EditorialPillButton
+              variant="danger"
               onClick={handleGenerate}
               disabled={generating || !selectedBaseAd || loadingDefaults}
-              style={{ marginLeft: automation?.status === "pending_review" ? 0 : undefined }}
+              style={{ marginLeft: automation?.status === "pending_review" ? 0 : undefined, padding: "10px 24px", whiteSpace: "nowrap" }}
             >
               {generating ? "Generating variants…" : "Generate variants →"}
             </EditorialPillButton>
@@ -786,7 +787,7 @@ export default function GenerateVariants({
         </section>
       )}
 
-      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
     </EditorialPage>
   );
 }

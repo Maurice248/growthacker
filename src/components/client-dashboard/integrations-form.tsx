@@ -237,7 +237,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
           </EditorialDefinitionList>
         </section>
 
-        <section className="mt-10">
+        <section className="mt-12">
           <EditorialSectionHeader title="WordPress" meta="Blog publishing credentials" />
           <EditorialDefinitionList>
             <EditorialDefinitionRow

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Mail, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EditorialShellGutter } from '@/components/editorial/editorial-shell-gutter';
 import { notifyParentEmbedNavigate } from '@/lib/client-dashboard-nav';
 import { NewsletterProviders } from '@/components/newsletter/Providers';
 import { HideNextDevIndicator } from '@/components/HideNextDevIndicator';
@@ -72,8 +73,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       if (!href || href.includes('embed=1')) return;
       event.preventDefault();
       const url = new URL(href, window.location.origin);
-      if (notifyParentEmbedNavigate(url.pathname)) return;
-
+      notifyParentEmbedNavigate(url.pathname);
       url.searchParams.set('embed', '1');
       window.location.assign(`${url.pathname}${url.search}${url.hash}`);
     };
@@ -210,11 +210,11 @@ function ShellInner({ children }: { children: React.ReactNode }) {
               <span className="font-[family-name:var(--font-display)] text-sm font-bold text-[var(--primary)]">Newsletter</span>
             </header>
           )}
-          <main className="editorial-shell-main flex-1 overflow-auto">
-            <div className="editorial-page mx-auto w-full max-w-[980px] px-5 pb-16 pt-10 md:px-[72px] md:pb-24 md:pt-14">
+          <EditorialShellGutter className="flex-1 overflow-auto" as="main">
+            <div className="editorial-page mx-auto w-full pb-16 md:pb-24">
               {children}
             </div>
-          </main>
+          </EditorialShellGutter>
         </div>
       </div>
     </NewsletterProviders>

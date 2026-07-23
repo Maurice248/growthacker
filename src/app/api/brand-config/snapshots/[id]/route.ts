@@ -22,6 +22,7 @@ function snapshotFieldsFromBody(body: Record<string, string>) {
     icp_cold_call: body.icp_cold_call ?? '',
     icp_cold_sms: body.icp_cold_sms ?? '',
     icp_blog: body.icp_blog ?? '',
+    icp_social: body.icp_social ?? '',
   };
 }
 

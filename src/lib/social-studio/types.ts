@@ -8,13 +8,7 @@ export type SocialStudioTokens = {
 
 export type SocialPlatform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'x' | 'youtube';
 
-export type SocialStudioConfigData = {
-  brandAbout: string;
-  brandMission: string;
-  brandServices: string;
-  brandAudience: string;
-  brandWebsite: string;
-  tone: string;
+export type SocialStudioPostingConfig = {
   defaultImageRatio: string;
   uploadPostUser: string;
   facebookPageId: string;
@@ -23,10 +17,24 @@ export type SocialStudioConfigData = {
   enabledPlatforms: SocialPlatform[];
 };
 
-export type SocialStudioContext = SocialStudioConfigData & {
-  companyId: string;
-  companyName: string;
+/** Brand copy injected into Creator Studio prompts — resolved from Configuration → Brand Context. */
+export type SocialStudioBrandPromptContext = {
+  brandAbout: string;
+  brandMission: string;
+  brandServices: string;
+  brandAudience: string;
+  brandWebsite: string;
+  tone: string;
 };
+
+/** Full persisted row shape (legacy brand columns remain in DB but are not edited from Social Overview). */
+export type SocialStudioConfigData = SocialStudioPostingConfig & SocialStudioBrandPromptContext;
+
+export type SocialStudioContext = SocialStudioPostingConfig &
+  SocialStudioBrandPromptContext & {
+    companyId: string;
+    companyName: string;
+  };
 
 export type SocialScene = {
   scene: number;

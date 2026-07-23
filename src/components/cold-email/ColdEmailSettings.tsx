@@ -244,9 +244,10 @@ export default function ColdEmailSettings() {
                   Enable scheduled Instantly cleanup
                 </label>
                 <EditorialPillButton
+                  variant="danger"
                   disabled={saving}
                   onClick={handleSave}
-                  style={{ marginLeft: 'auto' }}
+                  style={{ marginLeft: 'auto', padding: '10px 24px', whiteSpace: 'nowrap' }}
                 >
                   {saving ? 'Saving…' : 'Save settings'}
                 </EditorialPillButton>

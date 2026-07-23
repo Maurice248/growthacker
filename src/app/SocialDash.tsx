@@ -1725,7 +1725,6 @@ export default function SocialDash() {
         }
         title="Creator Studio"
         subtitle="Manage your social media content generation pipeline."
-        style={{ marginBottom: 36 }}
       />
 
       <EditorialTabBar
@@ -2298,10 +2297,10 @@ export default function SocialDash() {
                   <div style={{ display: "flex", gap: 16, alignItems: "baseline", marginTop: 16 }}>
                     <EditorialTextLink onClick={() => setShowRetryModal(true)}>Regenerate</EditorialTextLink>
                     <EditorialPillButton
-                      variant="primary"
+                      variant="danger"
                       onClick={handlePostVideo}
                       disabled={isVideoPosting}
-                      style={{ marginLeft: "auto" }}
+                      style={{ marginLeft: "auto", padding: "10px 24px", whiteSpace: "nowrap" }}
                     >
                       {isVideoPosting ? <Spinner size={14} color="white" /> : <>Post now →</>}
                     </EditorialPillButton>
@@ -2506,10 +2505,10 @@ export default function SocialDash() {
                           Retry
                         </EditorialTextLink>
                         <EditorialPillButton
-                          variant="primary"
+                          variant="danger"
                           onClick={handleSocialPost}
                           disabled={isImagePosting}
-                          style={{ marginLeft: "auto" }}
+                          style={{ marginLeft: "auto", padding: "10px 24px", whiteSpace: "nowrap" }}
                         >
                           {isImagePosting ? <Spinner size={14} color="white" /> : <>Post →</>}
                         </EditorialPillButton>

@@ -91,6 +91,9 @@
   --sidebar-active-border: #F4A261;
   --sidebar-border: #1A4A66;
 
+  /* Editorial page column width (Create Ad reference layout) */
+  --page-max-width: 1080px;
+
   /* ── 2. SHADCN-COMPATIBLE TOKENS (for dashboard/ and ui/ components)
           Named differently to avoid ANY clash with the main tokens above. ── */
   --shadcn-bg: #FDF6E3;
@@ -113,6 +116,34 @@
   --shadcn-input: #E8DCC2;
   --shadcn-ring: #669BBC;
   --shadcn-radius: 0.5rem;
+}
+
+.editorial-page,
+.editorial-page-shell {
+  max-width: var(--page-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Outer gutter — padding lives here, not inside the max-width column (matches page.tsx). */
+.editorial-shell-gutter {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 16px 16px 64px;
+}
+
+@media (max-width: 767px) {
+  .main-layout-content.editorial-shell-gutter:not([data-embed='true']) {
+    padding: 72px 16px 48px;
+  }
+}
+
+@media (min-width: 768px) {
+  .editorial-shell-gutter:not([data-embed='true']) {
+    padding: 56px 72px 96px;
+  }
 }
 
 /* ── 3. TAILWIND v4 THEME OVERRIDES
@@ -462,7 +493,7 @@ pre {
 
 /* ---- Root wrapper ---- */
 .sd-root {
-  max-width: 1080px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
   padding: 0 0 40px;
   display: flex;
@@ -1235,7 +1266,6 @@ pre {
   }
   .main-layout-content {
     margin-left: 0 !important;
-    padding: 60px 12px 12px !important;
     width: 100% !important;
   }
   /* Open state: slide sidebar into view */
@@ -1362,9 +1392,6 @@ pre {
 @media (max-width: 768px) {
   .mobile-topbar {
     display: flex !important;
-  }
-  .main-layout-content {
-    padding-top: 72px !important;
   }
 }
 
@@ -1768,10 +1795,11 @@ button.editorial-pill-btn-primary:not(:disabled):hover {
 button.editorial-pill-btn-danger:not(:disabled):hover {
   background: #780000 !important;
 }
+button.editorial-pill-btn-outline:not(:disabled):hover {
+  background: var(--primary) !important;
+  color: #FDF0D5 !important;
+}
 @media (max-width: 768px) {
-  .main-layout-content {
-    padding: 72px 20px 48px !important;
-  }
   .editorial-definition-row {
     grid-template-columns: 1fr !important;
     gap: 12px !important;

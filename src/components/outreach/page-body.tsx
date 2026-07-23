@@ -5,7 +5,7 @@ import { useAppSection } from '@/lib/app-section';
 import { cn } from '@/lib/utils';
 
 export const editorialPageShellClass =
-  'mx-auto w-full max-w-[980px] px-5 md:px-[72px]';
+  'editorial-page-shell mx-auto w-full';
 
 const EditorialPageShellContext = createContext(false);
 
@@ -23,7 +23,7 @@ export function EditorialPageShell({
 }) {
   return (
     <EditorialPageShellContext.Provider value={true}>
-      <div className={cn('pb-16 pt-14 md:pb-24', editorialPageShellClass, className)}>
+      <div className={cn('editorial-page-shell mx-auto w-full', className)}>
         {children}
       </div>
     </EditorialPageShellContext.Provider>
@@ -34,7 +34,7 @@ export function getPageBodyClass(section: 'dashboard' | 'outreach', extra?: stri
   return cn(
     'editorial-page-body',
     section === 'outreach' ? 'space-y-12' : 'space-y-8',
-    !inShell && cn('pb-16 md:pb-24', editorialPageShellClass),
+    !inShell && editorialPageShellClass,
     extra
   );
 }

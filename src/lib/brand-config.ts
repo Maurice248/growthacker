@@ -15,6 +15,7 @@ export type BrandProfileData = {
   icpColdCall: string;
   icpColdSms: string;
   icpBlog: string;
+  icpSocial: string;
   destinationUrl: string;
 };
 
@@ -32,6 +33,7 @@ export type BrandConfigDbRow = {
   icp_cold_call?: string;
   icp_cold_sms?: string;
   icp_blog?: string;
+  icp_social?: string;
   destination_url?: string;
 };
 
@@ -51,6 +53,7 @@ export type BrandSnapshot = {
   icp_cold_call: string;
   icp_cold_sms: string;
   icp_blog: string;
+  icp_social: string;
   content_hash: string;
   label: string | null;
   created_at: string;
@@ -70,6 +73,7 @@ const BRAND_FIELDS = [
   "icp_cold_call",
   "icp_cold_sms",
   "icp_blog",
+  "icp_social",
 ] as const;
 
 export function profileFromDb(row: BrandConfigDbRow | null | undefined): BrandProfileData {
@@ -87,6 +91,7 @@ export function profileFromDb(row: BrandConfigDbRow | null | undefined): BrandPr
     icpColdCall: row?.icp_cold_call || "",
     icpColdSms: row?.icp_cold_sms || "",
     icpBlog: row?.icp_blog || "",
+    icpSocial: row?.icp_social || "",
     destinationUrl: row?.destination_url || "",
   };
 }
@@ -106,6 +111,7 @@ export function profileToDb(data: BrandProfileData): BrandConfigDbRow {
     icp_cold_call: data.icpColdCall,
     icp_cold_sms: data.icpColdSms,
     icp_blog: data.icpBlog,
+    icp_social: data.icpSocial,
     destination_url: data.destinationUrl,
   };
 }
@@ -153,6 +159,7 @@ export const BRAND_ICP_FIELDS: BrandIcpField[] = [
   { key: "icpColdCall", label: "ICP - Cold Call", moduleId: "coldCall" },
   { key: "icpColdSms", label: "ICP - Cold SMS", moduleId: "coldSms" },
   { key: "icpNewsletter", label: "ICP - Newsletter", moduleId: "newsletter" },
+  { key: "icpSocial", label: "ICP - Social Channels", moduleId: "social" },
   { key: "icpBlog", label: "ICP - Blog", moduleId: "blog" },
 ];
 

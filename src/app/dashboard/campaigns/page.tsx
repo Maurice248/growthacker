@@ -24,7 +24,7 @@ import {
   OutreachActionLink,
   OutreachListRow,
   campaignStatusPill,
-  editorialPillButtonClass,
+  editorialPillButtonDangerClass,
 } from '@/components/cold-email/outreach-ui';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -286,7 +286,7 @@ export default function CampaignsPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   const newCampaignButton = (
-    <Link href={`${basePath}/campaigns/new`} className={editorialPillButtonClass}>
+    <Link href={`${basePath}/campaigns/new`} className={editorialPillButtonDangerClass}>
       + New campaign
     </Link>
   );
@@ -302,7 +302,7 @@ export default function CampaignsPage() {
       <PageBody>
         {!isOutreach && (
           <div className="flex justify-end">
-            <Button asChild className="bg-[#003049] hover:bg-[#1A4A66] text-white">
+            <Button asChild className="rounded-full bg-[#C1121F] px-6 py-2.5 text-sm font-bold text-[#FDF6E3] hover:bg-[#780000]">
               <Link href={`${basePath}/campaigns/new`}>
                 <Plus className="mr-2 h-4 w-4" /> New Campaign
               </Link>

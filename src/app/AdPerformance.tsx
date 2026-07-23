@@ -253,7 +253,6 @@ export default function AdPerformance() {
             {loading ? "Refreshing…" : "Refresh"}
           </EditorialTextLink>
         }
-        style={{ marginBottom: 36 }}
       />
 
       {error && (
@@ -308,7 +307,7 @@ export default function AdPerformance() {
 
       {preview && <VariantPreviewOverlay variant={preview} onClose={() => setPreview(null)} />}
 
-      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
     </EditorialPage>
   );
 }
@@ -415,12 +414,14 @@ function AutomationLoopSection({
           )}
           {canLaunch && !automation.automationEnabled && (
             <EditorialPillButton
+              variant="danger"
               onClick={() => onLaunch(automation)}
               disabled={busy}
+              style={{ padding: "10px 24px", whiteSpace: "nowrap" }}
             >
               {launching ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <Spinner size={14} color="#FDF0D5" />
+                  <Spinner size={14} color="#fff" />
                   Launching…
                 </span>
               ) : (

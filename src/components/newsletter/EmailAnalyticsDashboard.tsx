@@ -426,7 +426,7 @@ export default function EmailAnalyticsDashboard() {
         </section>
       )}
 
-      <div className="mt-14 text-xs text-[#B0A88F]">version 0.2</div>
+      <div className="mt-14 text-xs text-[#B0A88F]">version 0.3</div>
     </div>
   );
 }

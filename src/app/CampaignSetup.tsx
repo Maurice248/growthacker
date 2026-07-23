@@ -679,7 +679,6 @@ export default function CampaignSetup({
         eyebrow="Meta Ads Manager"
         title="Campaign Setup"
         subtitle="Build and launch your Meta Ads campaign step by step."
-        style={{ marginBottom: 36 }}
       />
 
       {/* ── No Ad Selected Gate ── */}
@@ -1396,22 +1395,22 @@ function LaunchPanel({
 
   return (
     <section style={{ marginTop: 48, borderTop: "1px solid var(--border)", paddingTop: 28 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
         <div style={{
           width: 44, height: 44, borderRadius: 12, background: "var(--primary-light)",
           display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0,
         }}>
           {selectedId ? "📥" : "🚀"}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 17, color: "var(--primary)" }}>
             {selectedId ? `Inject to: ${selectedCampaignName}` : "Launch campaign on Meta"}
           </div>
-          <p style={{ fontSize: 13.5, color: "#8C8474", margin: "6px 0 20px", lineHeight: 1.6 }}>
+          <p style={{ fontSize: 13.5, color: "#8C8474", margin: "6px 0 0", lineHeight: 1.6 }}>
             {selectedId ? injectDescription : "Deploy your campaign, targeting, and ad creative directly to Meta Ads Manager."}
           </p>
 
-          {launching ? (
+          {launching && (
             <div style={{ padding: "16px 0", maxWidth: 420 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <Spinner size={14} />
@@ -1423,18 +1422,6 @@ function LaunchPanel({
                 <div style={{ height: "100%", background: "var(--primary)", width: `${(launchStep / 4) * 100}%`, transition: "width 0.4s ease", borderRadius: 999 }} />
               </div>
             </div>
-          ) : (
-            <EditorialPillButton
-              onClick={onLaunch}
-              disabled={launching || hasLaunchedThisSegment}
-              style={{
-                padding: "11px 28px",
-                background: hasLaunchedThisSegment ? "var(--green)" : selectedId ? "var(--amber)" : undefined,
-                opacity: hasLaunchedThisSegment ? 0.85 : 1,
-              }}
-            >
-              {hasLaunchedThisSegment ? "✓ Launched" : selectedId ? "Inject Ads →" : "Launch Ads on Facebook →"}
-            </EditorialPillButton>
           )}
 
           {launchError && (
@@ -1443,6 +1430,21 @@ function LaunchPanel({
             </div>
           )}
         </div>
+        {!launching && (
+          <EditorialPillButton
+            variant={hasLaunchedThisSegment ? "primary" : "danger"}
+            onClick={onLaunch}
+            disabled={launching || hasLaunchedThisSegment}
+            style={{
+              padding: "10px 24px",
+              ...(hasLaunchedThisSegment ? { background: "var(--green)", opacity: 0.85 } : {}),
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            }}
+          >
+            {hasLaunchedThisSegment ? "✓ Launched" : selectedId ? "Inject Ads →" : "Launch Ads on Facebook →"}
+          </EditorialPillButton>
+        )}
       </div>
     </section>
   );

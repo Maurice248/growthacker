@@ -95,6 +95,7 @@ model CompanyBrandConfig {
   icpColdCall      String   @default("") @map("icp_cold_call")
   icpColdSms       String   @default("") @map("icp_cold_sms")
   icpBlog          String   @default("") @map("icp_blog")
+  icpSocial        String   @default("") @map("icp_social")
   destinationUrl   String   @default("") @map("destination_url")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -121,6 +122,7 @@ model CompanyBrandSnapshot {
   icpColdCall      String             @default("") @map("icp_cold_call")
   icpColdSms       String             @default("") @map("icp_cold_sms")
   icpBlog          String             @default("") @map("icp_blog")
+  icpSocial        String             @default("") @map("icp_social")
   contentHash      String             @map("content_hash")
   label            String?
   createdAt        DateTime           @default(now()) @map("created_at")

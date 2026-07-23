@@ -31,8 +31,7 @@ export function EditorialPage({
   return (
     <div
       className={cn(
-        'editorial-page mx-auto w-full max-w-[980px] px-5 pb-16 pt-14 md:px-[72px] md:pb-24 md:pt-14',
-        wide && 'max-w-[1080px]',
+        'editorial-page mx-auto w-full pb-16 md:pb-24',
         className
       )}
     >
@@ -46,25 +45,30 @@ export function EditorialPageHeader({
   title,
   subtitle,
   actions,
+  titleActions,
   className,
 }: {
   eyebrow?: React.ReactNode;
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
+  titleActions?: React.ReactNode;
   className?: string;
 }) {
   return (
     <header className={cn('mb-10 flex flex-wrap items-end justify-between gap-5', className)}>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         {eyebrow && (
           <div className="mb-2.5 text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">
             {eyebrow}
           </div>
         )}
-        <h1 className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-[1.1] tracking-[-0.8px] text-[var(--text)]">
-          {title}
-        </h1>
+        <div className={cn('flex flex-wrap items-center justify-between gap-x-5 gap-y-2', titleActions && 'w-full')}>
+          <h1 className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-[1.1] tracking-[-0.8px] text-[var(--text)]">
+            {title}
+          </h1>
+          {titleActions && <div className="flex shrink-0 flex-wrap items-center gap-6">{titleActions}</div>}
+        </div>
         {subtitle && (
           <p className="mt-2 text-[15px] leading-relaxed text-[#4A5A64]">{subtitle}</p>
         )}
@@ -219,6 +223,9 @@ export const editorialFlatPanelClass =
 
 export const editorialPillButtonClass =
   'inline-flex items-center justify-center rounded-full bg-[var(--primary)] px-6 py-2.5 text-sm font-bold text-[#FDF0D5] transition-colors hover:bg-[var(--red)] disabled:cursor-not-allowed disabled:opacity-60';
+
+export const editorialPillButtonDangerClass =
+  'inline-flex items-center justify-center rounded-full bg-[#C1121F] px-6 py-2.5 text-sm font-bold text-[#FDF6E3] transition-colors hover:bg-[#780000] disabled:cursor-not-allowed disabled:opacity-60';
 
 export const editorialTextLinkClass =
   'inline-flex border-none bg-transparent p-0 text-sm font-bold text-[#4A5A64] hover:text-[var(--primary)] disabled:opacity-50';

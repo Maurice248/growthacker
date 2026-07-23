@@ -14,6 +14,7 @@ import {
   EditorialStatCell,
   EditorialStatRibbon,
   editorialPillButtonClass,
+  editorialPillButtonDangerClass,
   editorialTextLinkClass,
 } from '@/components/editorial/editorial-layout';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,7 @@ export {
   EditorialStatCell,
   EditorialStatRibbon,
   editorialPillButtonClass,
+  editorialPillButtonDangerClass,
   editorialTextLinkClass,
 };
 

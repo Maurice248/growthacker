@@ -9,18 +9,13 @@ import {
   EditorialDefinitionRow,
   EditorialField,
   EditorialPillButton,
+  EditorialTextLink,
   Spinner,
 } from "./components";
 
 type SocialPlatform = "facebook" | "instagram" | "linkedin" | "tiktok" | "x" | "youtube";
 
-type SocialConfigForm = {
-  brandAbout: string;
-  brandMission: string;
-  brandServices: string;
-  brandAudience: string;
-  brandWebsite: string;
-  tone: string;
+type SocialPostingConfig = {
   defaultImageRatio: string;
   uploadPostUser: string;
   facebookPageId: string;
@@ -29,19 +24,31 @@ type SocialConfigForm = {
   enabledPlatforms: SocialPlatform[];
 };
 
-const EMPTY_CONFIG: SocialConfigForm = {
-  brandAbout: "",
-  brandMission: "",
-  brandServices: "",
-  brandAudience: "",
-  brandWebsite: "",
-  tone: "",
+type SocialBrandPromptContext = {
+  brandAbout: string;
+  brandMission: string;
+  brandServices: string;
+  brandAudience: string;
+  brandWebsite: string;
+  tone: string;
+};
+
+const EMPTY_POSTING_CONFIG: SocialPostingConfig = {
   defaultImageRatio: "1:1",
   uploadPostUser: "",
   facebookPageId: "",
   linkedinOrgUrn: "",
   tiktokHandle: "",
   enabledPlatforms: ["facebook", "instagram", "linkedin", "tiktok"],
+};
+
+const EMPTY_BRAND_CONTEXT: SocialBrandPromptContext = {
+  brandAbout: "",
+  brandMission: "",
+  brandServices: "",
+  brandAudience: "",
+  brandWebsite: "",
+  tone: "",
 };
 
 const PLATFORM_OPTIONS: { id: SocialPlatform; label: string }[] = [
@@ -51,6 +58,21 @@ const PLATFORM_OPTIONS: { id: SocialPlatform; label: string }[] = [
   { id: "tiktok", label: "TikTok" },
   { id: "x", label: "X (Twitter)" },
   { id: "youtube", label: "YouTube" },
+];
+
+const BRAND_PROMPT_FIELDS: {
+  key: keyof SocialBrandPromptContext;
+  label: string;
+  labelSub: string;
+  multiline?: boolean;
+  rows?: number;
+}[] = [
+  { key: "brandAbout", label: "Brand Description", labelSub: "Positioning", multiline: true, rows: 3 },
+  { key: "brandMission", label: "Mission", labelSub: "Value Proposition", multiline: true, rows: 2 },
+  { key: "brandServices", label: "Services", labelSub: "Products & Services", multiline: true, rows: 2 },
+  { key: "brandAudience", label: "Target Audience", labelSub: "ICP - Social Channels", multiline: true, rows: 2 },
+  { key: "brandWebsite", label: "Website", labelSub: "Destination URL" },
+  { key: "tone", label: "Brand Tone", labelSub: "Brand Voice", rows: 1 },
 ];
 
 function pipelineStatusTone(status: string) {
@@ -109,9 +131,14 @@ function OverviewStatCell({
   );
 }
 
-export default function SocialOverview() {
+type SocialOverviewProps = {
+  onEditBrandContext?: () => void;
+};
+
+export default function SocialOverview({ onEditBrandContext }: SocialOverviewProps) {
   const [pipelineStatus, setPipelineStatus] = useState("Loading...");
-  const [config, setConfig] = useState<SocialConfigForm>(EMPTY_CONFIG);
+  const [postingConfig, setPostingConfig] = useState<SocialPostingConfig>(EMPTY_POSTING_CONFIG);
+  const [brandContext, setBrandContext] = useState<SocialBrandPromptContext>(EMPTY_BRAND_CONTEXT);
   const [companyName, setCompanyName] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -119,7 +146,8 @@ export default function SocialOverview() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const pipelineTone = pipelineStatusTone(pipelineStatus);
-  const configReady = Boolean(config.uploadPostUser && config.brandAbout);
+  const brandContextReady = Boolean(brandContext.brandAbout || brandContext.brandMission);
+  const configReady = Boolean(postingConfig.uploadPostUser && brandContextReady);
 
   useEffect(() => {
     let active = true;
@@ -137,32 +165,26 @@ export default function SocialOverview() {
           const data = await configRes.json();
           setLoadError(null);
           if (data.config) {
-            setConfig({
-              brandAbout: data.config.brandAbout || "",
-              brandMission: data.config.brandMission || "",
-              brandServices: data.config.brandServices || "",
-              brandAudience: data.config.brandAudience || "",
-              brandWebsite: data.config.brandWebsite || "",
-              tone: data.config.tone || "",
+            setPostingConfig({
               defaultImageRatio: data.config.defaultImageRatio || "1:1",
               uploadPostUser: data.config.uploadPostUser || "",
               facebookPageId: data.config.facebookPageId || "",
               linkedinOrgUrn: data.config.linkedinOrgUrn || "",
               tiktokHandle: data.config.tiktokHandle || "",
-              enabledPlatforms: data.config.enabledPlatforms || EMPTY_CONFIG.enabledPlatforms,
+              enabledPlatforms: data.config.enabledPlatforms || EMPTY_POSTING_CONFIG.enabledPlatforms,
             });
-          } else if (data.context) {
-            setConfig((prev) => ({
-              ...prev,
-              brandAbout: data.context.brandAbout || prev.brandAbout,
-              brandMission: data.context.brandMission || prev.brandMission,
-              brandServices: data.context.brandServices || prev.brandServices,
-              brandAudience: data.context.brandAudience || prev.brandAudience,
-              brandWebsite: data.context.brandWebsite || prev.brandWebsite,
-              tone: data.context.tone || prev.tone,
-            }));
           }
-          if (data.context?.companyName) setCompanyName(data.context.companyName);
+          if (data.context) {
+            setBrandContext({
+              brandAbout: data.context.brandAbout || "",
+              brandMission: data.context.brandMission || "",
+              brandServices: data.context.brandServices || "",
+              brandAudience: data.context.brandAudience || "",
+              brandWebsite: data.context.brandWebsite || "",
+              tone: data.context.tone || "",
+            });
+            if (data.context.companyName) setCompanyName(data.context.companyName);
+          }
         } else {
           const errBody = await configRes.json().catch(() => ({}));
           setLoadError(errBody.error || `Failed to load settings (${configRes.status})`);
@@ -207,11 +229,11 @@ export default function SocialOverview() {
       const res = await fetch("/api/social-studio/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify(postingConfig),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed");
-      setSaveMsg("Settings saved");
+      setSaveMsg("Posting configuration saved");
     } catch (err: unknown) {
       setSaveMsg(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -220,7 +242,7 @@ export default function SocialOverview() {
   };
 
   const togglePlatform = (platform: SocialPlatform) => {
-    setConfig((prev) => {
+    setPostingConfig((prev) => {
       const enabled = prev.enabledPlatforms.includes(platform)
         ? prev.enabledPlatforms.filter((p) => p !== platform)
         : [...prev.enabledPlatforms, platform];
@@ -233,8 +255,7 @@ export default function SocialOverview() {
       <EditorialPageHeader
         eyebrow="Social Channels"
         title="Overview"
-        subtitle="Configure your brand context for AI prompts and monitor the native Creator Studio pipeline."
-        style={{ marginBottom: 40 }}
+        subtitle="Posting settings for Creator Studio. Brand copy for AI prompts comes from Configuration → Brand Context."
       />
 
       <section
@@ -249,12 +270,12 @@ export default function SocialOverview() {
           label="Pipeline ready"
           labelColor="#38678A"
           value={configReady ? "Configured" : "Setup"}
-          sub={configReady ? "Brand + posting settings saved" : "Complete settings below"}
+          sub={configReady ? "Brand context + posting settings ready" : "Complete Brand Context and posting settings"}
         />
         <OverviewStatCell
           label="Company"
           value={companyName || "—"}
-          sub="Brand context injected into AI prompts"
+          sub={brandContextReady ? "Brand Context loaded for AI prompts" : "Add Brand Context in Configuration"}
         />
         <OverviewStatCell
           isLast
@@ -297,7 +318,7 @@ export default function SocialOverview() {
               {pipelineStatus}
             </div>
             <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
-              Status updates from your company&apos;s Creator Studio jobs. AI prompts use the brand settings below — companies never edit prompt templates directly.
+              Status updates from your company&apos;s Creator Studio jobs. AI prompts use Brand Context from Configuration — companies never edit prompt templates directly.
             </p>
           </div>
         </div>
@@ -310,97 +331,81 @@ export default function SocialOverview() {
       ) : (
         <>
           <section style={{ marginTop: 48 }}>
-            <EditorialSectionHeader title="Social Settings" meta="Feeds all Creator Studio AI prompts" />
+            <EditorialSectionHeader
+              title="Brand Context for AI Prompts"
+              meta="From Configuration → Brand Context"
+            />
+            <p style={{ margin: "0 0 20px", fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
+              Creator Studio image, copy, and video prompts use this brand data automatically. Edit it in{" "}
+              {onEditBrandContext ? (
+                <EditorialTextLink onClick={onEditBrandContext} style={{ fontSize: 14 }}>
+                  Configuration → Brand Context
+                </EditorialTextLink>
+              ) : (
+                <strong>Configuration → Brand Context</strong>
+              )}
+              .
+            </p>
             <EditorialDefinitionList>
-              <EditorialDefinitionRow label="Brand About">
-                <EditorialField
-                  value={config.brandAbout}
-                  onChange={(v) => setConfig({ ...config, brandAbout: v })}
-                  multiline
-                  placeholder="What your company does"
-                />
-              </EditorialDefinitionRow>
-              <EditorialDefinitionRow label="Mission">
-                <EditorialField
-                  value={config.brandMission}
-                  onChange={(v) => setConfig({ ...config, brandMission: v })}
-                  multiline
-                  rows={2}
-                />
-              </EditorialDefinitionRow>
-              <EditorialDefinitionRow label="Services">
-                <EditorialField
-                  value={config.brandServices}
-                  onChange={(v) => setConfig({ ...config, brandServices: v })}
-                  multiline
-                  rows={2}
-                />
-              </EditorialDefinitionRow>
-              <EditorialDefinitionRow label="Target Audience">
-                <EditorialField
-                  value={config.brandAudience}
-                  onChange={(v) => setConfig({ ...config, brandAudience: v })}
-                  multiline
-                  rows={2}
-                />
-              </EditorialDefinitionRow>
-              <EditorialDefinitionRow label="Website">
-                <EditorialField
-                  value={config.brandWebsite}
-                  onChange={(v) => setConfig({ ...config, brandWebsite: v })}
-                  placeholder="https://yourcompany.com"
-                />
-              </EditorialDefinitionRow>
-              <EditorialDefinitionRow label="Brand Tone">
-                <EditorialField
-                  value={config.tone}
-                  onChange={(v) => setConfig({ ...config, tone: v })}
-                  placeholder="Professional, trustworthy, and landlord-focused"
-                  rows={1}
-                />
-              </EditorialDefinitionRow>
-              <EditorialDefinitionRow label="Default Image Ratio" isLast>
-                <EditorialField
-                  value={config.defaultImageRatio}
-                  onChange={(v) => setConfig({ ...config, defaultImageRatio: v })}
-                  placeholder="1:1"
-                />
-              </EditorialDefinitionRow>
+              {BRAND_PROMPT_FIELDS.map((field, index) => (
+                <EditorialDefinitionRow
+                  key={field.key}
+                  label={field.label}
+                  labelSub={field.labelSub}
+                  isLast={index === BRAND_PROMPT_FIELDS.length - 1}
+                >
+                  <EditorialField
+                    value={brandContext[field.key]}
+                    onChange={() => {}}
+                    disabled
+                    multiline={field.multiline}
+                    rows={field.rows}
+                    placeholder={`Set in Brand Context (${field.labelSub})`}
+                  />
+                </EditorialDefinitionRow>
+              ))}
             </EditorialDefinitionList>
           </section>
 
           <section style={{ marginTop: 48 }}>
-            <EditorialSectionHeader title="Posting Configuration" />
+            <EditorialSectionHeader title="Posting Configuration" meta="Platforms and Upload Post credentials" />
             <EditorialDefinitionList>
+              <EditorialDefinitionRow label="Default Image Ratio">
+                <EditorialField
+                  value={postingConfig.defaultImageRatio}
+                  onChange={(v) => setPostingConfig({ ...postingConfig, defaultImageRatio: v })}
+                  placeholder="1:1"
+                />
+              </EditorialDefinitionRow>
               <EditorialDefinitionRow label="Upload Post User">
                 <EditorialField
-                  value={config.uploadPostUser}
-                  onChange={(v) => setConfig({ ...config, uploadPostUser: v })}
+                  value={postingConfig.uploadPostUser}
+                  onChange={(v) => setPostingConfig({ ...postingConfig, uploadPostUser: v })}
                 />
               </EditorialDefinitionRow>
               <EditorialDefinitionRow label="Facebook Page ID">
                 <EditorialField
-                  value={config.facebookPageId}
-                  onChange={(v) => setConfig({ ...config, facebookPageId: v })}
+                  value={postingConfig.facebookPageId}
+                  onChange={(v) => setPostingConfig({ ...postingConfig, facebookPageId: v })}
                 />
               </EditorialDefinitionRow>
               <EditorialDefinitionRow label="LinkedIn Org URN">
                 <EditorialField
-                  value={config.linkedinOrgUrn}
-                  onChange={(v) => setConfig({ ...config, linkedinOrgUrn: v })}
+                  value={postingConfig.linkedinOrgUrn}
+                  onChange={(v) => setPostingConfig({ ...postingConfig, linkedinOrgUrn: v })}
                   placeholder="urn:li:organization:..."
                 />
               </EditorialDefinitionRow>
               <EditorialDefinitionRow label="TikTok Handle">
                 <EditorialField
-                  value={config.tiktokHandle}
-                  onChange={(v) => setConfig({ ...config, tiktokHandle: v })}
+                  value={postingConfig.tiktokHandle}
+                  onChange={(v) => setPostingConfig({ ...postingConfig, tiktokHandle: v })}
                 />
               </EditorialDefinitionRow>
               <EditorialDefinitionRow label="Enabled Platforms" isLast>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {PLATFORM_OPTIONS.map((p) => {
-                    const active = config.enabledPlatforms.includes(p.id);
+                    const active = postingConfig.enabledPlatforms.includes(p.id);
                     return (
                       <button
                         key={p.id}
@@ -435,7 +440,7 @@ export default function SocialOverview() {
               }}
             >
               <span style={{ fontSize: 13.5, color: "var(--text-muted)" }}>
-                This brand data is injected into all Creator Studio AI prompts automatically.
+                Brand copy is managed in Configuration → Brand Context and injected into Creator Studio prompts.
               </span>
               {saveMsg && (
                 <span
@@ -447,15 +452,15 @@ export default function SocialOverview() {
                   {saveMsg}
                 </span>
               )}
-              <EditorialPillButton onClick={handleSave} disabled={saving} style={{ marginLeft: "auto" }}>
-                {saving ? <Spinner size={14} color="#FDF0D5" /> : "Save social settings"}
+              <EditorialPillButton variant="danger" onClick={handleSave} disabled={saving} style={{ marginLeft: "auto", padding: "10px 24px", whiteSpace: "nowrap" }}>
+                {saving ? <Spinner size={14} color="#fff" /> : "Save posting configuration"}
               </EditorialPillButton>
             </footer>
           </section>
         </>
       )}
 
-      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+      <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
     </EditorialPage>
   );
 }

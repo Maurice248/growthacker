@@ -14,8 +14,7 @@ import {
   EditorialSectionHeader,
   EditorialStatCell,
   EditorialStatRibbon,
-  OutreachBackLink,
-  editorialPillButtonClass,
+  editorialPillButtonDangerClass,
 } from '@/components/cold-email/outreach-ui';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -84,17 +83,9 @@ export default function ScraperHistoryPage() {
       <Header
         title="Scraper History"
         description="All past Google Maps scraping runs."
-        eyebrow={
-          isOutreach ? (
-            <>
-              Cold Email ·{' '}
-              <OutreachBackLink href={`${basePath}/scraper`}>back to scraper</OutreachBackLink>
-            </>
-          ) : undefined
-        }
         actions={
           isOutreach ? (
-            <Link href={`${basePath}/scraper`} className={editorialPillButtonClass}>
+            <Link href={`${basePath}/scraper`} className={editorialPillButtonDangerClass}>
               New scrape
             </Link>
           ) : undefined
@@ -109,7 +100,7 @@ export default function ScraperHistoryPage() {
               <ArrowLeft className="h-4 w-4" /> Back to Scraper
             </Link>
           </Button>
-          <Button asChild className="bg-[#003049] hover:bg-[#1A4A66] text-white gap-2">
+          <Button asChild className="rounded-full bg-[#C1121F] px-6 py-2.5 text-sm font-bold text-[#FDF6E3] hover:bg-[#780000] gap-2">
             <Link href={`${basePath}/scraper`}>
               <Search className="h-4 w-4" /> New Scrape
             </Link>

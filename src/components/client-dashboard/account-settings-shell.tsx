@@ -65,8 +65,8 @@ export function AccountSettingsShell({ isAdmin = false, children }: AccountSetti
       ];
 
   return (
-    <div className="mx-auto w-full max-w-[880px]">
-      <header className="mb-9">
+    <div className="editorial-page-shell mx-auto w-full">
+      <header className="mb-10">
         <div className="mb-2.5 text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">
           Settings
         </div>
@@ -98,7 +98,7 @@ export function AccountSettingsShell({ isAdmin = false, children }: AccountSetti
 
       <div className="min-w-0">{children}</div>
 
-      <div className="mt-14 text-xs text-[#B0A88F]">version 0.2</div>
+      <div className="mt-14 text-xs text-[#B0A88F]">version 0.3</div>
     </div>
   );
 }

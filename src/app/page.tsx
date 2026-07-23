@@ -175,6 +175,7 @@ const DEFAULT_BRAND_CONFIG = {
   icpColdSms: "",
   icpNewsletter: "",
   icpBlog: "",
+  icpSocial: "",
   destinationUrl: "",
 };
 
@@ -188,6 +189,7 @@ const ICP_FIELD_ICONS: Partial<Record<
   icpColdCall: { iconEl: <Phone size={16} color="#EA580C" />, iconBg: "#FFF7ED" },
   icpColdSms: { iconEl: <Smartphone size={16} color="#669BBC" />, iconBg: "#E7F0F6" },
   icpNewsletter: { iconEl: <Mail size={16} color="#669BBC" />, iconBg: "#E7F0F6" },
+  icpSocial: { iconEl: <Share2 size={16} color="#669BBC" />, iconBg: "#E7F0F6" },
   icpBlog: { iconEl: <PenLine size={16} color="#9333EA" />, iconBg: "#FAF5FF" },
 };
 
@@ -4698,10 +4700,10 @@ export default function Dashboard() {
 
       {/* ── RIGHT MAIN CONTENT ── */}
       <main
-        className="main-layout-content"
+        className="main-layout-content editorial-shell-main editorial-shell-gutter"
+        data-embed={embed ? "true" : undefined}
         style={{
           flex: 1,
-          padding: embed ? "16px" : "56px 72px 96px",
           minWidth: 0,
           maxWidth: "100%",
           overflowX: "hidden",
@@ -4741,11 +4743,26 @@ export default function Dashboard() {
 
         return (
           <EditorialPage>
-            <EditorialPageHeader
-              eyebrow={<>Meta Ads · <button type="button" onClick={() => fetchMetaInsights()} style={{ background: "none", border: "none", padding: 0, color: "var(--secondary)", cursor: "pointer", font: "inherit", letterSpacing: "inherit", textTransform: "inherit" }} onMouseEnter={(e) => { e.currentTarget.style.color = "var(--red)"; }} onMouseLeave={(e) => { e.currentTarget.style.color = "var(--secondary)"; }}>Live data</button></>}
-              title="Overview"
-              style={{ marginBottom: 40 }}
-            />
+            <header style={{ marginBottom: 40 }}>
+              <div style={{ fontSize: 11.5, letterSpacing: "1.4px", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 500, marginBottom: 10 }}>
+                Meta Ads ·{" "}
+                <button
+                  type="button"
+                  onClick={() => fetchMetaInsights()}
+                  style={{ background: "none", border: "none", padding: 0, color: "var(--secondary)", cursor: "pointer", font: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--red)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--secondary)"; }}
+                >
+                  Live data
+                </button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 34, lineHeight: 1.1, letterSpacing: "-0.8px", color: "var(--text)", margin: 0 }}>
+                  Overview
+                </h1>
+                <EditorialPillButton variant="danger" onClick={() => setTab("create")} style={{ padding: "10px 24px", whiteSpace: "nowrap" }}>Create ad →</EditorialPillButton>
+              </div>
+            </header>
 
             <EditorialStatRibbon columns={4}>
               <EditorialStatCell isFirst value={totalCampaignsRendered} label="Live campaigns" sub="Meta Ads API" />
@@ -4812,13 +4829,12 @@ export default function Dashboard() {
                 </div>
               )}
 
-              <footer style={{ marginTop: 28, display: "flex", alignItems: "baseline", gap: 16 }}>
+              <footer style={{ marginTop: 28 }}>
                 <EditorialTextLink onClick={() => setTab("reports")}>View all reports</EditorialTextLink>
-                <EditorialPillButton onClick={() => setTab("create")} style={{ marginLeft: "auto" }}>Create ad →</EditorialPillButton>
               </footer>
             </section>
 
-            <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+            <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
           </EditorialPage>
         );
       })()}
@@ -4832,7 +4848,6 @@ export default function Dashboard() {
             eyebrow="Ads Lab"
             title="Competitor Ad Analysis"
             subtitle="Research competitor ads, find gaps, and get ready-to-use ad scripts powered by AI."
-            style={{ marginBottom: 36 }}
           />
 
           <EditorialTabBar
@@ -5428,7 +5443,7 @@ export default function Dashboard() {
             </div>
           </div>
           )}
-          <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+          <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
         </EditorialPage>
       )}
 
@@ -5437,7 +5452,7 @@ export default function Dashboard() {
       ═══════════════════════════════════════════════════════ */}
       {tab === "create" && (
         <EditorialPage wide>
-          <EditorialPageHeader eyebrow="Meta Ads" title="Create Ad" style={{ marginBottom: 36 }} />
+          <EditorialPageHeader eyebrow="Meta Ads" title="Create Ad" />
           {!analysisData && (
             <div
               style={{
@@ -6644,13 +6659,13 @@ export default function Dashboard() {
             </div>
           </section>
 
-          <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+          <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
         </EditorialPage>
       )}
 
       <div
         className="animate-fade-in"
-        style={{ display: tab === "variants" ? "block" : "none", paddingTop: 8 }}
+        style={{ display: tab === "variants" ? "block" : "none" }}
       >
         <GenerateVariants
           approvedAds={allApprovedAds}
@@ -6693,7 +6708,6 @@ export default function Dashboard() {
             title="Campaign Monitor"
             subtitle="Monitor and control your live Meta Ads."
             actions={<EditorialTextLink onClick={fetchLiveCampaigns}>{liveLoading ? "Refreshing…" : "Refresh"}</EditorialTextLink>}
-            style={{ marginBottom: 36 }}
           />
 
           {liveLoading && liveCampaigns.length === 0 && (
@@ -6856,7 +6870,7 @@ export default function Dashboard() {
             );
           })}
 
-          <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.2</div>
+          <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
 
           {editModalOpen && (
             <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
@@ -7008,7 +7022,6 @@ export default function Dashboard() {
                 {metaReportsLoading ? "Refreshing…" : "Refresh data"}
               </EditorialTextLink>
             }
-            style={{ marginBottom: 40 }}
           />
 
           {metaReportsError && (
@@ -7256,7 +7269,7 @@ export default function Dashboard() {
           SOCIAL CHANNELS — Overview & Creator Studio
       ═══════════════════════════════════════════════════════ */}
       {tab === "social-overview" && (
-        <SocialOverview />
+        <SocialOverview onEditBrandContext={() => setTab("profile")} />
       )}
       {tab === "social-creator-studio" && (
         <SocialDash />
@@ -7296,11 +7309,13 @@ export default function Dashboard() {
           <EditorialPageHeader
             eyebrow={
               <>
-                Template · {activeBrandContextLabel ?? "Current brand"} &nbsp;·&nbsp;{" "}
+                Brand Context · {activeBrandContextLabel ?? "Current brand"} &nbsp;·&nbsp;{" "}
                 <button
                   type="button"
                   onClick={() => setBrandSnapshotsModalOpen(true)}
-                  style={{ background: "none", border: "none", padding: 0, color: "var(--secondary)", cursor: "pointer", font: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}
+                  style={{ background: "none", border: "none", padding: 0, color: "var(--secondary)", cursor: "pointer", font: "inherit", letterSpacing: "inherit", textTransform: "inherit", fontWeight: 500 }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--red)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--secondary)"; }}
                 >
                   {brandSnapshots.length} saved
                 </button>
@@ -7358,9 +7373,9 @@ export default function Dashboard() {
           </section>
 
           {visibleIcpFields.length > 0 && (
-            <section style={{ marginTop: 56 }}>
+            <section style={{ marginTop: 48 }}>
               <EditorialSectionHeader title="Ideal Customer Profiles" meta="One per workflow" />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 48, paddingTop: 28 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 48, padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
                 {visibleIcpFields.map((field) => (
                   <div key={field.key}>
                     <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15.5, marginBottom: 10, color: "var(--text)" }}>

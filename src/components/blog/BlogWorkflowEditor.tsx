@@ -358,9 +358,10 @@ export function BlogWorkflowEditor() {
             Enable scheduled blog generation
           </label>
           <EditorialPillButton
+            variant="danger"
             disabled={saveConfigMutation.isPending}
             onClick={() => saveConfigMutation.mutate(draftConfig)}
-            style={{ marginLeft: 'auto' }}
+            style={{ marginLeft: 'auto', padding: '10px 24px', whiteSpace: 'nowrap' }}
           >
             {saveConfigMutation.isPending ? (
               <>
@@ -401,8 +402,10 @@ export function BlogWorkflowEditor() {
 
         <div className="flex justify-end pt-5">
           <EditorialPillButton
+            variant="danger"
             disabled={saveConfigMutation.isPending}
             onClick={() => saveConfigMutation.mutate(draftConfig)}
+            style={{ padding: '10px 24px', whiteSpace: 'nowrap' }}
           >
             {saveConfigMutation.isPending ? (
               <>
@@ -464,8 +467,10 @@ export function BlogWorkflowEditor() {
 
         <div className="flex justify-end pt-5">
           <EditorialPillButton
+            variant="danger"
             disabled={saveConfigMutation.isPending}
             onClick={() => saveConfigMutation.mutate(draftConfig)}
+            style={{ padding: '10px 24px', whiteSpace: 'nowrap' }}
           >
             {saveConfigMutation.isPending ? (
               <>

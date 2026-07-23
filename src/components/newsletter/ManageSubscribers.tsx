@@ -237,7 +237,7 @@ export default function ManageSubscribers() {
             type="button"
             onClick={handleBulkImport}
             disabled={importing || !bulkText.trim()}
-            className="nl-btn-ghost mt-5"
+            className="nl-btn-primary mt-5"
           >
             {importing ? "Importing…" : "Import"}
           </button>
