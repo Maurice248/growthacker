@@ -226,7 +226,7 @@ export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
     'newsletter-history',
     'newsletter-services',
   ]),
-  blog: new Set(['blog-post', 'blog-automation']),
+  blog: new Set(['blog-overview', 'blog-post', 'blog-automation']),
 };
 
 export function moduleForTab(tabId: string): ModuleId | null {

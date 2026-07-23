@@ -173,5 +173,5 @@ export function filterBrandIcpFieldsByEnabledModules(
 
 export const BRAND_DESTINATION_FIELD: { key: keyof BrandProfileData; label: string } = {
   key: "destinationUrl",
-  label: "Destination URL (Meta Ads)",
+  label: "Destination URL",
 };

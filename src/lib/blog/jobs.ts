@@ -56,6 +56,15 @@ export async function getBlogJob(jobId: string, companyId: string) {
   return prisma.blogJob.findFirst({ where: { id: jobId, companyId } });
 }
 
+export async function listRecentBlogJobs(companyId: string, limit = 8) {
+  const rows = await prisma.blogJob.findMany({
+    where: { companyId },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  });
+  return rows.map(jobToView);
+}
+
 export function jobToView(row: {
   id: string;
   status: string;

@@ -60,21 +60,6 @@ const PLATFORM_OPTIONS: { id: SocialPlatform; label: string }[] = [
   { id: "youtube", label: "YouTube" },
 ];
 
-const BRAND_PROMPT_FIELDS: {
-  key: keyof SocialBrandPromptContext;
-  label: string;
-  labelSub: string;
-  multiline?: boolean;
-  rows?: number;
-}[] = [
-  { key: "brandAbout", label: "Brand Description", labelSub: "Positioning", multiline: true, rows: 3 },
-  { key: "brandMission", label: "Mission", labelSub: "Value Proposition", multiline: true, rows: 2 },
-  { key: "brandServices", label: "Services", labelSub: "Products & Services", multiline: true, rows: 2 },
-  { key: "brandAudience", label: "Target Audience", labelSub: "ICP - Social Channels", multiline: true, rows: 2 },
-  { key: "brandWebsite", label: "Website", labelSub: "Destination URL" },
-  { key: "tone", label: "Brand Tone", labelSub: "Brand Voice", rows: 1 },
-];
-
 function pipelineStatusTone(status: string) {
   const value = status.toLowerCase();
   if (
@@ -233,7 +218,7 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed");
-      setSaveMsg("Posting configuration saved");
+      setSaveMsg("Post configuration saved");
     } catch (err: unknown) {
       setSaveMsg(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -324,6 +309,57 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
         </div>
       </section>
 
+      <section style={{ marginTop: 48 }}>
+        <EditorialSectionHeader
+          title="Brand Context for AI Prompts"
+          meta="From Configuration → Brand Context"
+        />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "200px 1fr",
+            gap: "0 40px",
+            padding: "24px 0",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15 }}>Connection</div>
+          <div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontFamily: "var(--font-display)",
+                fontWeight: 700,
+                fontSize: 19,
+                color: loading ? "#38678A" : brandContextReady ? "var(--green)" : "var(--text-muted)",
+              }}
+            >
+              {loading && <Spinner size={14} color="#38678A" />}
+              {loading
+                ? "Getting brand context..."
+                : brandContextReady
+                  ? "Connected to Brand Context"
+                  : "Brand Context not configured"}
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
+              Creator Studio image, copy, and video prompts use brand data from Configuration automatically.
+              {!loading && onEditBrandContext && (
+                <>
+                  {" "}
+                  Edit it in{" "}
+                  <EditorialTextLink onClick={onEditBrandContext} style={{ fontSize: 14 }}>
+                    Configuration → Brand Context
+                  </EditorialTextLink>
+                  .
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
           <Spinner size={24} color="var(--primary)" />
@@ -331,44 +367,7 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
       ) : (
         <>
           <section style={{ marginTop: 48 }}>
-            <EditorialSectionHeader
-              title="Brand Context for AI Prompts"
-              meta="From Configuration → Brand Context"
-            />
-            <p style={{ margin: "0 0 20px", fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
-              Creator Studio image, copy, and video prompts use this brand data automatically. Edit it in{" "}
-              {onEditBrandContext ? (
-                <EditorialTextLink onClick={onEditBrandContext} style={{ fontSize: 14 }}>
-                  Configuration → Brand Context
-                </EditorialTextLink>
-              ) : (
-                <strong>Configuration → Brand Context</strong>
-              )}
-              .
-            </p>
-            <EditorialDefinitionList>
-              {BRAND_PROMPT_FIELDS.map((field, index) => (
-                <EditorialDefinitionRow
-                  key={field.key}
-                  label={field.label}
-                  labelSub={field.labelSub}
-                  isLast={index === BRAND_PROMPT_FIELDS.length - 1}
-                >
-                  <EditorialField
-                    value={brandContext[field.key]}
-                    onChange={() => {}}
-                    disabled
-                    multiline={field.multiline}
-                    rows={field.rows}
-                    placeholder={`Set in Brand Context (${field.labelSub})`}
-                  />
-                </EditorialDefinitionRow>
-              ))}
-            </EditorialDefinitionList>
-          </section>
-
-          <section style={{ marginTop: 48 }}>
-            <EditorialSectionHeader title="Posting Configuration" meta="Platforms and Upload Post credentials" />
+            <EditorialSectionHeader title="Post Configuration" meta="Platforms and Upload Post credentials" />
             <EditorialDefinitionList>
               <EditorialDefinitionRow label="Default Image Ratio">
                 <EditorialField
@@ -453,7 +452,7 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
                 </span>
               )}
               <EditorialPillButton variant="danger" onClick={handleSave} disabled={saving} style={{ marginLeft: "auto", padding: "10px 24px", whiteSpace: "nowrap" }}>
-                {saving ? <Spinner size={14} color="#fff" /> : "Save posting configuration"}
+                {saving ? <Spinner size={14} color="#fff" /> : "Save"}
               </EditorialPillButton>
             </footer>
           </section>

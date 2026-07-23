@@ -82,6 +82,7 @@ import "./globals.css";
 import { DEFAULT_WEBSITE_URL } from "@/lib/legacy-brand";
 import { reportBelongsToCompany } from "@/lib/reports-query";
 import {
+  BRAND_DESTINATION_FIELD,
   BRAND_ICP_FIELDS,
   BRAND_STRATEGY_FIELDS,
   filterBrandIcpFieldsByEnabledModules,
@@ -219,7 +220,7 @@ const SOCIAL_TABS = [
 const SOCIAL_TAB_IDS = new Set(SOCIAL_TABS.map((t) => t.id));
 
 const NEWSLETTER_TABS = [
-  { id: "newsletter-dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "newsletter-dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "newsletter-overview", label: "Settings", icon: Settings2 },
   { id: "newsletter-generate", label: "Generate Newsletter", icon: PenLine },
   { id: "newsletter-campaign", label: "Create Campaign", icon: Megaphone },
@@ -239,7 +240,7 @@ const OUTREACH_FUTURE_TABS = [
 ];
 
 const OUTREACH_TABS = [
-  { id: "outreach-dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "outreach-dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "outreach-campaigns", label: "Email Messages", icon: Mail },
   { id: "outreach-analytics", label: "Cold Email Analytics", icon: BarChart3 },
   { id: "outreach-scraper", label: "Lead Scraper", icon: Search },
@@ -256,6 +257,7 @@ const OUTREACH_IDS = new Set([
 ]);
 
 const BLOG_TABS = [
+  { id: "blog-overview", label: "Overview", icon: LayoutDashboard },
   { id: "blog-post", label: "Blog Posts", icon: FileText },
   { id: "blog-automation", label: "Automation", icon: Sparkles },
 ];
@@ -1156,7 +1158,7 @@ export default function Dashboard() {
   // Migrate legacy tab ids from localStorage
   useEffect(() => { if (tab === "outreach") setTab("outreach-dashboard"); }, [tab, setTab]);
   useEffect(() => { if (tab === "newsletter") setTab("newsletter-generate"); }, [tab, setTab]);
-  useEffect(() => { if (tab === "blog-management") setTab("blog-post"); }, [tab, setTab]);
+  useEffect(() => { if (tab === "blog-management") setTab("blog-overview"); }, [tab, setTab]);
   useEffect(() => { if (tab === "social-dash") setTab("social-creator-studio"); }, [tab, setTab]);
   useEffect(() => { if (tab === "social-automation") setTab("social-overview"); }, [tab, setTab]);
   useEffect(() => { if (tab === "approval") setTab("create"); }, [tab, setTab]);
@@ -1805,13 +1807,21 @@ export default function Dashboard() {
 
       if (result.snapshot) {
         const data = snapshotToProfile(result.snapshot);
+        const destinationUrl = profileData.destinationUrl || "";
+        if (destinationUrl) {
+          await fetch("/api/brand-config", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ destination_url: destinationUrl }),
+          });
+        }
         setActiveBrandSnapshot({
           id: result.snapshot.id,
           label: result.snapshot.label || name,
           created_at: result.snapshot.created_at,
           data,
         });
-        setProfileData({ ...DEFAULT_BRAND_CONFIG, ...data });
+        setProfileData({ ...DEFAULT_BRAND_CONFIG, ...data, destinationUrl });
         fetchBrandSnapshots();
         setIsEditingProfile(false);
         addSbToast(`Template "${name}" saved and selected for Competitors`, "success");
@@ -1917,6 +1927,8 @@ export default function Dashboard() {
         merged[key] = profileData[key];
       }
     }
+    // Destination URL lives on live company config, not saved templates.
+    merged.destinationUrl = profileData.destinationUrl || "";
     return merged;
   }, [isEditingProfile, isActiveSavedTemplate, activeBrandSnapshot?.data, profileData]);
 
@@ -1930,7 +1942,8 @@ export default function Dashboard() {
 
   const handleStartEditingProfile = () => {
     if (isActiveSavedTemplate) {
-      setProfileData({ ...DEFAULT_BRAND_CONFIG, ...activeBrandSnapshot.data });
+      const liveDestinationUrl = profileData.destinationUrl || "";
+      setProfileData({ ...DEFAULT_BRAND_CONFIG, ...activeBrandSnapshot.data, destinationUrl: liveDestinationUrl });
     }
     setIsEditingProfile(true);
   };
@@ -1953,6 +1966,7 @@ export default function Dashboard() {
   const handleSaveProfile = async () => {
     setIsSavingProfile(true);
     const payload = profileToDb(profileData);
+    const destinationUrl = profileData.destinationUrl || "";
 
     try {
       if (isActiveSavedTemplate) {
@@ -1968,12 +1982,22 @@ export default function Dashboard() {
           return;
         }
 
+        const liveRes = await fetch("/api/brand-config", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ destination_url: destinationUrl }),
+        });
+        if (!liveRes.ok) {
+          addSbToast("Template saved, but destination URL failed to save", "error");
+          return;
+        }
+
         const data = snapshotToProfile(result.snapshot);
         setActiveBrandSnapshot({
           ...activeBrandSnapshot,
           data,
         });
-        setProfileData({ ...DEFAULT_BRAND_CONFIG, ...data });
+        setProfileData({ ...DEFAULT_BRAND_CONFIG, ...data, destinationUrl });
         fetchBrandSnapshots();
         setIsEditingProfile(false);
         addSbToast(`Template "${activeBrandSnapshot.label || "Saved template"}" saved`, "success");
@@ -1989,6 +2013,10 @@ export default function Dashboard() {
           return;
         }
 
+        const saved = await res.json().catch(() => null);
+        if (saved) {
+          setProfileData({ ...DEFAULT_BRAND_CONFIG, ...profileFromDb(saved) });
+        }
         setIsEditingProfile(false);
         addSbToast("Brand saved successfully!", "success");
       }
@@ -4670,8 +4698,8 @@ export default function Dashboard() {
                   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: 6,
                   transition: "all 0.15s", fontFamily: "inherit", width: "100%"
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.borderBottomColor = "var(--sidebar-text)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "#7FA6BC"; e.currentTarget.style.borderBottomColor = "#33607C"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--sidebar-text)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "#7FA6BC"; }}
               >
                 <LogOut size={13} /> {!sidebarCollapsed && "Sign out"}
               </button>
@@ -5054,9 +5082,10 @@ export default function Dashboard() {
                 <>
                 <div style={{ display: "flex", justifyContent: "flex-end", padding: "20px 0 0" }}>
                   <EditorialPillButton
+                    variant="danger"
                     onClick={runCompetitorAnalysis}
                     disabled={integrationsConfigured !== true}
-                    style={{ width: "auto" }}
+                    style={{ padding: "10px 24px", whiteSpace: "nowrap" }}
                   >
                     {analysisStatus === "done" ? "Re-run competitor analysis" : "Run competitor analysis"}
                   </EditorialPillButton>
@@ -7326,14 +7355,14 @@ export default function Dashboard() {
               !isEditingProfile ? (
                 <>
                   <EditorialTextLink onClick={() => setBrandSnapshotsModalOpen(true)}>Templates</EditorialTextLink>
-                  <EditorialPillButton onClick={handleStartEditingProfile}>Edit</EditorialPillButton>
+                  <EditorialPillButton variant="danger" onClick={handleStartEditingProfile} style={{ padding: "10px 24px", whiteSpace: "nowrap" }}>Edit</EditorialPillButton>
                 </>
               ) : (
                 <>
                   <EditorialTextLink onClick={handleCancelEditingProfile}>Cancel</EditorialTextLink>
                   <EditorialTextLink onClick={handleSaveAsNewTemplate} disabled={isSavingProfile}>Save as new</EditorialTextLink>
-                  <EditorialPillButton onClick={handleSaveProfile} disabled={isSavingProfile}>
-                    {isSavingProfile ? <Spinner size={14} color="#FDF0D5" /> : "Save changes"}
+                  <EditorialPillButton variant="danger" onClick={handleSaveProfile} disabled={isSavingProfile} style={{ padding: "10px 24px", whiteSpace: "nowrap" }}>
+                    {isSavingProfile ? <Spinner size={14} color="#fff" /> : "Save changes"}
                   </EditorialPillButton>
                 </>
               )
@@ -7361,7 +7390,7 @@ export default function Dashboard() {
                   />
                 </EditorialDefinitionRow>
               ))}
-              <EditorialDefinitionRow label="Destination URL" labelSub="Meta Ads" isLast>
+              <EditorialDefinitionRow label="Destination URL" isLast>
                 <EditorialField
                   value={displayProfileData.destinationUrl}
                   onChange={(v) => setProfileData({ ...profileData, destinationUrl: v })}
@@ -7528,11 +7557,13 @@ export default function Dashboard() {
                         <div style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid #E8DCC2", background: "#FAFBFC", borderRadius: "0 0 14px 14px" }}>
                           {[
                             ...BRAND_STRATEGY_FIELDS,
+                            BRAND_DESTINATION_FIELD,
                             ...(moduleAccessLoaded
                               ? filterBrandIcpFieldsByEnabledModules(BRAND_ICP_FIELDS, enabledModuleIds)
                               : []),
                           ].map(({ key, label }) => {
-                            const value = snapshotProfile[key];
+                            const value =
+                              key === "destinationUrl" ? profileData.destinationUrl : snapshotProfile[key];
                             return (
                               <div key={key}>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "#9FA8A3", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>

@@ -1,9 +1,10 @@
 'use client';
 
 const BLOG_PATHS: Record<string, string> = {
+  'blog-overview': '/blog/overview',
   'blog-post': '/blog',
   'blog-automation': '/blog/automation',
-  'blog-management': '/blog',
+  'blog-management': '/blog/overview',
 };
 
 export default function BlogTab({ activeTab }: { activeTab: string }) {

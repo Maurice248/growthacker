@@ -255,7 +255,7 @@ export function ClientDashboardShell({
             type="button"
             onClick={() => signOut({ callbackUrl: '/client-login' })}
             title={collapsed ? 'Sign Out' : undefined}
-            className="flex w-full items-center justify-center gap-1.5 rounded-none border-b border-[#33607C] bg-transparent px-2 py-2 text-[12.5px] font-semibold text-[#7FA6BC] transition-colors hover:border-[var(--sidebar-text)] hover:text-[var(--sidebar-text)]"
+            className="flex w-full items-center justify-center gap-1.5 rounded-none border-b border-[#33607C] bg-transparent px-2 py-2 text-[12.5px] font-semibold text-[#7FA6BC] transition-colors hover:text-[var(--sidebar-text)]"
           >
             <LogOut size={13} />
             {!collapsed && 'Sign Out'}

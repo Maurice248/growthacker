@@ -29,6 +29,8 @@ export type ClientNavItem = {
   icon: LucideIcon;
 };
 
+export const CLIENT_HOME_TAB_ID = 'dashboard';
+
 export const CLIENT_BRAND_CONTEXT_TAB_ID = 'profile';
 
 export const CLIENT_CONFIGURATION_TABS: ClientNavItem[] = [
@@ -55,7 +57,7 @@ export const CLIENT_SOCIAL_TABS: ClientNavItem[] = [
 ];
 
 export const CLIENT_NEWSLETTER_TABS: ClientNavItem[] = [
-  { id: 'newsletter-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'newsletter-dashboard', label: 'Overview', icon: LayoutDashboard },
   { id: 'newsletter-overview', label: 'Settings', icon: Settings2 },
   { id: 'newsletter-generate', label: 'Generate Newsletter', icon: PenLine },
   { id: 'newsletter-campaign', label: 'Create Campaign', icon: Megaphone },
@@ -71,7 +73,7 @@ export const CLIENT_OUTREACH_FUTURE_TABS: ClientNavItem[] = [
 ];
 
 export const CLIENT_OUTREACH_TABS: ClientNavItem[] = [
-  { id: 'outreach-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'outreach-dashboard', label: 'Overview', icon: LayoutDashboard },
   { id: 'outreach-campaigns', label: 'Email Messages', icon: Mail },
   { id: 'outreach-analytics', label: 'Cold Email Analytics', icon: BarChart3 },
   { id: 'outreach-scraper', label: 'Lead Scraper', icon: Search },
@@ -83,6 +85,7 @@ export const CLIENT_OUTREACH_TABS: ClientNavItem[] = [
 export const CLIENT_OUTREACH_FUTURE_IDS = new Set(CLIENT_OUTREACH_FUTURE_TABS.map((t) => t.id));
 
 export const CLIENT_BLOG_TABS: ClientNavItem[] = [
+  { id: 'blog-overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'blog-post', label: 'Blog Posts', icon: FileText },
   { id: 'blog-automation', label: 'Automation', icon: Sparkles },
 ];
@@ -95,6 +98,7 @@ export const CLIENT_BLOG_IDS = new Set(CLIENT_BLOG_TABS.map((t) => t.id));
 export const CLIENT_CONFIGURATION_IDS = new Set(CLIENT_CONFIGURATION_TABS.map((t) => t.id));
 
 export const CLIENT_ALL_TAB_IDS = new Set([
+  CLIENT_HOME_TAB_ID,
   ...CLIENT_CONFIGURATION_TABS.map((t) => t.id),
   ...CLIENT_META_ADS_TABS.map((t) => t.id),
   ...CLIENT_SOCIAL_TABS.map((t) => t.id),
@@ -139,6 +143,7 @@ const NEWSLETTER_PATHS: Record<string, string> = {
 };
 
 const BLOG_PATHS: Record<string, string> = {
+  'blog-overview': '/blog/overview',
   'blog-post': '/blog',
   'blog-automation': '/blog/automation',
 };
@@ -200,7 +205,17 @@ export function clientTabEmbedSrc(tabId: string): string | null {
   return null;
 }
 
+/** First workspace tab to open when entering a module from the home dashboard. */
+export const CLIENT_MODULE_ENTRY_TABS: Record<string, string> = {
+  meta: CLIENT_META_ADS_TABS[0].id,
+  social: CLIENT_SOCIAL_TABS[0].id,
+  outreach: CLIENT_OUTREACH_TABS[0].id,
+  newsletter: CLIENT_NEWSLETTER_TABS[0].id,
+  blog: CLIENT_BLOG_TABS[0].id,
+};
+
 export function clientTabLabel(tabId: string): string {
+  if (tabId === CLIENT_HOME_TAB_ID) return 'Dashboard';
   const all = [
     ...CLIENT_CONFIGURATION_TABS,
     ...CLIENT_META_ADS_TABS,

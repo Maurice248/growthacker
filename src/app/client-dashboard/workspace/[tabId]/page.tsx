@@ -6,9 +6,12 @@ import {
   CLIENT_ALL_TAB_IDS,
   CLIENT_BRAND_CONTEXT_TAB_ID,
   CLIENT_CONFIGURATION_IDS,
+  CLIENT_HOME_TAB_ID,
 } from '@/lib/client-dashboard-nav';
 import { hasAccessibleIntegrationModule, moduleForTab } from '@/lib/company-module-status';
 import { ClientTabView } from '@/components/client-dashboard/client-tab-view';
+import { HomeDashboard } from '@/components/client-dashboard/home-dashboard';
+import { getHomeDashboardOverviews } from '@/lib/home-dashboard-data';
 
 export default async function ClientWorkspaceTabPage({
   params,
@@ -27,6 +30,12 @@ export default async function ClientWorkspaceTabPage({
   }
 
   if (session.user.isAppAdmin && !session.user.isImpersonating) {
+    if (tabId === CLIENT_HOME_TAB_ID) {
+      const displayName =
+        session.user.name?.trim() || session.user.email?.split('@')[0] || 'User';
+      const overviews = await getHomeDashboardOverviews(null, session.user.id);
+      return <HomeDashboard userName={displayName} overviews={overviews} />;
+    }
     return <ClientTabView tabId={tabId} />;
   }
 
@@ -34,7 +43,7 @@ export default async function ClientWorkspaceTabPage({
     redirect('/client-login');
   }
 
-  if (!CLIENT_CONFIGURATION_IDS.has(tabId)) {
+  if (!CLIENT_CONFIGURATION_IDS.has(tabId) && tabId !== CLIENT_HOME_TAB_ID) {
     const companyId = session.user.companyId!;
     const { modules } = await getCompanyIntegrationStatus(companyId);
     const moduleId = moduleForTab(tabId);
@@ -51,6 +60,16 @@ export default async function ClientWorkspaceTabPage({
     if (!allowed) {
       redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);
     }
+  }
+
+  if (tabId === CLIENT_HOME_TAB_ID) {
+    const displayName =
+      session.user.name?.trim() || session.user.email?.split('@')[0] || 'User';
+    const overviews = await getHomeDashboardOverviews(
+      session.user.companyId!,
+      session.user.id
+    );
+    return <HomeDashboard userName={displayName} overviews={overviews} />;
   }
 
   return <ClientTabView tabId={tabId} />;

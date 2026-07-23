@@ -47,7 +47,7 @@ const dashboardNav: NavItem[] = [
 ];
 
 const outreachNav: NavItem[] = [
-  { href: '/outreach', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/outreach', label: 'Overview', icon: LayoutDashboard },
   { href: '/outreach/campaigns', label: 'Email Messages', icon: Mail },
   { href: '/outreach/analytics', label: 'Cold Email Analytics', icon: BarChart3 },
   { href: '/outreach/scraper', label: 'Lead Scraper', icon: Search },

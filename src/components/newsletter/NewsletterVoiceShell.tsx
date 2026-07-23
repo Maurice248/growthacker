@@ -15,7 +15,7 @@ const NAV = [
     label: 'Newsletter',
     icon: Mail,
     children: [
-      { label: 'Dashboard', href: '/newsletter/dashboard' },
+      { label: 'Overview', href: '/newsletter/dashboard' },
       { label: 'Settings', href: '/newsletter/overview' },
       { label: 'Generate Newsletter', href: '/newsletter/generate' },
       { label: 'Create Campaign', href: '/newsletter/campaign' },

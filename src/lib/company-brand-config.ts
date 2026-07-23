@@ -129,25 +129,27 @@ export async function getRequestCompanyBrandConfig() {
 
 export async function updateCompanyBrandConfig(companyId: string, body: BrandConfigDbRow) {
   const config = await ensureCompanyBrandConfig(companyId);
+  const data: Record<string, string> = {};
+
+  if (body.products_services !== undefined) data.productsServices = body.products_services;
+  if (body.value_proposition !== undefined) data.valueProposition = body.value_proposition;
+  if (body.brand_voice !== undefined) data.brandVoice = body.brand_voice;
+  if (body.positioning !== undefined) data.positioning = body.positioning;
+  if (body.competitors !== undefined) data.competitors = body.competitors;
+  if (body.pain_points !== undefined) data.painPoints = body.pain_points;
+  if (body.icp_meta_ads !== undefined) data.icpMetaAds = body.icp_meta_ads;
+  if (body.icp_newsletter !== undefined) data.icpNewsletter = body.icp_newsletter;
+  if (body.icp_outreach !== undefined) data.icpOutreach = body.icp_outreach;
+  if (body.icp_cold_dm !== undefined) data.icpColdDm = body.icp_cold_dm;
+  if (body.icp_cold_call !== undefined) data.icpColdCall = body.icp_cold_call;
+  if (body.icp_cold_sms !== undefined) data.icpColdSms = body.icp_cold_sms;
+  if (body.icp_blog !== undefined) data.icpBlog = body.icp_blog;
+  if (body.icp_social !== undefined) data.icpSocial = body.icp_social;
+  if (body.destination_url !== undefined) data.destinationUrl = body.destination_url;
+
   const updated = await prisma.companyBrandConfig.update({
     where: { id: config.id },
-    data: {
-      productsServices: body.products_services ?? '',
-      valueProposition: body.value_proposition ?? '',
-      brandVoice: body.brand_voice ?? '',
-      positioning: body.positioning ?? '',
-      competitors: body.competitors ?? '',
-      painPoints: body.pain_points ?? '',
-      icpMetaAds: body.icp_meta_ads ?? '',
-      icpNewsletter: body.icp_newsletter ?? '',
-      icpOutreach: body.icp_outreach ?? '',
-      icpColdDm: body.icp_cold_dm ?? '',
-      icpColdCall: body.icp_cold_call ?? '',
-      icpColdSms: body.icp_cold_sms ?? '',
-      icpBlog: body.icp_blog ?? '',
-      icpSocial: body.icp_social ?? '',
-      destinationUrl: body.destination_url ?? '',
-    },
+    data,
   });
   return rowToApi(updated);
 }

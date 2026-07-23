@@ -32,7 +32,7 @@ export default async function OutreachDashboardPage() {
 
   return (
     <div>
-      <Header title="Dashboard" description="Overview of your automation workflows." />
+      <Header title="Overview" description="Overview of your automation workflows." />
 
       <PageBody className="space-y-12">
         {stats.dbUnavailable && (

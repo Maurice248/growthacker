@@ -425,7 +425,7 @@ function AutomationLoopSection({
                   Launching…
                 </span>
               ) : (
-                "Launch new variants to Meta"
+                "Launch on Meta"
               )}
             </EditorialPillButton>
           )}
@@ -437,7 +437,7 @@ function AutomationLoopSection({
             >
               {automation.status === "evaluating" || automation.status === "generating"
                 ? "Evaluating…"
-                : "Run evaluation now"}
+                : "Run Evaluation"}
             </EditorialPillButton>
           )}
         </div>

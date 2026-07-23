@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Megaphone, Newspaper, Send, FileText, Settings, Share2, SlidersHorizontal } from 'lucide-react';
+import { Megaphone, Newspaper, Send, FileText, Settings, Share2, SlidersHorizontal, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   CLIENT_BLOG_TABS,
+  CLIENT_HOME_TAB_ID,
   CLIENT_BRAND_CONTEXT_TAB_ID,
   CLIENT_CONFIGURATION_IDS,
   CLIENT_CONFIGURATION_TABS,
@@ -262,6 +263,15 @@ export function ClientDashboardNav({
 
   return (
     <nav className="flex flex-col gap-1">
+      <NavLink
+        href={clientWorkspaceHref(CLIENT_HOME_TAB_ID)}
+        label="Dashboard"
+        icon={LayoutDashboard}
+        active={activeTab === CLIENT_HOME_TAB_ID}
+        collapsed={collapsed}
+        onNavigate={onNavigate}
+      />
+
       {moduleEnabled('meta') && (
       <NavGroup
         label="Meta Ads"
