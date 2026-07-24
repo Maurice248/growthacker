@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { ModuleStatus } from '@/lib/company-module-status';
+import { CLIENT_HOME_TAB_ID } from '@/lib/client-dashboard-nav';
 
 type OnboardingPageProps = {
   initialCompanyName: string;
@@ -45,7 +46,7 @@ export function OnboardingWizard({ initialCompanyName, modules }: OnboardingPage
         setLoading(false);
         return;
       }
-      router.push('/client-dashboard/workspace/profile');
+      router.push(`/client-dashboard/workspace/${CLIENT_HOME_TAB_ID}`);
       router.refresh();
     } catch {
       setError('Something went wrong. Please try again.');

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  CLIENT_BRAND_CONTEXT_TAB_ID,
   CLIENT_DASHBOARD_NAVIGATE_EVENT,
   CLIENT_DASHBOARD_SET_TAB_EVENT,
+  CLIENT_HOME_TAB_ID,
   isMainAppEmbedTab,
 } from '@/lib/client-dashboard-nav';
 import { moduleForTab } from '@/lib/company-module-status';
@@ -26,12 +26,24 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   const isHiddenModule = moduleStatus?.enabled === false;
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const initialTabRef = useRef<string | null>(tabId);
+  const iframeBootTabRef = useRef<string | null>(null);
   const lastSentTabRef = useRef<string | null>(null);
+  const showMainIframe = isMainApp && !isHiddenModule;
+
+  if (showMainIframe && tabId && !iframeBootTabRef.current) {
+    iframeBootTabRef.current = tabId;
+  }
+
+  useEffect(() => {
+    if (!showMainIframe) {
+      iframeBootTabRef.current = null;
+      lastSentTabRef.current = null;
+    }
+  }, [showMainIframe]);
 
   useEffect(() => {
     if (!isHiddenModule || !tabId) return;
-    router.replace(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`, { scroll: false });
+    router.replace(`/client-dashboard/workspace/${CLIENT_HOME_TAB_ID}`, { scroll: false });
   }, [isHiddenModule, tabId, router]);
 
   const sendTabToIframe = useCallback((tab: string) => {
@@ -54,6 +66,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   }, [isMainApp, isHiddenModule, tabId, sendTabToIframe]);
 
   useEffect(() => {
+    if (!showMainIframe) return;
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type !== CLIENT_DASHBOARD_NAVIGATE_EVENT) return;
@@ -64,23 +77,26 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [pathname, router]);
+  }, [pathname, router, showMainIframe]);
 
-  const iframeSrc = `/?embed=1&tab=${initialTabRef.current ?? CLIENT_BRAND_CONTEXT_TAB_ID}`;
-  const showMainIframe = isMainApp && !isHiddenModule;
+  const iframeSrc = iframeBootTabRef.current
+    ? `/?embed=1&tab=${iframeBootTabRef.current}`
+    : null;
 
   return (
     <div className="flex h-[calc(100dvh)] min-h-0 flex-1 flex-col">
-      <iframe
-        ref={iframeRef}
-        src={iframeSrc}
-        title="Main app"
-        style={{ display: showMainIframe ? 'block' : 'none', flex: 1, minHeight: 0 }}
-        className="h-full w-full border-none bg-[var(--bg)]"
-        onLoad={() => {
-          if (showMainIframe && tabId) sendTabToIframe(tabId);
-        }}
-      />
+      {showMainIframe && iframeSrc ? (
+        <iframe
+          ref={iframeRef}
+          src={iframeSrc}
+          title="Main app"
+          className="h-full w-full flex-1 border-none bg-[var(--bg)]"
+          style={{ minHeight: 0 }}
+          onLoad={() => {
+            if (tabId) sendTabToIframe(tabId);
+          }}
+        />
+      ) : null}
       {!isMainApp && !isHiddenModule && children}
     </div>
   );

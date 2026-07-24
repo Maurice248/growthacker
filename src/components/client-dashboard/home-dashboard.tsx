@@ -128,9 +128,7 @@ function ModuleCard({
       ) : (
         <div className="mt-4 rounded-md border border-dashed border-amber-200 bg-amber-50/60 px-3 py-2.5">
           <p className="text-[12.5px] leading-relaxed text-amber-900">
-            {module.missingKeys.length > 0
-              ? `Needs: ${module.missingKeys.slice(0, 2).join(', ')}${module.missingKeys.length > 2 ? '…' : ''}`
-              : 'Connect API keys in Settings to unlock this module.'}
+            Connect API keys in Settings to unlock this module.
           </p>
         </div>
       )}

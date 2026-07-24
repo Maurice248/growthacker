@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils';
 import {
   CLIENT_BLOG_TABS,
   CLIENT_HOME_TAB_ID,
-  CLIENT_BRAND_CONTEXT_TAB_ID,
   CLIENT_CONFIGURATION_IDS,
   CLIENT_CONFIGURATION_TABS,
   CLIENT_META_ADS_TABS,
@@ -197,12 +196,6 @@ export function ClientDashboardNav({
   const [configurationOpen, setConfigurationOpen] = useState(
     configurationActive || !integrationsConfigured
   );
-
-  useEffect(() => {
-    if (integrationsConfigured) return;
-    if (!activeTab || CLIENT_CONFIGURATION_IDS.has(activeTab)) return;
-    router.replace(clientWorkspaceHref(CLIENT_BRAND_CONTEXT_TAB_ID));
-  }, [integrationsConfigured, activeTab, router]);
 
   const collapseAllModules = () => {
     setMetaAdsOpen(false);

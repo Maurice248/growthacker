@@ -4,11 +4,10 @@ import { authOptions } from '@/lib/auth';
 import { getCompanyIntegrationStatus } from '@/lib/company-integration-status';
 import {
   CLIENT_ALL_TAB_IDS,
-  CLIENT_BRAND_CONTEXT_TAB_ID,
   CLIENT_CONFIGURATION_IDS,
   CLIENT_HOME_TAB_ID,
 } from '@/lib/client-dashboard-nav';
-import { hasAccessibleIntegrationModule, moduleForTab } from '@/lib/company-module-status';
+import { moduleForTab } from '@/lib/company-module-status';
 import { ClientTabView } from '@/components/client-dashboard/client-tab-view';
 import { HomeDashboard } from '@/components/client-dashboard/home-dashboard';
 import { getHomeDashboardOverviews } from '@/lib/home-dashboard-data';
@@ -21,7 +20,7 @@ export default async function ClientWorkspaceTabPage({
   const { tabId } = await params;
 
   if (!CLIENT_ALL_TAB_IDS.has(tabId)) {
-    redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);
+    redirect(`/client-dashboard/workspace/${CLIENT_HOME_TAB_ID}`);
   }
 
   const session = await getServerSession(authOptions);
@@ -50,15 +49,11 @@ export default async function ClientWorkspaceTabPage({
     const status = moduleId ? modules.find((m) => m.id === moduleId) : null;
 
     if (status && !status.enabled) {
-      redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);
+      redirect(`/client-dashboard/workspace/${CLIENT_HOME_TAB_ID}`);
     }
 
-    const allowed = moduleId
-      ? status?.accessible === true
-      : hasAccessibleIntegrationModule(modules);
-
-    if (!allowed) {
-      redirect(`/client-dashboard/workspace/${CLIENT_BRAND_CONTEXT_TAB_ID}`);
+    if (moduleId && status?.accessible !== true) {
+      redirect(`/client-dashboard/workspace/${CLIENT_HOME_TAB_ID}`);
     }
   }
 
