@@ -80,6 +80,20 @@ export async function runCompetitorAnalysis(
     };
   }
 
+  const scrapeImage = input.scrape_image !== false;
+  const scrapeVideo = input.scrape_video !== false;
+  if (!scrapeImage && !scrapeVideo) {
+    return {
+      success: false,
+      executive_summary: '',
+      competitors_table: [],
+      hooks_table: [],
+      market_insights_table: [],
+      gaps_table: [],
+      error: 'Select at least one ad format to scrape (image or video).',
+    };
+  }
+
   const companyContext = await resolveAnalysisCompanyContext(companyId, input);
   const topic = companyContext.topic;
   const relevanceTerms = buildRelevanceTerms(companyContext);

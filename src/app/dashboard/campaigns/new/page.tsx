@@ -51,7 +51,7 @@ type CampaignFormData = z.infer<typeof campaignSchema>;
 const LOADING_STEPS = [
   { at: 0,   text: 'Preparing campaign brief...' },
   { at: 5,   text: 'Validating campaign data...' },
-  { at: 12,  text: 'Loading brand context...' },
+  { at: 12,  text: 'Loading brand and ICP...' },
   { at: 25,  text: 'AI is crafting your email content...' },
   { at: 55,  text: 'Finalising subject line and preview text...' },
   { at: 90,  text: 'Almost done — saving campaign...' },

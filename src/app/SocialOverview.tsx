@@ -240,7 +240,7 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
       <EditorialPageHeader
         eyebrow="Social Channels"
         title="Overview"
-        subtitle="Posting settings for Creator Studio. Brand copy for AI prompts comes from Configuration → Brand Context."
+        subtitle="Posting settings for Creator Studio. Brand copy for AI prompts comes from Configuration → Brand and ICP."
       />
 
       <section
@@ -255,12 +255,12 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
           label="Pipeline ready"
           labelColor="#38678A"
           value={configReady ? "Configured" : "Setup"}
-          sub={configReady ? "Brand context + posting settings ready" : "Complete Brand Context and posting settings"}
+          sub={configReady ? "Brand and ICP + posting settings ready" : "Complete Brand and ICP and posting settings"}
         />
         <OverviewStatCell
           label="Company"
           value={companyName || "—"}
-          sub={brandContextReady ? "Brand Context loaded for AI prompts" : "Add Brand Context in Configuration"}
+          sub={brandContextReady ? "Brand and ICP loaded for AI prompts" : "Add Brand and ICP in Configuration"}
         />
         <OverviewStatCell
           isLast
@@ -303,7 +303,7 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
               {pipelineStatus}
             </div>
             <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
-              Status updates from your company&apos;s Creator Studio jobs. AI prompts use Brand Context from Configuration — companies never edit prompt templates directly.
+              Status updates from your company&apos;s Creator Studio jobs. AI prompts use Brand and ICP from Configuration — companies never edit prompt templates directly.
             </p>
           </div>
         </div>
@@ -311,8 +311,8 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
 
       <section style={{ marginTop: 48 }}>
         <EditorialSectionHeader
-          title="Brand Context for AI Prompts"
-          meta="From Configuration → Brand Context"
+          title="Brand and ICP for AI Prompts"
+          meta="From Configuration → Brand and ICP"
         />
         <div
           style={{
@@ -338,10 +338,10 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
             >
               {loading && <Spinner size={14} color="#38678A" />}
               {loading
-                ? "Getting brand context..."
+                ? "Getting brand and ICP..."
                 : brandContextReady
-                  ? "Connected to Brand Context"
-                  : "Brand Context not configured"}
+                  ? "Connected to Brand and ICP"
+                  : "Brand and ICP not configured"}
             </div>
             <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4A5A64" }}>
               Creator Studio image, copy, and video prompts use brand data from Configuration automatically.
@@ -350,7 +350,7 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
                   {" "}
                   Edit it in{" "}
                   <EditorialTextLink onClick={onEditBrandContext} style={{ fontSize: 14 }}>
-                    Configuration → Brand Context
+                    Configuration → Brand and ICP
                   </EditorialTextLink>
                   .
                 </>
@@ -439,7 +439,7 @@ export default function SocialOverview({ onEditBrandContext }: SocialOverviewPro
               }}
             >
               <span style={{ fontSize: 13.5, color: "var(--text-muted)" }}>
-                Brand copy is managed in Configuration → Brand Context and injected into Creator Studio prompts.
+                Brand copy is managed in Configuration → Brand and ICP and injected into Creator Studio prompts.
               </span>
               {saveMsg && (
                 <span

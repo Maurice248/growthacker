@@ -249,6 +249,22 @@ export async function deleteCompanyBrandSnapshot(companyId: string, snapshotId: 
   return result.count > 0;
 }
 
+export async function renameCompanyBrandSnapshot(
+  companyId: string,
+  snapshotId: string,
+  label: string
+) {
+  const config = await ensureCompanyBrandConfig(companyId);
+  const result = await prisma.companyBrandSnapshot.updateMany({
+    where: { id: snapshotId, brandConfigId: config.id },
+    data: { label },
+  });
+  if (result.count === 0) return null;
+
+  const updated = await prisma.companyBrandSnapshot.findUnique({ where: { id: snapshotId } });
+  return updated ? snapshotToApi(updated) : null;
+}
+
 export function brandProfileFromApiRow(row: BrandConfigDbRow | null | undefined): BrandProfileData {
   return profileFromDb(row);
 }

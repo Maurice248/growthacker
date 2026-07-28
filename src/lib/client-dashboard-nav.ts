@@ -34,7 +34,7 @@ export const CLIENT_HOME_TAB_ID = 'dashboard';
 export const CLIENT_BRAND_CONTEXT_TAB_ID = 'profile';
 
 export const CLIENT_CONFIGURATION_TABS: ClientNavItem[] = [
-  { id: CLIENT_BRAND_CONTEXT_TAB_ID, label: 'Brand Context', icon: User },
+  { id: CLIENT_BRAND_CONTEXT_TAB_ID, label: 'Brand and ICP', icon: User },
   { id: 'analysis', label: 'Competitors', icon: BarChart3 },
 ];
 

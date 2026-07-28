@@ -17,7 +17,7 @@ export type SocialStudioPostingConfig = {
   enabledPlatforms: SocialPlatform[];
 };
 
-/** Brand copy injected into Creator Studio prompts — resolved from Configuration → Brand Context. */
+/** Brand copy injected into Creator Studio prompts — resolved from Configuration → Brand and ICP. */
 export type SocialStudioBrandPromptContext = {
   brandAbout: string;
   brandMission: string;

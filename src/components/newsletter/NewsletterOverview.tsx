@@ -119,8 +119,8 @@ export default function NewsletterOverview() {
         title="Newsletter Settings"
         subtitle={
           companyName
-            ? `Configure sending identity and schedule for ${companyName}. AI prompts use your Brand Context automatically.`
-            : "Configure sending identity and schedule. AI prompts use your Brand Context automatically."
+            ? `Configure sending identity and schedule for ${companyName}. AI prompts use your Brand and ICP automatically.`
+            : "Configure sending identity and schedule. AI prompts use your Brand and ICP automatically."
         }
       />
 

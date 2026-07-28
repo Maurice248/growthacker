@@ -5,6 +5,9 @@ export type CompetitorAnalysisInput = {
   max_ads?: number;
   only_active?: boolean;
   sort?: string;
+  /** When both true (default), Ads Library uses media_type=all. */
+  scrape_image?: boolean;
+  scrape_video?: boolean;
   brand_config?: unknown;
   brand_snapshot_id?: string | null;
   timestamp?: string;

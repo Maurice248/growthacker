@@ -5,14 +5,27 @@ const SORT_MAP: Record<string, string> = {
   'Impressions Low → High': 'impressions_asc',
 };
 
+export function resolveAdsLibraryMediaType(
+  scrapeImage: boolean | undefined,
+  scrapeVideo: boolean | undefined
+): 'all' | 'image' | 'video' {
+  const image = scrapeImage !== false;
+  const video = scrapeVideo !== false;
+  if (image && video) return 'all';
+  if (image) return 'image';
+  if (video) return 'video';
+  return 'all';
+}
+
 export function buildApifyRequest(input: CompetitorAnalysisInput) {
   const urls: Array<{ url: string }> = [];
+  const mediaType = resolveAdsLibraryMediaType(input.scrape_image, input.scrape_video);
 
   for (const country of input.countries) {
     for (const keyword of input.keywords) {
       const encodedKeyword = encodeURIComponent(keyword);
       urls.push({
-        url: `https://www.facebook.com/ads/library/?active_status=${input.only_active ? 'active' : 'all'}&ad_type=all&country=${country}&q=${encodedKeyword}&search_type=keyword_unordered&media_type=all`,
+        url: `https://www.facebook.com/ads/library/?active_status=${input.only_active ? 'active' : 'all'}&ad_type=all&country=${country}&q=${encodedKeyword}&search_type=keyword_unordered&media_type=${mediaType}`,
       });
     }
   }

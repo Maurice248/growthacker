@@ -54,6 +54,7 @@ import {
   Share2,
   Newspaper,
   PenLine,
+  Pencil,
   Search,
   History,
   Trash2,
@@ -81,6 +82,11 @@ import { HideNextDevIndicator } from "@/components/HideNextDevIndicator";
 import "./globals.css";
 import { DEFAULT_WEBSITE_URL } from "@/lib/legacy-brand";
 import { reportBelongsToCompany } from "@/lib/reports-query";
+import {
+  filterCountryOptions,
+  META_AD_LIBRARY_COUNTRIES,
+  resolveCountryFromInput,
+} from "@/lib/competitor-analysis/countries";
 import {
   BRAND_DESTINATION_FIELD,
   BRAND_ICP_FIELDS,
@@ -218,7 +224,7 @@ const ICP_FIELD_ICONS: Partial<Record<
 };
 
 const CONFIGURATION_TABS = [
-  { id: "profile", label: "Brand Context", icon: User },
+  { id: "profile", label: "Brand and ICP", icon: User },
   { id: "analysis", label: "Competitors", icon: BarChart3 },
 ];
 
@@ -329,20 +335,6 @@ const TOPICS = [
   "Landlord Dashboard",
   "Rental Application Tracking",
   "AI Tenant Scoring",
-];
-
-const LOCATION_SUGGESTIONS = [
-  { name: "United States", shortcut: "US", details: "Country in North America" },
-  { name: "Canada", shortcut: "CA", details: "Country in North America" },
-  { name: "Turkey", shortcut: "TR", details: "Country in Europe/Asia" },
-  { name: "United Kingdom", shortcut: "GB", details: "Country in Europe" },
-  { name: "Germany", shortcut: "DE", details: "Country in Europe" },
-  { name: "France", shortcut: "FR", details: "Country in Europe" },
-  { name: "Australia", shortcut: "AU", details: "Country in Oceania" },
-  { name: "United Arab Emirates", shortcut: "AE", details: "Country in Middle East" },
-  { name: "India", shortcut: "IN", details: "Country in South Asia" },
-  { name: "Spain", shortcut: "ES", details: "Country in Europe" },
-  { name: "Italy", shortcut: "IT", details: "Country in Europe" },
 ];
 
 // ─── HELPERS ─────────────────────────────────────────────────
@@ -1365,7 +1357,18 @@ export default function Dashboard() {
   const [researchCountries, setResearchCountries] = useLocalStorage("app_research_countries", ["CA", "US"]);
   const [locationSearchInput, setLocationSearchInput] = useState("");
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+
+  const addResearchCountryFromInput = useCallback(() => {
+    const match = resolveCountryFromInput(locationSearchInput);
+    if (!match) return;
+    setResearchCountries((prev) => (prev.includes(match.shortcut) ? prev : [...prev, match.shortcut]));
+    setLocationSearchInput("");
+    setShowLocationDropdown(false);
+  }, [locationSearchInput, setResearchCountries]);
+
   const [researchMaxAds, setResearchMaxAds] = useLocalStorage("app_research_max_ads", 100);
+  const [researchScrapeImage, setResearchScrapeImage] = useLocalStorage("app_research_scrape_image", true);
+  const [researchScrapeVideo, setResearchScrapeVideo] = useLocalStorage("app_research_scrape_video", true);
   const [researchOnlyActive, setResearchOnlyActive] = useLocalStorage("app_research_only_active", true);
   const [researchSort, setResearchSort] = useLocalStorage("app_research_sort", "Impressions High → Low");
 
@@ -1481,6 +1484,9 @@ export default function Dashboard() {
   const [templateNameInput, setTemplateNameInput] = useState("");
   const [pendingSnapshotPayload, setPendingSnapshotPayload] = useState<any>(null);
   const [isSavingTemplateName, setIsSavingTemplateName] = useState(false);
+  const [isEditingActiveTemplateLabel, setIsEditingActiveTemplateLabel] = useState(false);
+  const [activeTemplateLabelDraft, setActiveTemplateLabelDraft] = useState("");
+  const [isSavingActiveTemplateLabel, setIsSavingActiveTemplateLabel] = useState(false);
   const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -2047,6 +2053,63 @@ export default function Dashboard() {
     loadingBrandSnapshots,
     brandSnapshots,
   ]);
+
+  const canRenameActiveTemplateLabel = isActiveSavedTemplate;
+
+  const handleStartEditingActiveTemplateLabel = useCallback(() => {
+    if (!canRenameActiveTemplateLabel) return;
+    setActiveTemplateLabelDraft(activeBrandSnapshot.label || activeBrandContextLabel || "");
+    setIsEditingActiveTemplateLabel(true);
+  }, [canRenameActiveTemplateLabel, activeBrandSnapshot?.label, activeBrandContextLabel]);
+
+  const handleCancelEditingActiveTemplateLabel = useCallback(() => {
+    setIsEditingActiveTemplateLabel(false);
+    setActiveTemplateLabelDraft("");
+  }, []);
+
+  const handleSaveActiveTemplateLabel = useCallback(async () => {
+    const name = activeTemplateLabelDraft.trim();
+    if (!name || !canRenameActiveTemplateLabel || !activeBrandSnapshot?.id) {
+      addSbToast("Please enter a template name", "error");
+      return;
+    }
+    setIsSavingActiveTemplateLabel(true);
+    try {
+      const res = await fetch(`/api/brand-config/snapshots/${activeBrandSnapshot.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: name }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        addSbToast(result.error || "Could not rename template", "error");
+        return;
+      }
+      const newLabel = result.snapshot?.label || name;
+      setActiveBrandSnapshot({ ...activeBrandSnapshot, label: newLabel });
+      setBrandSnapshots((prev) =>
+        prev.map((s: any) => (s.id === activeBrandSnapshot.id ? { ...s, label: newLabel } : s))
+      );
+      setIsEditingActiveTemplateLabel(false);
+      setActiveTemplateLabelDraft("");
+      addSbToast("Template name updated", "success");
+    } catch {
+      addSbToast("Could not rename template", "error");
+    } finally {
+      setIsSavingActiveTemplateLabel(false);
+    }
+  }, [
+    activeTemplateLabelDraft,
+    canRenameActiveTemplateLabel,
+    activeBrandSnapshot,
+    setActiveBrandSnapshot,
+    addSbToast,
+  ]);
+
+  useEffect(() => {
+    setIsEditingActiveTemplateLabel(false);
+    setActiveTemplateLabelDraft("");
+  }, [activeBrandSnapshot?.id]);
 
   const displayProfileData = useMemo(() => {
     let base;
@@ -4333,6 +4396,11 @@ export default function Dashboard() {
       return;
     }
 
+    if (!researchScrapeImage && !researchScrapeVideo) {
+      addSbToast("Select at least one ad format to scrape (image or video).", "error");
+      return;
+    }
+
     analysisInFlightRef.current = true;
     setAnalysisData(null);
     setAnalysisError("");
@@ -4358,6 +4426,8 @@ export default function Dashboard() {
           countries: researchCountries,
           max_ads: Number(researchMaxAds) || 100,
           only_active: researchOnlyActive,
+          scrape_image: researchScrapeImage,
+          scrape_video: researchScrapeVideo,
           sort: researchSort,
           brand_config: brandConfig,
           brand_snapshot_id: activeBrandSnapshot?.id !== "current" ? activeBrandSnapshot?.id : null,
@@ -5477,23 +5547,11 @@ export default function Dashboard() {
           <EditorialPage>
             <header style={{ marginBottom: 40 }}>
               <div style={{ fontSize: 11.5, letterSpacing: "1.4px", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 500, marginBottom: 10 }}>
-                Meta Ads ·{" "}
-                <button
-                  type="button"
-                  onClick={() => fetchMetaInsights()}
-                  style={{ background: "none", border: "none", padding: 0, color: "var(--secondary)", cursor: "pointer", font: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--red)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--secondary)"; }}
-                >
-                  Live data
-                </button>
+                Meta Ads
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-                <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 34, lineHeight: 1.1, letterSpacing: "-0.8px", color: "var(--text)", margin: 0 }}>
-                  Overview
-                </h1>
-                <EditorialPillButton variant="danger" onClick={() => setTab("create")} style={{ padding: "10px 24px", whiteSpace: "nowrap" }}>Create ad →</EditorialPillButton>
-              </div>
+              <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 34, lineHeight: 1.1, letterSpacing: "-0.8px", color: "var(--text)", margin: 0 }}>
+                Overview
+              </h1>
             </header>
 
             <EditorialStatRibbon columns={4}>
@@ -5504,7 +5562,7 @@ export default function Dashboard() {
             </EditorialStatRibbon>
 
             <section style={{ marginTop: 48 }}>
-              <EditorialSectionHeader title="Account Health Snapshot" meta="Live data" />
+              <EditorialSectionHeader title="Account Health Snapshot" />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", borderBottom: "1px solid var(--border)" }}>
                 <EditorialPanelStatCell isFirst label="Total investment" value={`$${spendTotal.toFixed(2)}`} />
                 <EditorialPanelStatCell label="Total reach" value={impressionsTotal.toLocaleString()} />
@@ -5573,7 +5631,7 @@ export default function Dashboard() {
       {tab === "analysis" && (
         <EditorialPage>
           <EditorialPageHeader
-            eyebrow="Ads Lab"
+            eyebrow="Configuration"
             title="Competitor Ad Analysis"
             subtitle="Research competitor ads, find gaps, and get ready-to-use ad scripts powered by AI."
           />
@@ -5609,36 +5667,7 @@ export default function Dashboard() {
               </div>
               <EditorialDefinitionList>
                 <EditorialDefinitionRow label="Keywords" labelSub="Press Enter to append">
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-                    {researchKeywords.map((kw, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 7,
-                          padding: "5px 12px",
-                          border: "1px solid #C2B79A",
-                          borderRadius: 999,
-                          color: "#2B3A4A",
-                          fontSize: 13.5,
-                        }}
-                      >
-                        {kw}
-                        <button
-                          type="button"
-                          onClick={() => setResearchKeywords(prev => prev.filter((_, i) => i !== idx))}
-                          style={{ background: "none", border: "none", color: "#8C8474", fontWeight: 700, cursor: "pointer", padding: 0 }}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    {researchKeywords.length === 0 && (
-                      <span style={{ fontSize: 13, color: "var(--text-dim)" }}>No keywords selected. Add some below.</span>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 16, alignItems: "baseline", flexWrap: "wrap", marginBottom: 14 }}>
                     <input
                       type="text"
                       placeholder="Add a new keyword…"
@@ -5680,40 +5709,94 @@ export default function Dashboard() {
                       Add
                     </EditorialTextLink>
                   </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {researchKeywords.map((kw, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 7,
+                          padding: "5px 12px",
+                          border: "1px solid #C2B79A",
+                          borderRadius: 999,
+                          color: "#2B3A4A",
+                          fontSize: 13.5,
+                        }}
+                      >
+                        {kw}
+                        <button
+                          type="button"
+                          onClick={() => setResearchKeywords(prev => prev.filter((_, i) => i !== idx))}
+                          style={{ background: "none", border: "none", color: "#8C8474", fontWeight: 700, cursor: "pointer", padding: 0 }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    {researchKeywords.length === 0 && (
+                      <span style={{ fontSize: 13, color: "var(--text-dim)" }}>No keywords selected.</span>
+                    )}
+                  </div>
                 </EditorialDefinitionRow>
 
                 <EditorialDefinitionRow label="Locations">
                   <div style={{ position: "relative" }} onMouseLeave={() => setShowLocationDropdown(false)}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
-                      {researchCountries.map(code => {
-                        const matched = LOCATION_SUGGESTIONS.find(c => c.shortcut === code);
-                        const label = matched ? matched.name : code;
-                        return (
-                          <span key={code} style={{ border: "1px solid #C2B79A", borderRadius: 999, padding: "5px 12px", fontSize: 13.5, color: "#2B3A4A", display: "inline-flex", alignItems: "center", gap: 7 }}>
-                            {label} ({code})
-                            <button type="button" onClick={() => setResearchCountries(prev => prev.filter(c => c !== code))} style={{ background: "none", border: "none", color: "#8C8474", fontWeight: 700, cursor: "pointer", padding: 0 }}>×</button>
-                          </span>
-                        );
-                      })}
+                    <div style={{ display: "flex", gap: 16, alignItems: "baseline", flexWrap: "wrap", marginBottom: 14 }}>
                       <input
                         type="text"
-                        placeholder="Search country…"
+                        placeholder="Add country"
                         value={locationSearchInput}
-                        onChange={(e) => { setLocationSearchInput(e.target.value); setShowLocationDropdown(true); }}
+                        onChange={(e) => {
+                          setLocationSearchInput(e.target.value);
+                          setShowLocationDropdown(true);
+                        }}
                         onFocus={() => setShowLocationDropdown(true)}
-                        style={{ fontFamily: "inherit", fontSize: 14.5, padding: "8px 0 8px 8px", border: "none", borderBottom: "1px solid #C2B79A", background: "transparent", color: "var(--primary)", outline: "none", width: 180, marginLeft: researchCountries.length ? 8 : 0 }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addResearchCountryFromInput();
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: 200,
+                          maxWidth: 320,
+                          fontFamily: "inherit",
+                          fontSize: 14.5,
+                          padding: "8px 0 8px 8px",
+                          border: "none",
+                          borderBottom: "1px solid #C2B79A",
+                          background: "transparent",
+                          color: "var(--primary)",
+                          outline: "none",
+                        }}
                       />
+                      <EditorialTextLink onClick={addResearchCountryFromInput}>Add</EditorialTextLink>
                     </div>
-                    {showLocationDropdown && locationSearchInput && (
-                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "var(--shadow-lg)", maxHeight: 200, overflowY: "auto", marginTop: 4 }}>
-                        {LOCATION_SUGGESTIONS.filter(item =>
-                          item.name.toLowerCase().includes(locationSearchInput.toLowerCase()) ||
-                          item.shortcut.toLowerCase().includes(locationSearchInput.toLowerCase())
-                        ).map((item, index) => (
+                    {showLocationDropdown && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 36,
+                          left: 0,
+                          right: 0,
+                          zIndex: 50,
+                          background: "var(--card-bg)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          boxShadow: "var(--shadow-lg)",
+                          maxHeight: 280,
+                          overflowY: "auto",
+                        }}
+                      >
+                        {filterCountryOptions(locationSearchInput).map((item) => (
                           <div
-                            key={index}
+                            key={item.shortcut}
                             onClick={() => {
-                              if (!researchCountries.includes(item.shortcut)) setResearchCountries(prev => [...prev, item.shortcut]);
+                              if (!researchCountries.includes(item.shortcut)) {
+                                setResearchCountries((prev) => [...prev, item.shortcut]);
+                              }
                               setLocationSearchInput("");
                               setShowLocationDropdown(false);
                             }}
@@ -5724,6 +5807,39 @@ export default function Dashboard() {
                         ))}
                       </div>
                     )}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {researchCountries.map((code) => {
+                        const matched = META_AD_LIBRARY_COUNTRIES.find((c) => c.shortcut === code);
+                        const label = matched ? matched.name : code;
+                        return (
+                          <span
+                            key={code}
+                            style={{
+                              border: "1px solid #C2B79A",
+                              borderRadius: 999,
+                              padding: "5px 12px",
+                              fontSize: 13.5,
+                              color: "#2B3A4A",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 7,
+                            }}
+                          >
+                            {label} ({code})
+                            <button
+                              type="button"
+                              onClick={() => setResearchCountries((prev) => prev.filter((c) => c !== code))}
+                              style={{ background: "none", border: "none", color: "#8C8474", fontWeight: 700, cursor: "pointer", padding: 0 }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                      {researchCountries.length === 0 && (
+                        <span style={{ fontSize: 13, color: "var(--text-dim)" }}>No locations selected.</span>
+                      )}
+                    </div>
                   </div>
                 </EditorialDefinitionRow>
 
@@ -5743,6 +5859,29 @@ export default function Dashboard() {
                         max={100}
                         style={{ fontFamily: "inherit", fontSize: 15, padding: "6px 0 6px 8px", border: "none", borderBottom: "1px solid #C2B79A", background: "transparent", color: "var(--primary)", outline: "none", width: 64 }}
                       />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>Ad formats</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "6px 0" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={researchScrapeImage}
+                            onChange={(e) => setResearchScrapeImage(e.target.checked)}
+                            style={{ accentColor: "var(--red)", width: 15, height: 15 }}
+                          />
+                          Image
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={researchScrapeVideo}
+                            onChange={(e) => setResearchScrapeVideo(e.target.checked)}
+                            style={{ accentColor: "var(--red)", width: 15, height: 15 }}
+                          />
+                          Video
+                        </label>
+                      </div>
                     </div>
                     <div>
                       <div style={{ fontSize: 12, letterSpacing: "1px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>Only active ads</div>
@@ -8030,25 +8169,14 @@ export default function Dashboard() {
       {tab === "profile" && (
         <EditorialPage>
           <EditorialPageHeader
-            eyebrow={
-              <>
-                Brand Context · {activeBrandContextLabel ?? "Current brand"} &nbsp;·&nbsp;{" "}
-                <button
-                  type="button"
-                  onClick={() => setBrandSnapshotsModalOpen(true)}
-                  style={{ background: "none", border: "none", padding: 0, color: "var(--secondary)", cursor: "pointer", font: "inherit", letterSpacing: "inherit", textTransform: "inherit", fontWeight: 500 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = "var(--red)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--secondary)"; }}
-                >
-                  {brandSnapshots.length} saved
-                </button>
-              </>
-            }
+            eyebrow="Configuration"
             title="Brand & ICP Configuration"
             actions={
               !isEditingProfile ? (
                 <>
-                  <EditorialTextLink onClick={() => setBrandSnapshotsModalOpen(true)}>Templates</EditorialTextLink>
+                  <EditorialTextLink onClick={() => setBrandSnapshotsModalOpen(true)}>
+                    Templates ({brandSnapshots.length})
+                  </EditorialTextLink>
                   <EditorialPillButton variant="danger" onClick={handleStartEditingProfile} style={{ padding: "10px 24px", whiteSpace: "nowrap" }}>Edit</EditorialPillButton>
                 </>
               ) : (
@@ -8062,6 +8190,91 @@ export default function Dashboard() {
               )
             }
           />
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 10,
+              marginTop: -24,
+              marginBottom: 40,
+              minHeight: 28,
+            }}
+          >
+            {activeBrandContextLabel == null ? (
+              <span style={{ fontSize: 15, color: "var(--text-muted)" }}>Loading template…</span>
+            ) : isEditingActiveTemplateLabel ? (
+              <>
+                <input
+                  type="text"
+                  value={activeTemplateLabelDraft}
+                  onChange={(e) => setActiveTemplateLabelDraft(e.target.value)}
+                  autoFocus
+                  disabled={isSavingActiveTemplateLabel}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleSaveActiveTemplateLabel();
+                    if (e.key === "Escape") handleCancelEditingActiveTemplateLabel();
+                  }}
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "var(--text)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "6px 10px",
+                    minWidth: 200,
+                    maxWidth: "100%",
+                    background: "var(--card-bg)",
+                  }}
+                />
+                <EditorialTextLink
+                  onClick={() => void handleSaveActiveTemplateLabel()}
+                  disabled={isSavingActiveTemplateLabel || !activeTemplateLabelDraft.trim()}
+                >
+                  {isSavingActiveTemplateLabel ? "Saving…" : "Save"}
+                </EditorialTextLink>
+                <EditorialTextLink
+                  onClick={handleCancelEditingActiveTemplateLabel}
+                  disabled={isSavingActiveTemplateLabel}
+                >
+                  Cancel
+                </EditorialTextLink>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 15, fontWeight: 600, color: "#4A5A64" }}>{activeBrandContextLabel}</span>
+                {canRenameActiveTemplateLabel && (
+                  <button
+                    type="button"
+                    onClick={handleStartEditingActiveTemplateLabel}
+                    aria-label="Edit template name"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 4,
+                      border: "none",
+                      borderRadius: "var(--radius-sm)",
+                      background: "transparent",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--red)";
+                      e.currentTarget.style.background = "rgba(193, 18, 31, 0.06)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-muted)";
+                      e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <Pencil size={15} strokeWidth={2} />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
 
           <section>
             <EditorialSectionHeader title="Brand Strategy" />
@@ -8169,7 +8382,7 @@ export default function Dashboard() {
               <div style={{ fontSize: 12, color: "#8C8474" }}>
                 Active Context:{" "}
                 <span style={{ fontWeight: 700, color: "#23394A" }}>
-                  {activeBrandContextLabel ?? "Loading brand context…"}
+                  {activeBrandContextLabel ?? "Loading brand and ICP…"}
                 </span>
               </div>
             </div>
@@ -8184,7 +8397,7 @@ export default function Dashboard() {
                 <div style={{ padding: 40, textAlign: "center" }}>
                   <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "#4A5A64" }}>No saved templates yet</div>
-                  <div style={{ fontSize: 12, color: "#9FA8A3", marginTop: 6 }}>Edit your brand strategy and save — you'll be asked to name each new template.</div>
+                  <div style={{ fontSize: 12, color: "#9FA8A3", marginTop: 6 }}>Edit your brand strategy and save — you&apos;ll be asked to name each new template.</div>
                 </div>
               ) : (
                 brandSnapshots.map((snapshot: any) => {
@@ -8231,7 +8444,7 @@ export default function Dashboard() {
                             onClick={() => setExpandedBrandSnapshotId(isExpanded ? null : snapshot.id)}
                             style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid #E8DCC2", background: "#fff", color: "#8C8474", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
                           >
-                            {isExpanded ? "Hide details" : "View prompts"}
+                            {isExpanded ? "Hide details" : "View"}
                           </button>
                           <button
                             onClick={() => handleDeleteBrandSnapshot(snapshot)}

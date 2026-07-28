@@ -19,6 +19,8 @@ export async function POST(request: Request) {
       max_ads: body.max_ads,
       only_active: body.only_active,
       sort: body.sort,
+      scrape_image: body.scrape_image,
+      scrape_video: body.scrape_video,
       brand_config: body.brand_config,
       brand_snapshot_id: body.brand_snapshot_id,
       timestamp: body.timestamp,

@@ -162,7 +162,7 @@ export default function ColdEmailSettings() {
 
   const description = isOutreach
     ? 'Configure Instantly.ai and lead lists. When you approve a campaign, verified leads are pushed to Instantly, which handles deliverability, follow-ups, and inbox rotation.'
-    : `Configure Instantly.ai and lead lists for ${companyName}. AI prompts use Brand Context automatically.`;
+    : `Configure Instantly.ai and lead lists for ${companyName}. AI prompts use Brand and ICP automatically.`;
 
   return (
     <div>
