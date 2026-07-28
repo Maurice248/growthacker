@@ -118,6 +118,14 @@ export const CLIENT_DASHBOARD_NAVIGATE_EVENT = 'client-dashboard-navigate';
 /** Posted from parent shell to embedded main app iframe to switch tabs without reload */
 export const CLIENT_DASHBOARD_SET_TAB_EVENT = 'client-dashboard-set-tab';
 
+/** Posted from embedded main app when a long Meta Ads pipeline runs (parent keeps iframe alive) */
+export const CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT = 'client-dashboard-create-ad-gen';
+
+export const CREATE_AD_GEN_SESSION_KEY = 'create_ad_gen_active';
+
+/** Persist active variant generation automation id (resume polling after reload) */
+export const VARIANT_GEN_AUTOMATION_ID_KEY = 'app_variant_gen_automation_id';
+
 export function isClientDashboardTabId(tabId: string) {
   return CLIENT_ALL_TAB_IDS.has(tabId);
 }
@@ -195,6 +203,11 @@ const MAIN_APP_TABS = new Set([
 
 export function isMainAppEmbedTab(tabId: string) {
   return MAIN_APP_TABS.has(tabId);
+}
+
+/** Background Create Ad / variants / Creator Studio jobs keep running in the iframe — no leave prompt. */
+export function confirmLeaveDuringCreateAdGen(_targetHref: string): boolean {
+  return true;
 }
 
 export function clientTabEmbedSrc(tabId: string): string | null {

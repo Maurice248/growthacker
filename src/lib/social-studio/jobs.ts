@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/prisma';
 import type { PlatformDescriptions, SocialScene } from './types';
 
+export type SocialStudioBackgroundKind = 'image' | 'video' | 'video_render';
+export type SocialBackgroundRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+
 export type SocialStudioJobRecord = {
   id: string;
   companyId: string;
@@ -135,4 +138,59 @@ export async function getLatestPipelineStatus(companyId: string): Promise<string
     select: { status: true },
   });
   return row?.status || 'Waiting for data...';
+}
+
+export function mergeSocialJobInput(
+  existing: unknown,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const base = existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {};
+  return { ...base, ...patch };
+}
+
+export function getBackgroundRunStatus(job: SocialStudioJobRecord): SocialBackgroundRunStatus | null {
+  const input = job.input as Record<string, unknown> | null;
+  if (!input?.backgroundJob) return null;
+  const rs = input.runStatus;
+  if (rs === 'pending' || rs === 'running' || rs === 'completed' || rs === 'failed') {
+    return rs;
+  }
+  return null;
+}
+
+export async function getActiveSocialBackgroundJob(
+  companyId: string
+): Promise<SocialStudioJobRecord | null> {
+  const rows = await prisma.socialStudioJob.findMany({
+    where: { companyId },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+  for (const row of rows) {
+    const rec = toRecord(row);
+    const rs = getBackgroundRunStatus(rec);
+    if (rs === 'pending' || rs === 'running') return rec;
+  }
+  return null;
+}
+
+export async function createSocialBackgroundJob(
+  companyId: string,
+  kind: SocialStudioBackgroundKind,
+  payload: Record<string, unknown>
+): Promise<SocialStudioJobRecord> {
+  const row = await prisma.socialStudioJob.create({
+    data: {
+      companyId,
+      kind: kind === 'video_render' ? 'video' : kind,
+      status: 'pending',
+      input: mergeSocialJobInput(null, {
+        ...payload,
+        backgroundJob: true,
+        runStatus: 'pending',
+        backgroundKind: kind,
+      }) as object,
+    },
+  });
+  return toRecord(row);
 }

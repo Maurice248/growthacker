@@ -1,4 +1,4 @@
-import { kieCreateVideoTasks, kiePollTasks } from '../kie';
+import { kieCreateVideoTasks, kiePollTasksUntilComplete } from '../kie';
 import { requireToken } from '../tokens';
 import type { CreateAdTokens, KieTaskResult, VideoScene } from '../types';
 
@@ -49,5 +49,5 @@ export async function pollSceneVideos(
   taskIds: string[]
 ): Promise<KieTaskResult[]> {
   const kieKey = requireToken(tokens, 'kie', 'KIE API token');
-  return kiePollTasks(kieKey, taskIds);
+  return kiePollTasksUntilComplete(kieKey, taskIds);
 }

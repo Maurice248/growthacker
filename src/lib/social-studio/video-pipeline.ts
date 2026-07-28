@@ -350,9 +350,10 @@ export async function startVideoRender(
     imageTaskIds.push(taskId);
   }
 
+  const job = await getSocialJob(jobId, companyId);
   await updateSocialJob(jobId, companyId, {
     status: 'Polling scene images...',
-    input: { imageTaskIds, audioUrl },
+    input: mergeJobInput(job?.input, { imageTaskIds, audioUrl }),
   });
 
   return { imageTaskIds, videoTaskIds: [] };

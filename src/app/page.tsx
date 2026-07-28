@@ -94,7 +94,18 @@ import type { ModuleId } from "@/lib/company-module-status";
 import {
   CLIENT_DASHBOARD_NAVIGATE_EVENT,
   CLIENT_DASHBOARD_SET_TAB_EVENT,
+  CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT,
 } from "@/lib/client-dashboard-nav";
+import {
+  fetchActiveSocialStudioBackgroundJob,
+  fetchSocialStudioBackgroundJob,
+  getJobBackgroundRunStatus,
+  isSocialStudioBackgroundJobDone,
+  SOCIAL_STUDIO_GEN_KIND_KEY,
+  SOCIAL_STUDIO_GEN_START_KEY,
+  SOCIAL_STUDIO_JOB_EVENT,
+  SOCIAL_STUDIO_JOB_ID_KEY,
+} from "@/lib/social-studio/client-api";
 
 // ─── CONSTANTS ───────────────────────────────────────────────
 const COMPETITOR_ANALYSIS_API = "/api/competitor-analysis";
@@ -109,6 +120,10 @@ const CREATE_AD_VIDEO_IMAGES_MATCH_API = "/api/create-ad/video/images/match";
 const CREATE_AD_VIDEO_CLIPS_API = "/api/create-ad/video/clips";
 const CREATE_AD_VIDEO_CLIPS_MATCH_API = "/api/create-ad/video/clips/match";
 const CREATE_AD_VIDEO_STITCH_API = "/api/create-ad/video/stitch";
+const CREATE_AD_VIDEO_GENERATE_API = "/api/create-ad/video/generate";
+const CREATE_AD_IMAGE_RUN_API = "/api/create-ad/image/run";
+const CREATE_AD_JOBS_API = "/api/create-ad/jobs";
+const CREATE_AD_JOB_ID_KEY = "app_create_ad_job_id";
 
 const ANALYSIS_PIPELINE_PHASES = [
   {
@@ -160,7 +175,15 @@ function getAnalysisProgressFromElapsed(elapsedMs: number) {
   return { progress: 97, phaseIndex: ANALYSIS_PIPELINE_PHASES.length - 1, status: last.status };
 }
 const VIDEO_GEN_DURATION = 360_000; // 6 minutes
+const IMAGE_GEN_DURATION = 300_000;
+const SOCIAL_STUDIO_IMAGE_GEN_DURATION = 300_000;
+const SOCIAL_STUDIO_VIDEO_GEN_DURATION = 360_000;
 const AD_COMPLETION_POLL_MS = 10_000;
+const CREATE_AD_CLIENT_GEN_KEY = "app_create_ad_client_gen";
+const IMAGE_GEN_START_KEY = "app_image_gen_start";
+const PROMPT_GEN_START_KEY = "app_prompt_gen_start";
+const KIE_POLL_MAX_WAIT_MS = 900_000; // 15 min — background tabs throttle timers; keep polling
+const PROMPT_GEN_DURATION = 540_000; // 9 min
 
 const DEFAULT_BRAND_CONFIG = {
   productsAndServices: "",
@@ -798,6 +821,70 @@ function analysisPriorityVariant(priority: string | undefined): "danger" | "unap
   return "neutral";
 }
 
+function CreateAdProgressPanel({
+  statusLabel,
+  progress,
+  hint,
+}: {
+  statusLabel: string;
+  progress: number;
+  hint?: string;
+}) {
+  const showPct = progress > 0;
+  return (
+    <div
+      role="status"
+      style={{
+        marginBottom: 16,
+        padding: "16px 18px",
+        borderRadius: 14,
+        background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+        border: "1.5px solid #86efac",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: showPct ? 10 : 0,
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Spinner size={14} color="#16a34a" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>{statusLabel}</span>
+        </div>
+        {showPct && (
+          <span style={{ fontSize: 12, fontWeight: 800, color: "#16a34a" }}>{progress}%</span>
+        )}
+      </div>
+      {showPct && (
+        <div style={{ height: 8, background: "#bbf7d0", borderRadius: 8, overflow: "hidden" }}>
+          <div
+            style={{
+              height: "100%",
+              width: `${Math.min(100, progress)}%`,
+              background:
+                progress >= 100
+                  ? "#16a34a"
+                  : "linear-gradient(90deg, #22c55e, #16a34a)",
+              borderRadius: 8,
+              transition: "width 1.8s ease-out",
+              boxShadow: "0 0 8px rgba(22,163,74,0.4)",
+            }}
+          />
+        </div>
+      )}
+      {hint && (
+        <div style={{ fontSize: 11, color: "#16a34a", marginTop: showPct ? 6 : 8 }}>{hint}</div>
+      )}
+    </div>
+  );
+}
+
 function AnalysisDetailPanel({ children }: { children: React.ReactNode }) {
   return (
     <div className="editorial-analysis-detail-panel" style={{ borderBottom: "1px solid var(--border)", paddingLeft: 100, boxSizing: "border-box" }}>
@@ -916,47 +1003,40 @@ function AnalysisSummaryNavRow({
 
 function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
   const scripts = analysis?.ready_ad_scripts || [];
-  const itemCount = Math.max(
-    1,
-    Math.min(5, scripts.length > 1 ? scripts.length : 1)
+  const scriptIndex = scripts.length > 0 ? scripts.length - 1 : 0;
+  const existing = prevConfig.items[0];
+  const id = existing?.id || Date.now();
+  const adType = inferAdTypeFromAnalysis(analysis, scriptIndex);
+  const idea = normalizeIdeaForAdType(
+    buildStoryboardFromAnalysis(analysis, scriptIndex),
+    adType
   );
 
-  const newItems = [];
-  for (let i = 0; i < itemCount; i++) {
-    const existing = prevConfig.items[i];
-    const id = existing?.id || Date.now() + i;
-    const adType = inferAdTypeFromAnalysis(analysis, i);
-    const idea = normalizeIdeaForAdType(buildStoryboardFromAnalysis(analysis, i), adType);
+  const item =
+    adType === "video"
+      ? {
+          id,
+          type: "video",
+          duration: existing?.duration || "28 seconds",
+          audioStyle: existing?.audioStyle || "Background Music",
+          videoStyle: existing?.videoStyle || "Bold & Colorful",
+          language: existing?.language || "English",
+          character: existing?.character || "male",
+          voiceId: existing?.voiceId || "rTOopItG6FIkKMIVxsl5",
+          idea,
+        }
+      : {
+          id,
+          type: "image",
+          imageStyle: existing?.imageStyle || "Bold & Colorful",
+          idea,
+        };
 
-    if (adType === "video") {
-      newItems.push({
-        id,
-        type: "video",
-        duration: existing?.duration || "28 seconds",
-        audioStyle: existing?.audioStyle || "Background Music",
-        videoStyle: existing?.videoStyle || "Bold & Colorful",
-        language: existing?.language || "English",
-        character: existing?.character || "male",
-        voiceId: existing?.voiceId || "rTOopItG6FIkKMIVxsl5",
-        idea,
-      });
-    } else {
-      newItems.push({
-        id,
-        type: "image",
-        imageStyle: existing?.imageStyle || "Bold & Colorful",
-        idea,
-      });
-    }
-  }
-
-  const vCount = newItems.filter((x) => x.type === "video").length;
-  const iCount = newItems.filter((x) => x.type === "image").length;
   return {
-    totalAds: newItems.length,
-    videoCount: vCount,
-    imageCount: iCount,
-    items: newItems,
+    totalAds: 1,
+    videoCount: adType === "video" ? 1 : 0,
+    imageCount: adType === "image" ? 1 : 0,
+    items: [item],
   };
 }
 
@@ -1298,8 +1378,14 @@ export default function Dashboard() {
 
   // Ad creation
   // "generating" = in-flight browser fetch; a refresh kills that request so always restore as "idle"
-  const [adStatus, setAdStatus] = useLocalStorage("app_ad_status", "idle",
-    (v) => (v === "generating" ? "idle" : v));
+  const [adStatus, setAdStatus] = useLocalStorage("app_ad_status", "idle", (v) => {
+    if (v !== "generating") return v;
+    if (typeof window === "undefined") return "idle";
+    const clientGen = window.localStorage.getItem(CREATE_AD_CLIENT_GEN_KEY);
+    const promptStart = window.localStorage.getItem(PROMPT_GEN_START_KEY);
+    if (clientGen && promptStart) return "generating";
+    return "idle";
+  });
   // idle | generating | waiting | done | error
   const [adData, setAdData] = useLocalStorage("app_ad_data", null);
 
@@ -1544,6 +1630,7 @@ export default function Dashboard() {
   const [retryItemProgress, setRetryItemProgress] = useState(0);
   const [promptGenProgress, setPromptGenProgress] = useState(0);
   const promptGenTimerRef = useRef<any>(null);
+  const applyCreateAdJobResultRef = useRef<(job: any) => void>(() => {});
   const [imageGenerating, setImageGenerating] = useState(false);
   const [imageGenProgress, setImageGenProgress] = useState(0);
   const imageGenTimerRef = useRef<any>(null);
@@ -1571,6 +1658,11 @@ export default function Dashboard() {
     evalLengthDays: number;
     dailyBudgetCents: number;
   } | null>(null);
+  const [variantGenerationBusy, setVariantGenerationBusy] = useState({
+    active: false,
+    progress: 0,
+    label: "",
+  });
 
   // Custom Media Upload
   const [customUploadLoading, setCustomUploadLoading] = useState(false);
@@ -1618,6 +1710,8 @@ export default function Dashboard() {
     imageGeneratingRef.current = false;
     generationHandledRef.current = false;
     window.localStorage.removeItem("app_video_gen_start");
+    window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+    window.localStorage.removeItem(CREATE_AD_CLIENT_GEN_KEY);
     setVideoGenerating(false);
     setVideoGenProgress(0);
     setSentIdeaIds({});
@@ -1629,6 +1723,32 @@ export default function Dashboard() {
       localStorage.removeItem("app_ad_data");
     }
   }
+
+  function markCreateAdClientGenerationActive() {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(CREATE_AD_CLIENT_GEN_KEY, "1");
+  }
+
+  function clearCreateAdClientGenerationMarkers() {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(CREATE_AD_CLIENT_GEN_KEY);
+    window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+    window.localStorage.removeItem(PROMPT_GEN_START_KEY);
+  }
+
+  const [activeCreateAdJobId, setActiveCreateAdJobId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(CREATE_AD_JOB_ID_KEY);
+  });
+
+  const [activeSocialStudioJobId, setActiveSocialStudioJobId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return window.localStorage.getItem(SOCIAL_STUDIO_JOB_ID_KEY);
+  });
+  const [socialStudioJobStatus, setSocialStudioJobStatus] = useState("");
+  const [socialStudioJobKind, setSocialStudioJobKind] = useState<"image" | "video" | null>(null);
+  const [socialStudioGenProgress, setSocialStudioGenProgress] = useState(0);
+  const socialStudioGenTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function openCreateAdFromAnalysis() {
     if (!analysisData) return;
@@ -2063,7 +2183,7 @@ export default function Dashboard() {
     const allAdsList = [];
     const validPending = [];
     const hasStorageIndex = storageLookup.size > 0;
-    let hiddenMissingMedia = 0;
+    const staleMediaKeys = new Set<string>();
 
 
     // Process DB data
@@ -2077,10 +2197,9 @@ export default function Dashboard() {
       // Skip variant / automated-campaign challengers (reviewed in their own tabs)
       if (fileName && automationExcludedFilenames.has(fileName)) return;
 
-      // Skip rows whose file was deleted from Supabase storage
+      // Storage list is a partial index — still show the ad using the DB URL when not listed
       if (hasStorageIndex && fileName && !storageInfo) {
-        hiddenMissingMedia += 1;
-        return;
+        staleMediaKeys.add(`${row.id}_${row.time}`);
       }
 
       // We prioritize the database record. If storageLookup found it, we use the storage URL.
@@ -2122,14 +2241,7 @@ export default function Dashboard() {
     setAdTableLinks(latest);
     setAllApprovedAds(approvedList);
     setAllPreviewAds(allAdsList.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()));
-    setMissingMediaKeys(new Set());
-
-    if (hiddenMissingMedia > 0) {
-      addSbToast(
-        `${hiddenMissingMedia} ad${hiddenMissingMedia === 1 ? "" : "s"} hidden — media no longer in Supabase storage.`,
-        "info"
-      );
-    }
+    setMissingMediaKeys(staleMediaKeys);
 
     // Auto-clear stuck progress UI when new ads land in the table (uses /api/ads, not anon Supabase)
     const genStart = videoGenStartRef.current;
@@ -2148,6 +2260,8 @@ export default function Dashboard() {
         clearInterval(videoGenTimerRef.current);
         clearInterval(imageGenTimerRef.current);
         window.localStorage.removeItem("app_video_gen_start");
+        window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+        clearCreateAdClientGenerationMarkers();
         videoGenStartRef.current = null;
         const wasImage = imageGeneratingRef.current;
         videoGeneratingRef.current = false;
@@ -2181,15 +2295,23 @@ export default function Dashboard() {
     videoGenStartRef.current = genStart;
     generationHandledRef.current = false;
     clearInterval(videoGenPollRef.current);
+    const maxDuration = imageGeneratingRef.current
+      ? Math.max(VIDEO_GEN_DURATION, IMAGE_GEN_DURATION)
+      : VIDEO_GEN_DURATION;
     videoGenPollRef.current = setInterval(async () => {
-      if (Date.now() - genStart > VIDEO_GEN_DURATION) {
+      if (Date.now() - genStart > maxDuration) {
         clearInterval(videoGenPollRef.current);
         setGenerationActive(false);
         generationActiveRef.current = false;
         videoGeneratingRef.current = false;
+        imageGeneratingRef.current = false;
         setVideoGenerating(false);
+        setImageGenerating(false);
         setVideoGenProgress(0);
+        setImageGenProgress(0);
         window.localStorage.removeItem("app_video_gen_start");
+        window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+        clearCreateAdClientGenerationMarkers();
         videoGenStartRef.current = null;
         return;
       }
@@ -2444,9 +2566,75 @@ export default function Dashboard() {
 
   // ── Resume progress bar if page was refreshed mid-generation ──
   useEffect(() => {
-    const stored = window.localStorage.getItem("app_video_gen_start");
-    if (!stored) return;
-    const start = Number(stored);
+    const clientGen = window.localStorage.getItem(CREATE_AD_CLIENT_GEN_KEY);
+    const videoStored = window.localStorage.getItem("app_video_gen_start");
+    const imageStored = window.localStorage.getItem(IMAGE_GEN_START_KEY);
+    const promptStored = window.localStorage.getItem(PROMPT_GEN_START_KEY);
+
+    const hasActiveTimer =
+      (videoStored && Date.now() - Number(videoStored) < VIDEO_GEN_DURATION) ||
+      (imageStored && Date.now() - Number(imageStored) < IMAGE_GEN_DURATION) ||
+      (promptStored && Date.now() - Number(promptStored) < PROMPT_GEN_DURATION);
+
+    if (clientGen && !hasActiveTimer) {
+      clearCreateAdClientGenerationMarkers();
+      window.localStorage.removeItem("app_video_gen_start");
+      if (embed && typeof window !== "undefined" && window.parent !== window) {
+        window.parent.postMessage(
+          { type: CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT, active: false },
+          window.location.origin
+        );
+      }
+      return;
+    }
+
+    if (clientGen) {
+      setCreateTabConfigOpen(true);
+      setGenerationActive(true);
+      generationActiveRef.current = true;
+    }
+
+    if (promptStored && clientGen) {
+      const promptStart = Number(promptStored);
+      const elapsed = Date.now() - promptStart;
+      if (elapsed < PROMPT_GEN_DURATION) {
+        setAdStatus("generating");
+        setPromptGenProgress(Math.min(99, Math.round((elapsed / PROMPT_GEN_DURATION) * 100)));
+        clearInterval(promptGenTimerRef.current);
+        promptGenTimerRef.current = setInterval(() => {
+          const pct = Math.min(99, ((Date.now() - promptStart) / PROMPT_GEN_DURATION) * 100);
+          setPromptGenProgress(Math.round(pct));
+          if (Date.now() - promptStart >= PROMPT_GEN_DURATION) {
+            clearInterval(promptGenTimerRef.current);
+          }
+        }, 2000);
+      } else {
+        window.localStorage.removeItem(PROMPT_GEN_START_KEY);
+      }
+    }
+
+    if (imageStored) {
+      const start = Number(imageStored);
+      const elapsed = Date.now() - start;
+      if (elapsed < IMAGE_GEN_DURATION) {
+        videoGenStartRef.current = start;
+        imageGeneratingRef.current = true;
+        setImageGenerating(true);
+        setImageGenProgress(Math.min(99, Math.round((elapsed / IMAGE_GEN_DURATION) * 100)));
+        clearInterval(imageGenTimerRef.current);
+        imageGenTimerRef.current = setInterval(() => {
+          const e2 = Date.now() - start;
+          setImageGenProgress(Math.min(99, Math.round((e2 / IMAGE_GEN_DURATION) * 100)));
+          if (e2 >= IMAGE_GEN_DURATION) clearInterval(imageGenTimerRef.current);
+        }, 2000);
+        startAdCompletionPolling(start);
+        return;
+      }
+      window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+    }
+
+    if (!videoStored) return;
+    const start = Number(videoStored);
     const elapsed = Date.now() - start;
     if (elapsed < VIDEO_GEN_DURATION) {
       videoGenStartRef.current = start;
@@ -2464,8 +2652,262 @@ export default function Dashboard() {
       startAdCompletionPolling(start);
     } else {
       window.localStorage.removeItem("app_video_gen_start");
+      if (!clientGen) clearCreateAdClientGenerationMarkers();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const createAdGenerationBusy =
+    !!activeCreateAdJobId ||
+    adStatus === "generating" ||
+    adStatus === "waiting" ||
+    generationActive ||
+    videoGenerating ||
+    imageGenerating ||
+    isStatusPolling;
+
+  const socialStudioGenerationBusy = !!activeSocialStudioJobId;
+
+  const metaAdsPipelineBusy =
+    createAdGenerationBusy || variantGenerationBusy.active || socialStudioGenerationBusy;
+
+  // Keep polling ad previews while Create Ad generation runs (any app tab)
+  useEffect(() => {
+    const busy =
+      metaAdsPipelineBusy;
+    if (!busy || !companyId) return;
+
+    const interval = setInterval(() => {
+      fetchAdTableLinks();
+    }, AD_COMPLETION_POLL_MS);
+    return () => clearInterval(interval);
+  }, [
+    metaAdsPipelineBusy,
+    companyId,
+    fetchAdTableLinks,
+  ]);
+
+  // Tell client-dashboard shell to keep the main-app iframe alive while Meta Ads pipelines run
+  useEffect(() => {
+    if (!embed || typeof window === "undefined" || window.parent === window) return;
+    const busy = metaAdsPipelineBusy;
+    window.parent.postMessage(
+      { type: CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT, active: busy },
+      window.location.origin
+    );
+  }, [
+    embed,
+    metaAdsPipelineBusy,
+  ]);
+
+  // Resume in-flight server Create Ad job (reload / return from another module)
+  useEffect(() => {
+    if (!companyId || activeCreateAdJobId) return;
+    let cancelled = false;
+    fetch(`${CREATE_AD_JOBS_API}?active=1`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled || !d.job?.id) return;
+        window.localStorage.setItem(CREATE_AD_JOB_ID_KEY, d.job.id);
+        setActiveCreateAdJobId(d.job.id);
+        markCreateAdClientGenerationActive();
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, activeCreateAdJobId]);
+
+  // Poll background Create Ad job until completed or failed
+  useEffect(() => {
+    if (!companyId || !activeCreateAdJobId) return;
+
+    let cancelled = false;
+
+    const syncRunningJobUi = (job: any) => {
+      if (job.status !== "pending" && job.status !== "running") return;
+      markCreateAdClientGenerationActive();
+      if (job.kind === "prompts") {
+        setAdStatus("generating");
+        setCreateTabConfigOpen(true);
+        const promptStartRaw = window.localStorage.getItem(PROMPT_GEN_START_KEY);
+        if (!promptStartRaw) {
+          const promptStart = Date.now();
+          window.localStorage.setItem(PROMPT_GEN_START_KEY, String(promptStart));
+          setPromptGenProgress(0);
+          clearInterval(promptGenTimerRef.current);
+          promptGenTimerRef.current = setInterval(() => {
+            const pct = Math.min(99, ((Date.now() - promptStart) / PROMPT_GEN_DURATION) * 100);
+            setPromptGenProgress(Math.round(pct));
+            if (Date.now() - promptStart >= PROMPT_GEN_DURATION) clearInterval(promptGenTimerRef.current);
+          }, 2000);
+        }
+      } else if (job.kind === "video") {
+        setGenerationActive(true);
+        generationActiveRef.current = true;
+        if (!videoGenStartRef.current && !window.localStorage.getItem("app_video_gen_start")) {
+          startVideoGenProgress();
+        } else {
+          setVideoGenerating(true);
+        }
+      } else if (job.kind === "image") {
+        setImageGenerating(true);
+        imageGeneratingRef.current = true;
+        setCreateTabConfigOpen(true);
+      }
+    };
+
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `${CREATE_AD_JOBS_API}?jobId=${encodeURIComponent(activeCreateAdJobId)}`
+        );
+        const data = await res.json();
+        if (cancelled || !res.ok || !data.job) return;
+        const job = data.job;
+        if (job.status === "pending" || job.status === "running") {
+          syncRunningJobUi(job);
+          return;
+        }
+        applyCreateAdJobResultRef.current(job);
+      } catch (e) {
+        console.warn("[create-ad job poll]", e);
+      }
+    };
+
+    void poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [companyId, activeCreateAdJobId]);
+
+  // Creator Studio background job — poll on any tab (SocialDash unmounts when you leave)
+  useEffect(() => {
+    const onJobEvent = (e: Event) => {
+      const detail = (e as CustomEvent<{ jobId: string | null }>).detail;
+      setActiveSocialStudioJobId(detail?.jobId ?? null);
+    };
+    window.addEventListener(SOCIAL_STUDIO_JOB_EVENT, onJobEvent);
+    return () => window.removeEventListener(SOCIAL_STUDIO_JOB_EVENT, onJobEvent);
+  }, []);
+
+  useEffect(() => {
+    const id = window.localStorage.getItem(SOCIAL_STUDIO_JOB_ID_KEY);
+    if (id && id !== activeSocialStudioJobId) setActiveSocialStudioJobId(id);
+  }, [tab, activeSocialStudioJobId]);
+
+  useEffect(() => {
+    if (activeSocialStudioJobId || !companyId) return;
+    let cancelled = false;
+    fetchActiveSocialStudioBackgroundJob()
+      .then((job) => {
+        if (cancelled || !job?.id) return;
+        window.localStorage.setItem(SOCIAL_STUDIO_JOB_ID_KEY, job.id);
+        setActiveSocialStudioJobId(job.id);
+        setSocialStudioJobStatus(job.status || "");
+        const kindRaw = window.localStorage.getItem(SOCIAL_STUDIO_GEN_KIND_KEY);
+        setSocialStudioJobKind(
+          kindRaw === "video" ? "video" : job.kind === "video" ? "video" : "image"
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, activeSocialStudioJobId]);
+
+  useEffect(() => {
+    if (!companyId || !activeSocialStudioJobId) return;
+    let cancelled = false;
+
+    const finish = (job: any) => {
+      window.localStorage.removeItem(SOCIAL_STUDIO_JOB_ID_KEY);
+      window.localStorage.removeItem(SOCIAL_STUDIO_GEN_START_KEY);
+      window.localStorage.removeItem(SOCIAL_STUDIO_GEN_KIND_KEY);
+      setActiveSocialStudioJobId(null);
+      setSocialStudioJobStatus("");
+      setSocialStudioJobKind(null);
+      setSocialStudioGenProgress(0);
+      if (socialStudioGenTimerRef.current) {
+        clearInterval(socialStudioGenTimerRef.current);
+        socialStudioGenTimerRef.current = null;
+      }
+      const runStatus = getJobBackgroundRunStatus(job);
+      if (runStatus === "failed" || job.error) {
+        addSbToast(job.error || "Creator Studio generation failed", "error");
+        return;
+      }
+      addSbToast(
+        job.kind === "image"
+          ? "Social image ready — open Creator Studio to review"
+          : "Social video ready — open Creator Studio to review",
+        "success"
+      );
+    };
+
+    const poll = async () => {
+      try {
+        const job = await fetchSocialStudioBackgroundJob(activeSocialStudioJobId);
+        if (cancelled || !job) return;
+        setSocialStudioJobStatus(job.status || "");
+        const kindStored = window.localStorage.getItem(SOCIAL_STUDIO_GEN_KIND_KEY);
+        setSocialStudioJobKind(
+          kindStored === "video" ? "video" : job.kind === "video" ? "video" : "image"
+        );
+        const runStatus = getJobBackgroundRunStatus(job);
+        if (runStatus === "pending" || runStatus === "running") return;
+        if (isSocialStudioBackgroundJobDone(job)) finish(job);
+      } catch (e) {
+        console.warn("[social-studio job poll]", e);
+      }
+    };
+
+    void poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [companyId, activeSocialStudioJobId, addSbToast]);
+
+  useEffect(() => {
+    if (!activeSocialStudioJobId) {
+      if (socialStudioGenTimerRef.current) {
+        clearInterval(socialStudioGenTimerRef.current);
+        socialStudioGenTimerRef.current = null;
+      }
+      return;
+    }
+
+    let startRaw = window.localStorage.getItem(SOCIAL_STUDIO_GEN_START_KEY);
+    if (!startRaw) {
+      startRaw = String(Date.now());
+      window.localStorage.setItem(SOCIAL_STUDIO_GEN_START_KEY, startRaw);
+    }
+    const kindRaw = window.localStorage.getItem(SOCIAL_STUDIO_GEN_KIND_KEY);
+    const duration =
+      kindRaw === "video" ? SOCIAL_STUDIO_VIDEO_GEN_DURATION : SOCIAL_STUDIO_IMAGE_GEN_DURATION;
+    const start = Number(startRaw);
+
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      setSocialStudioGenProgress(Math.min(99, Math.round((elapsed / duration) * 100)));
+    };
+    tick();
+    socialStudioGenTimerRef.current = setInterval(tick, 2000);
+    return () => {
+      if (socialStudioGenTimerRef.current) {
+        clearInterval(socialStudioGenTimerRef.current);
+        socialStudioGenTimerRef.current = null;
+      }
+    };
+  }, [activeSocialStudioJobId]);
+
+  useEffect(() => {
+    if (tab !== "create" || !companyId) return;
+    void fetchAdTableLinks();
+  }, [tab, companyId, fetchAdTableLinks]);
 
   // ── Supabase realtime: detect new videos ──
   useEffect(() => {
@@ -2550,6 +2992,8 @@ export default function Dashboard() {
             clearInterval(videoGenPollRef.current);
             clearInterval(videoGenTimerRef.current);
             window.localStorage.removeItem("app_video_gen_start");
+            window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+            clearCreateAdClientGenerationMarkers();
             videoGenStartRef.current = null;
             setVideoGenerating(false);
             setVideoGenProgress(0);
@@ -3027,10 +3471,12 @@ export default function Dashboard() {
     await fetchAdTableLinks();
   }
 
-  async function pollKieTasks(taskIds: string[], maxRetries = 8) {
+  async function pollKieTasks(taskIds: string[], maxWaitMs = KIE_POLL_MAX_WAIT_MS) {
     if (!taskIds.length) return [];
+    const deadline = Date.now() + maxWaitMs;
     let results: any[] = [];
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    let attempt = 0;
+    while (Date.now() < deadline) {
       const res = await fetch(CREATE_AD_KIE_POLL_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3040,7 +3486,9 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(data.error || "KIE poll failed");
       results = data.results || [];
       if (data.allComplete) return results;
-      await new Promise((r) => setTimeout(r, attempt < 2 ? 20_000 : 30_000));
+      const delay = attempt < 2 ? 20_000 : 30_000;
+      await new Promise((r) => setTimeout(r, delay));
+      attempt += 1;
     }
     const res = await fetch(CREATE_AD_KIE_POLL_API, {
       method: "POST",
@@ -3074,85 +3522,30 @@ export default function Dashboard() {
     return { totalCount: results.length, successCount: results.length - failCount, failCount, failedPrompts, results };
   }
 
-  async function runClientVideoGeneration(
+  async function runServerVideoGeneration(
     generatedPrompts: Record<string, any[]>,
     audioKeys: Record<string, string> = {},
     audioUrls: Record<string, string> = {}
   ) {
-    const responses: any[] = [];
-    for (const [itemId, scenes] of Object.entries(generatedPrompts)) {
-      if (!Array.isArray(scenes) || scenes.length === 0) continue;
-
-      const imgRes = await fetch(CREATE_AD_VIDEO_IMAGES_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenes }),
-      });
-      const imgData = await imgRes.json();
-      if (!imgRes.ok) throw new Error(imgData.error || "Scene image generation failed");
-
-      const imagePoll = await pollKieTasks((imgData.tasks || []).map((t: any) => t.taskId));
-      const matchImgRes = await fetch(CREATE_AD_VIDEO_IMAGES_MATCH_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scenes,
-          pollResults: imagePoll,
-          taskPrompts: (imgData.tasks || []).map((t: any) => t.prompt),
-        }),
-      });
-      const matchImgData = await matchImgRes.json();
-      if (!matchImgRes.ok) throw new Error(matchImgData.error || "Scene image match failed");
-      const scenesWithImages = matchImgData.scenes || scenes;
-
-      const clipRes = await fetch(CREATE_AD_VIDEO_CLIPS_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenes: scenesWithImages }),
-      });
-      const clipData = await clipRes.json();
-      if (!clipRes.ok) throw new Error(clipData.error || "Scene clip generation failed");
-
-      const clipPoll = await pollKieTasks((clipData.tasks || []).map((t: any) => t.taskId));
-      const matchClipRes = await fetch(CREATE_AD_VIDEO_CLIPS_MATCH_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scenes: scenesWithImages,
-          tasks: clipData.tasks || [],
-          pollResults: clipPoll,
-        }),
-      });
-      const matchClipData = await matchClipRes.json();
-      if (!matchClipRes.ok) throw new Error(matchClipData.error || "Scene clip match failed");
-      const scenesWithVideos = matchClipData.scenes || scenesWithImages;
-
-      const response = buildSceneGenerationResponse(scenesWithVideos, imagePoll, clipPoll);
-      if (response.failCount === 0) {
-        const stitchRes = await fetch(CREATE_AD_VIDEO_STITCH_API, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            scenes: scenesWithVideos,
-            report_data: analysisData,
-            ads_config: createTabAdsConfig,
-            audioKey: audioKeys[itemId] || "",
-            audioUrl: audioUrls[itemId] || "",
-            itemId: Number(itemId),
-          }),
-        });
-        const stitchData = await stitchRes.json().catch(() => ({}));
-        if (!stitchRes.ok) {
-          throw new Error(stitchData.error || "Video stitch failed");
-        }
-      }
-      responses.push(response);
-    }
-    return responses;
+    const res = await fetch(CREATE_AD_VIDEO_GENERATE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        report_data: analysisData,
+        ads_config: createTabAdsConfig,
+        generated_prompts: generatedPrompts,
+        audioKeys,
+        audio_keys: audioKeys,
+        audioUrls,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Video generation failed");
+    return Array.isArray(data) ? data : [];
   }
 
   async function runImageAdPipeline() {
-    const conceptsRes = await fetch(CREATE_AD_IMAGE_CONCEPTS_API, {
+    const res = await fetch(CREATE_AD_IMAGE_RUN_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3160,33 +3553,9 @@ export default function Dashboard() {
         ads_config: createTabAdsConfig,
       }),
     });
-    const conceptsData = await conceptsRes.json();
-    if (!conceptsRes.ok) throw new Error(conceptsData.error || "Image concept generation failed");
-
-    const generateRes = await fetch(CREATE_AD_IMAGE_GENERATE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ concepts: conceptsData.concepts || [] }),
-    });
-    const generateData = await generateRes.json();
-    if (!generateRes.ok) throw new Error(generateData.error || "Image generation start failed");
-
-    const taskIds = (generateData.tasks || []).map((t: any) => t.taskId);
-    const pollResults = await pollKieTasks(taskIds);
-
-    const finalizeRes = await fetch(CREATE_AD_IMAGE_FINALIZE_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        concepts: conceptsData.concepts || [],
-        pollResults,
-        report_data: analysisData,
-        ads_config: createTabAdsConfig,
-      }),
-    });
-    const finalizeData = await finalizeRes.json();
-    if (!finalizeRes.ok) throw new Error(finalizeData.error || "Image finalize failed");
-    return finalizeData;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Image ad pipeline failed");
+    return data;
   }
 
   async function handleCreateTabTriggerAds() {
@@ -3195,6 +3564,8 @@ export default function Dashboard() {
       return;
     }
     const config = createTabAdsConfig;
+    markCreateAdClientGenerationActive();
+    setCreateTabConfigOpen(true);
 
     // Only show loading on cards that have an idea filled in
     const generatingMap: Record<string, boolean> = {};
@@ -3208,8 +3579,8 @@ export default function Dashboard() {
     setWebhookError("");
 
     // Start 9-minute prompt generation progress bar
-    const PROMPT_GEN_DURATION = 540_000; // 9 min
     const promptStart = Date.now();
+    window.localStorage.setItem(PROMPT_GEN_START_KEY, String(promptStart));
     setPromptGenProgress(0);
     clearInterval(promptGenTimerRef.current);
     promptGenTimerRef.current = setInterval(() => {
@@ -3219,42 +3590,21 @@ export default function Dashboard() {
     }, 2000);
 
     try {
-      const res = await fetch(CREATE_AD_VIDEO_PROMPTS_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          report_id: analysisData?.id || crypto.randomUUID(),
-          report_data: analysisData,
-          ads_config: config,
-        }),
+      await startCreateAdJob("prompts", {
+        report_id: analysisData?.id || crypto.randomUUID(),
+        report_data: analysisData,
+        ads_config: config,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate video prompts");
-
-      const scenesMap: any = {};
-      const audioKeysMap: any = {};
-      const audioUrlsMap: any = {};
-      config.items.forEach((item: any, idx: number) => {
-        const match = Array.isArray(data)
-          ? data.find((d: any) => d.itemIndex === idx || d.itemId === item.id) || data[idx]
-          : null;
-        scenesMap[item.id] = match?.scenes || [];
-        audioKeysMap[item.id] = match?.audioKey || "";
-        audioUrlsMap[item.id] = match?.audioUrl || "";
-      });
-      setAdScenesMap(scenesMap);
-      setAdAudioKeysMap(audioKeysMap);
-      setAdAudioUrlsMap(audioUrlsMap);
-      setAdStatus("done");
-      addSbToast("Ad prompts generated! Click \"View Prompts\" on each ad.", "success");
+      addSbToast("Generating prompts in the background…", "success");
     } catch (e: any) {
       setAdStatus("error");
-      setWebhookError(e.message || "Failed to reach webhook");
-      addSbToast("Failed to generate ad prompts. Try again.", "error");
-    } finally {
+      setWebhookError(e.message || "Failed to start prompt generation");
+      clearCreateAdClientGenerationMarkers();
       setAdScenesGenerating({});
       clearInterval(promptGenTimerRef.current);
+      window.localStorage.removeItem(PROMPT_GEN_START_KEY);
       setPromptGenProgress(0);
+      addSbToast("Failed to generate ad prompts. Try again.", "error");
     }
   }
 
@@ -3263,6 +3613,8 @@ export default function Dashboard() {
     videoGenStartRef.current = start;
     videoGeneratingRef.current = true;
     generationHandledRef.current = false;
+    markCreateAdClientGenerationActive();
+    setCreateTabConfigOpen(true);
     window.localStorage.setItem("app_video_gen_start", String(start));
     setVideoGenerating(true);
     setVideoGenProgress(0);
@@ -3284,6 +3636,9 @@ export default function Dashboard() {
     clearInterval(videoGenTimerRef.current);
     clearInterval(videoGenPollRef.current);
     window.localStorage.removeItem("app_video_gen_start");
+    if (!imageGeneratingRef.current) {
+      clearCreateAdClientGenerationMarkers();
+    }
     videoGenStartRef.current = null;
     videoGeneratingRef.current = false;
     generationActiveRef.current = false;
@@ -3435,6 +3790,172 @@ export default function Dashboard() {
     return successIds;
   }
 
+  function indexMapFromJobInput(input: any) {
+    const raw = input?.scene_index_map || [];
+    return (Array.isArray(raw) ? raw : []).map((m: any) => ({
+      itemId: m.itemId,
+      sceneIndex: m.sceneIndex,
+      scene: m.scene ?? null,
+    }));
+  }
+
+  const applyCreateAdJobResult = useCallback((job: any) => {
+    window.localStorage.removeItem(CREATE_AD_JOB_ID_KEY);
+    setActiveCreateAdJobId(null);
+    clearInterval(promptGenTimerRef.current);
+    window.localStorage.removeItem(PROMPT_GEN_START_KEY);
+    setPromptGenProgress(0);
+    setAdScenesGenerating({});
+
+    if (job.status === "failed") {
+      clearCreateAdClientGenerationMarkers();
+      setAdStatus("error");
+      setWebhookError(job.error || "Generation failed");
+      stopVideoGenProgress(false);
+      setGenerationActive(false);
+      generationActiveRef.current = false;
+      setImageGenerating(false);
+      imageGeneratingRef.current = false;
+      setRetryingItemId(null);
+      setRetryItemProgress(0);
+      addSbToast(job.error || "Generation failed", "error");
+      return;
+    }
+
+    if (job.status !== "completed") return;
+
+    if (job.kind === "prompts") {
+      const data = job.result;
+      const config = (job.input?.ads_config || createTabAdsConfig) as any;
+      const scenesMap: any = {};
+      const audioKeysMap: any = {};
+      const audioUrlsMap: any = {};
+      (config.items || []).forEach((item: any, idx: number) => {
+        const match = Array.isArray(data)
+          ? data.find((d: any) => d.itemIndex === idx || d.itemId === item.id) || data[idx]
+          : null;
+        scenesMap[item.id] = match?.scenes || [];
+        audioKeysMap[item.id] = match?.audioKey || "";
+        audioUrlsMap[item.id] = match?.audioUrl || "";
+      });
+      setAdScenesMap(scenesMap);
+      setAdAudioKeysMap(audioKeysMap);
+      setAdAudioUrlsMap(audioUrlsMap);
+      setAdStatus("done");
+      clearCreateAdClientGenerationMarkers();
+      addSbToast("Ad prompts generated! Click \"View Prompts\" on each ad.", "success");
+      return;
+    }
+
+    if (job.kind === "video") {
+      const indexMap = indexMapFromJobInput(job.input);
+      const responseData = job.result;
+      const retryItemId = job.input?.retryItemId as string | undefined;
+
+      const failures = parseGenerationFailures(responseData, indexMap);
+      const successes = parseGenerationSuccesses(responseData, indexMap);
+
+      if (successes.length > 0) {
+        setCompletedItemIds((prev) => [...new Set([...prev, ...successes])]);
+      }
+
+      if (job.input?.jobContext === "retry_all") {
+        clearInterval(retryGenTimerRef.current);
+        if (failures.length > 0) {
+          setFailedPrompts(failures);
+          setRetryGenProgress(0);
+          setRetryGenActive(false);
+          addSbToast(`⚠️ ${failures.length} still failing. Edit and retry again.`, "error");
+        } else {
+          setRetryGenProgress(100);
+          setFailedPrompts([]);
+          setTimeout(() => {
+            setRetryGenActive(false);
+            setRetryGenProgress(0);
+            resetCreateTabWorkspace();
+          }, 1500);
+          addSbToast("✅ Retry successful! Check Ad Previews.", "success");
+          fetchAdTableLinks();
+        }
+        return;
+      }
+
+      if (retryItemId) {
+        clearInterval(retryGenTimerRef.current);
+        const newFailures = failures;
+        setFailedPrompts((prev: any[]) => {
+          const others = prev.filter((f) => String(f.itemId) !== retryItemId);
+          const updated = [...others, ...newFailures];
+          if (updated.length === 0) setTimeout(() => resetCreateTabWorkspace(), 1000);
+          return updated;
+        });
+        if (newFailures.length === 0) {
+          setRetryItemProgress(100);
+          setTimeout(() => {
+            setRetryItemProgress(0);
+            setRetryingItemId(null);
+          }, 1500);
+          addSbToast("✅ Retry successful! Check Ad Previews.", "success");
+          fetchAdTableLinks();
+        } else {
+          setRetryItemProgress(0);
+          setRetryingItemId(null);
+          addSbToast(`⚠️ ${newFailures.length} scene(s) still failing. Edit and retry again.`, "error");
+        }
+      } else if (failures.length > 0) {
+        stopVideoGenProgress(false);
+        setGenerationActive(false);
+        generationActiveRef.current = false;
+        setFailedPrompts(failures);
+        addSbToast(`⚠️ ${failures.length} scene(s) failed. Click the red card to view and fix prompts.`, "error");
+      } else {
+        stopVideoGenProgress(true);
+        setGenerationActive(false);
+        generationActiveRef.current = false;
+        clearCreateAdClientGenerationMarkers();
+        fetchAdTableLinks();
+        addSbToast("✅ Video generation complete! Check Ad Previews.", "success");
+      }
+      return;
+    }
+
+    if (job.kind === "image") {
+      clearInterval(imageGenTimerRef.current);
+      clearInterval(videoGenPollRef.current);
+      window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+      clearCreateAdClientGenerationMarkers();
+      videoGenStartRef.current = null;
+      setImageGenerating(false);
+      imageGeneratingRef.current = false;
+      setImageGenProgress(100);
+      addSbToast("Image ad generated successfully!", "success");
+      fetchAdTableLinks();
+      resetCreateTabWorkspace();
+    }
+  }, [addSbToast, createTabAdsConfig, fetchAdTableLinks]);
+
+  applyCreateAdJobResultRef.current = applyCreateAdJobResult;
+
+  async function startCreateAdJob(kind: "prompts" | "video" | "image", payload: Record<string, unknown>) {
+    const res = await fetch(CREATE_AD_JOBS_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, payload }),
+    });
+    const data = await res.json();
+    if (res.status === 409 && data.jobId) {
+      window.localStorage.setItem(CREATE_AD_JOB_ID_KEY, data.jobId);
+      setActiveCreateAdJobId(data.jobId);
+      markCreateAdClientGenerationActive();
+      return data.jobId as string;
+    }
+    if (!res.ok) throw new Error(data.error || "Failed to start Create Ad job");
+    window.localStorage.setItem(CREATE_AD_JOB_ID_KEY, data.jobId);
+    setActiveCreateAdJobId(data.jobId);
+    markCreateAdClientGenerationActive();
+    return data.jobId as string;
+  }
+
   /** IMAGE — native pipeline with client-side polling */
   async function handleImageGenerate() {
     const item = createTabAdsConfig.items[0];
@@ -3444,35 +3965,40 @@ export default function Dashboard() {
     imageGeneratingRef.current = true;
     setImageGenProgress(0);
     setFailedPrompts([]);
+    markCreateAdClientGenerationActive();
+    setCreateTabConfigOpen(true);
 
-    const IMAGE_MAX = 300_000;
     const imgStart = Date.now();
+    videoGenStartRef.current = imgStart;
+    generationHandledRef.current = false;
+    window.localStorage.setItem(IMAGE_GEN_START_KEY, String(imgStart));
+    startAdCompletionPolling(imgStart);
     clearInterval(imageGenTimerRef.current);
     imageGenTimerRef.current = setInterval(() => {
-      const pct = Math.min(99, ((Date.now() - imgStart) / IMAGE_MAX) * 100);
+      const pct = Math.min(99, ((Date.now() - imgStart) / IMAGE_GEN_DURATION) * 100);
       setImageGenProgress(Math.round(pct));
-      if (Date.now() - imgStart >= IMAGE_MAX) {
+      if (Date.now() - imgStart >= IMAGE_GEN_DURATION) {
         clearInterval(imageGenTimerRef.current);
-        clearInterval(videoGenPollRef.current);
-        setImageGenerating(false);
-        setImageGenProgress(0);
         addSbToast("Image generation may still be running. Check Ad Previews to see results.", "info");
       }
     }, 2000);
 
     try {
-      await runImageAdPipeline();
-      setImageGenProgress(100);
-      addSbToast("Image ad generated successfully!", "success");
-      await fetchAdTableLinks();
-      resetCreateTabWorkspace();
+      await startCreateAdJob("image", {
+        report_data: analysisData,
+        ads_config: createTabAdsConfig,
+      });
+      addSbToast("Image generation started in the background…", "success");
     } catch (e: any) {
-      addSbToast(e?.message || "Image generation failed.", "error");
-    } finally {
       clearInterval(imageGenTimerRef.current);
+      clearInterval(videoGenPollRef.current);
+      window.localStorage.removeItem(IMAGE_GEN_START_KEY);
+      clearCreateAdClientGenerationMarkers();
+      videoGenStartRef.current = null;
       setImageGenerating(false);
       imageGeneratingRef.current = false;
       setImageGenProgress(0);
+      addSbToast(e?.message || "Image generation failed.", "error");
     }
   }
 
@@ -3505,7 +4031,11 @@ export default function Dashboard() {
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
       audioUrls: adAudioUrlsMap,
-      scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+      scene_index_map: indexMap.map((m) => ({
+        itemId: m.itemId,
+        sceneIndex: m.sceneIndex,
+        scene: m.scene,
+      })),
     };
 
     // ── IMMEDIATE: unblock UI, start progress bar, keep workspace cards visible ──
@@ -3516,35 +4046,14 @@ export default function Dashboard() {
     startVideoGenProgress();
     addSbToast("✅ Prompts accepted! Generation started — cards will update when done.", "success");
 
-    // ── BACKGROUND: run native video pipeline ──
-    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
-      .then((responseData) => {
-        const failures = parseGenerationFailures(responseData, indexMap);
-        const successes = parseGenerationSuccesses(responseData, indexMap);
-        if (successes.length > 0) {
-          setCompletedItemIds(prev => [...new Set([...prev, ...successes])]);
-        }
-        if (failures.length > 0) {
-          stopVideoGenProgress(false);
-          setGenerationActive(false);
-          generationActiveRef.current = false;
-          setFailedPrompts(failures);
-          addSbToast(`⚠️ ${failures.length} scene(s) failed. Click the red card to view and fix prompts.`, "error");
-        } else {
-          stopVideoGenProgress(true);
-          setGenerationActive(false);
-          generationActiveRef.current = false;
-          fetchAdTableLinks();
-          addSbToast("✅ Video generation complete! Check Ad Previews.", "success");
-        }
-      })
-      .catch((err: any) => {
-        stopVideoGenProgress(false);
-        setGenerationActive(false);
-        generationActiveRef.current = false;
-        const msg = err?.message || "Video generation failed. Try again.";
-        addSbToast(msg.includes("upload-post") || msg.includes("Upload Post") ? `Video stitch failed: check your Upload Post API token in Integrations. (${msg})` : msg, "error");
-      });
+    startCreateAdJob("video", payload).catch((err: any) => {
+      stopVideoGenProgress(false);
+      setGenerationActive(false);
+      generationActiveRef.current = false;
+      clearCreateAdClientGenerationMarkers();
+      const msg = err?.message || "Video generation failed. Try again.";
+      addSbToast(msg.includes("upload-post") || msg.includes("Upload Post") ? `Video stitch failed: check your Upload Post API token in Integrations. (${msg})` : msg, "error");
+    });
   }
 
   /** Update a failed prompt's text (user edits it before retrying) */
@@ -3598,37 +4107,25 @@ export default function Dashboard() {
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
+      ads_config: createTabAdsConfig,
       generated_prompts: scenesForRequest,
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
       audioUrls: adAudioUrlsMap,
       is_retry: true,
-      scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+      scene_index_map: newIndexMap.map((m) => ({
+        itemId: m.itemId,
+        sceneIndex: m.sceneIndex,
+        scene: m.scene,
+      })),
     };
 
-    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
-      .then((responseData) => {
-        const failures = parseGenerationFailures(responseData, newIndexMap);
-        const successes = parseGenerationSuccesses(responseData, newIndexMap);
-        if (successes.length > 0) setCompletedItemIds(prev => [...new Set([...prev, ...successes])]);
-        if (failures.length > 0) {
-          stopVideoGenProgress(false);
-          setGenerationActive(false);
-          generationActiveRef.current = false;
-          setFailedPrompts(failures);
-          addSbToast(`⚠️ ${failures.length} scene(s) failed again. Fix and retry.`, "error");
-        } else {
-          stopVideoGenProgress(true);
-          setGenerationActive(false);
-          generationActiveRef.current = false;
-          fetchAdTableLinks();
-        }
-      })
-      .catch(() => {
-        stopVideoGenProgress(false);
-        setGenerationActive(false);
-        generationActiveRef.current = false;
-      });
+    startCreateAdJob("video", payload).catch(() => {
+      stopVideoGenProgress(false);
+      setGenerationActive(false);
+      generationActiveRef.current = false;
+      addSbToast("Failed to restart video generation.", "error");
+    });
   }
 
   /** Retry a single card — sends ALL scenes for that ad with edited prompts merged in */
@@ -3661,45 +4158,26 @@ export default function Dashboard() {
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
+      ads_config: createTabAdsConfig,
       generated_prompts: { [itemId]: updatedScenes },
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
       audioUrls: adAudioUrlsMap,
       is_retry: true,
-      scene_index_map: indexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+      retryItemId: itemId,
+      scene_index_map: indexMap.map((m) => ({
+        itemId: m.itemId,
+        sceneIndex: m.sceneIndex,
+        scene: m.scene,
+      })),
     };
 
-    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
-      .then((responseData) => {
-        clearInterval(retryGenTimerRef.current);
-        const newFailures = responseData ? parseGenerationFailures(responseData, indexMap) : [];
-        const newSuccesses = responseData ? parseGenerationSuccesses(responseData, indexMap) : [];
-        if (newSuccesses.length > 0) {
-          setCompletedItemIds(prev => [...new Set([...prev, ...newSuccesses])]);
-        }
-        setFailedPrompts((prev: any[]) => {
-          const others = prev.filter(f => String(f.itemId) !== itemId);
-          const updated = [...others, ...newFailures];
-          if (updated.length === 0) setTimeout(() => resetCreateTabWorkspace(), 1000);
-          return updated;
-        });
-        if (newFailures.length === 0) {
-          setRetryItemProgress(100);
-          setTimeout(() => { setRetryItemProgress(0); setRetryingItemId(null); }, 1500);
-          addSbToast("✅ Retry successful! Check Ad Previews.", "success");
-          fetchAdTableLinks();
-        } else {
-          setRetryItemProgress(0);
-          setRetryingItemId(null);
-          addSbToast(`⚠️ ${newFailures.length} scene(s) still failing. Edit and retry again.`, "error");
-        }
-      })
-      .catch(() => {
-        clearInterval(retryGenTimerRef.current);
-        setRetryingItemId(null);
-        setRetryItemProgress(0);
-        addSbToast("Retry request failed.", "error");
-      });
+    startCreateAdJob("video", payload).catch(() => {
+      clearInterval(retryGenTimerRef.current);
+      setRetryingItemId(null);
+      setRetryItemProgress(0);
+      addSbToast("Retry request failed.", "error");
+    });
   }
 
   /** Retry: send ALL scenes for each errored ad (not just failed scenes) — one request, one progress bar */
@@ -3753,41 +4231,26 @@ export default function Dashboard() {
     const payload = {
       report_id: analysisData?.id || crypto.randomUUID(),
       report_data: analysisData,
+      ads_config: createTabAdsConfig,
       generated_prompts: retryScenesMap,
       audioKeys: adAudioKeysMap,
       audio_keys: adAudioKeysMap,
       audioUrls: adAudioUrlsMap,
       is_retry: true,
-      scene_index_map: newIndexMap.map(m => ({ itemId: m.itemId, sceneIndex: m.sceneIndex })),
+      jobContext: "retry_all",
+      scene_index_map: newIndexMap.map((m) => ({
+        itemId: m.itemId,
+        sceneIndex: m.sceneIndex,
+        scene: m.scene,
+      })),
     };
 
-    runClientVideoGeneration(payload.generated_prompts, payload.audioKeys, payload.audioUrls)
-      .then((responseData) => {
-        clearInterval(retryGenTimerRef.current);
-        const newFailures = responseData ? parseGenerationFailures(responseData, newIndexMap) : [];
-        if (newFailures.length > 0) {
-          setFailedPrompts(newFailures);
-          setRetryGenProgress(0);
-          addSbToast(`⚠️ ${newFailures.length} still failing. Edit and retry again.`, "error");
-        } else {
-          setRetryGenProgress(100);
-          setFailedPrompts([]);
-          setTimeout(() => {
-            setRetryGenActive(false);
-            setRetryGenProgress(0);
-            resetCreateTabWorkspace();
-          }, 1500);
-          addSbToast("✅ Retry successful! Check Ad Previews.", "success");
-          fetchAdTableLinks();
-        }
-        setRetryGenActive(false);
-      })
-      .catch(() => {
-        clearInterval(retryGenTimerRef.current);
-        setRetryGenActive(false);
-        setRetryGenProgress(0);
-        addSbToast("Error during retry.", "error");
-      });
+    startCreateAdJob("video", payload).catch(() => {
+      clearInterval(retryGenTimerRef.current);
+      setRetryGenActive(false);
+      setRetryGenProgress(0);
+      addSbToast("Error during retry.", "error");
+    });
   }
 
   /** Returns true if this ad slot has any failed generation result */
@@ -4063,6 +4526,31 @@ export default function Dashboard() {
   });
 
   // ─────────────────────────────────────────────────────────────
+  const createAdBackgroundProgress = imageGenerating
+    ? imageGenProgress
+    : videoGenerating || generationActive
+      ? videoGenProgress
+      : adStatus === "generating"
+        ? promptGenProgress
+        : 0;
+
+  const createAdBackgroundStatus =
+    adStatus === "generating"
+      ? "Generating ad prompts…"
+      : imageGenerating
+        ? "Generating image ad…"
+        : videoGenerating || generationActive
+          ? "Generating video ad…"
+          : adStatus === "waiting" || isStatusPolling
+            ? "Ad pipeline running…"
+            : "Create Ad in progress…";
+
+  const socialStudioBackgroundStatus =
+    socialStudioJobStatus ||
+    (socialStudioJobKind === "video" ? "Generating social video…" : "Generating social image…");
+
+  const socialStudioBackgroundProgress = socialStudioGenerationBusy ? socialStudioGenProgress : 0;
+
   if (isAuthenticating || !user) {
     return (
       <div style={{
@@ -4263,6 +4751,22 @@ export default function Dashboard() {
                   {(() => { const Icon = t.icon; return sidebarCollapsed || indent ? <Icon size={indent ? 13 : 15} style={{ flexShrink: 0 }} /> : null; })()}
                   {!sidebarCollapsed && (
                     <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</span>
+                  )}
+                  {socialStudioGenerationBusy && t.id === "social-creator-studio" && tab !== "social-creator-studio" && (
+                    <span
+                      title="Creator Studio generation in progress"
+                      style={{
+                        position: "absolute",
+                        top: sidebarCollapsed ? 6 : 10,
+                        right: sidebarCollapsed ? 6 : 10,
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "#C1121F",
+                        boxShadow: "0 0 0 2px rgba(193,18,31,0.25)",
+                        flexShrink: 0,
+                      }}
+                    />
                   )}
                 </button>
                 {sidebarCollapsed && (
@@ -4739,6 +5243,189 @@ export default function Dashboard() {
           boxSizing: "border-box",
         }}
       >
+      {createAdGenerationBusy && tab !== "create" && (
+        <div
+          role="status"
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 200,
+            margin: embed ? "0 0 16px" : "0 0 20px",
+            padding: "14px 18px",
+            borderRadius: 14,
+            background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+            border: "1.5px solid #86efac",
+            boxShadow: "0 4px 16px rgba(22,163,74,0.12)",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <Spinner size={14} color="#16a34a" />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>{createAdBackgroundStatus}</div>
+            <div style={{ fontSize: 11, color: "#16a34a", marginTop: 2 }}>
+              Generation continues while you use other modules. We&apos;ll refresh previews when ready.
+            </div>
+            {createAdBackgroundProgress > 0 && (
+              <div style={{ marginTop: 8, height: 6, background: "#bbf7d0", borderRadius: 6, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${createAdBackgroundProgress}%`,
+                    background: "linear-gradient(90deg, #22c55e, #16a34a)",
+                    borderRadius: 6,
+                    transition: "width 1.5s ease-out",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setTab("create")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: "#003049",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Open Create Ad →
+          </button>
+        </div>
+      )}
+
+      {socialStudioGenerationBusy && tab !== "social-creator-studio" && (
+        <div
+          role="status"
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 200,
+            margin: embed ? "0 0 16px" : "0 0 20px",
+            padding: "14px 18px",
+            borderRadius: 14,
+            background: "linear-gradient(135deg, #fff5f5, #fde8e8)",
+            border: "1.5px solid #f5c2c7",
+            boxShadow: "0 4px 16px rgba(193,18,31,0.1)",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <Spinner size={14} color="#C1121F" />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#9B2226" }}>
+              {socialStudioBackgroundStatus}
+            </div>
+            <div style={{ fontSize: 11, color: "#C1121F", marginTop: 2 }}>
+              Creator Studio keeps working in the background — switch tabs or modules without canceling.
+            </div>
+            {socialStudioBackgroundProgress > 0 && (
+              <div style={{ marginTop: 8, height: 6, background: "#f5c2c7", borderRadius: 6, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${socialStudioBackgroundProgress}%`,
+                    background: "linear-gradient(90deg, #C1121F, #9B2226)",
+                    borderRadius: 6,
+                    transition: "width 1.5s ease-out",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setTab("social-creator-studio")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: "#003049",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Open Creator Studio →
+          </button>
+        </div>
+      )}
+
+      {variantGenerationBusy.active && tab !== "variants" && (
+        <div
+          role="status"
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 200,
+            margin: embed ? "0 0 16px" : "0 0 20px",
+            padding: "14px 18px",
+            borderRadius: 14,
+            background: "linear-gradient(135deg, #eff6ff, #dbeafe)",
+            border: "1.5px solid #93c5fd",
+            boxShadow: "0 4px 16px rgba(37,99,235,0.12)",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <Spinner size={14} color="#2563eb" />
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#1d4ed8" }}>
+              {variantGenerationBusy.label || "Generating ad variants…"}
+            </div>
+            <div style={{ fontSize: 11, color: "#2563eb", marginTop: 2 }}>
+              Variant generation runs on the server — switch tabs or modules without canceling.
+            </div>
+            {variantGenerationBusy.progress > 0 && (
+              <div style={{ marginTop: 8, height: 6, background: "#bfdbfe", borderRadius: 6, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${variantGenerationBusy.progress}%`,
+                    background: "linear-gradient(90deg, #3b82f6, #2563eb)",
+                    borderRadius: 6,
+                    transition: "width 1.5s ease-out",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setTab("variants")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: "#003049",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Open Variants →
+          </button>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════
           OVERVIEW
@@ -5482,6 +6169,21 @@ export default function Dashboard() {
       {tab === "create" && (
         <EditorialPage wide>
           <EditorialPageHeader eyebrow="Meta Ads" title="Create Ad" />
+          {createAdGenerationBusy && (
+            <CreateAdProgressPanel
+              statusLabel={
+                createAdBackgroundProgress >= 100
+                  ? "Generation complete — check Ad Previews below"
+                  : createAdBackgroundStatus
+              }
+              progress={createAdBackgroundProgress}
+              hint={
+                createAdBackgroundProgress >= 100
+                  ? undefined
+                  : "You can switch modules — this bar stays until generation finishes."
+              }
+            />
+          )}
           {!analysisData && (
             <div
               style={{
@@ -6137,6 +6839,15 @@ export default function Dashboard() {
                     {(() => {
                       const allIdeasFilled = (createTabAdsConfig.items || []).every((item: any) => item.idea?.trim());
                       const ideaGenerating = Object.values(sentIdeaIds).some(Boolean);
+
+                      if (createAdGenerationBusy) {
+                        return (
+                          <div style={{ fontSize: 13, color: "#15803d", fontWeight: 600 }}>
+                            Ad generation in progress — see the progress bar above.
+                          </div>
+                        );
+                      }
+
                       return (!allIdeasFilled || ideaGenerating) ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#92400e", fontSize: 13 }}>
                           <span style={{ fontSize: 16 }}>{ideaGenerating ? "⏳" : "✏️"}</span>
@@ -6173,13 +6884,6 @@ export default function Dashboard() {
 
                             return (
                               <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-                                {/* Generation active */}
-                                {generationActive && (
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#003049" }}>
-                                    <Spinner size={14} color="#003049" /> Generation in progress…
-                                  </div>
-                                )}
-
                                 {/* START AGAIN — when errors or not-started exist after generation ran */}
                                 {!generationActive && generationEverRan && hasRemaining && (
                                   <button
@@ -6374,27 +7078,6 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Video Generation Progress Bar (tab-level, always visible) ── */}
-          {videoGenerating && (
-            <div style={{ marginBottom: 16, padding: "16px 18px", borderRadius: 14, background: "linear-gradient(135deg, #f0fdf4, #dcfce7)", border: "1.5px solid #86efac", boxSizing: "border-box" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Spinner size={14} color="#16a34a" />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>
-                    {videoGenProgress >= 100 ? "🎬 Videos ready!" : "Generating your videos…"}
-                  </span>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 800, color: "#16a34a" }}>{videoGenProgress}%</span>
-              </div>
-              <div style={{ height: 8, background: "#bbf7d0", borderRadius: 8, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${videoGenProgress}%`, background: videoGenProgress >= 100 ? "#16a34a" : "linear-gradient(90deg, #22c55e, #16a34a)", borderRadius: 8, transition: "width 1.8s ease-out", boxShadow: "0 0 8px rgba(22,163,74,0.4)" }} />
-              </div>
-              <div style={{ fontSize: 11, color: "#16a34a", marginTop: 6 }}>
-                {videoGenProgress >= 100 ? "Check the Ad Previews section below ↓" : "You can freely navigate — we'll notify you when done."}
               </div>
             </div>
           )}
@@ -6697,6 +7380,8 @@ export default function Dashboard() {
         style={{ display: tab === "variants" ? "block" : "none" }}
       >
         <GenerateVariants
+          embed={embed}
+          onBusyChange={setVariantGenerationBusy}
           approvedAds={allApprovedAds}
           onContinueToCampaignSetup={(payload) => {
             setVariantAutomationId(payload.automationId);

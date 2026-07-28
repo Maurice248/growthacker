@@ -16,6 +16,7 @@ import {
   CLIENT_OUTREACH_FUTURE_TABS,
   CLIENT_SOCIAL_TABS,
   clientWorkspaceHref,
+  confirmLeaveDuringCreateAdGen,
 } from '@/lib/client-dashboard-nav';
 import {
   moduleForTab,
@@ -79,7 +80,13 @@ function NavLink({
     <Link
       href={href}
       title={collapsed ? label : undefined}
-      onClick={onNavigate}
+      onClick={(e) => {
+        if (!confirmLeaveDuringCreateAdGen(href)) {
+          e.preventDefault();
+          return;
+        }
+        onNavigate?.();
+      }}
       className={className}
     >
       {(collapsed && !indent) && <Icon size={15} className="shrink-0" />}
@@ -217,7 +224,10 @@ export function ClientDashboardNav({
 
     if (isTabDisabled(firstTabId)) return;
 
-    router.push(clientWorkspaceHref(firstTabId));
+    const href = clientWorkspaceHref(firstTabId);
+    if (!confirmLeaveDuringCreateAdGen(href)) return;
+
+    router.push(href);
     onNavigate?.();
   };
 

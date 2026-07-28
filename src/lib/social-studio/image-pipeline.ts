@@ -1,5 +1,5 @@
 import { resolveSocialContext } from './config';
-import { createSocialJob, updateSocialJob } from './jobs';
+import { createSocialJob, getSocialJob, mergeSocialJobInput, updateSocialJob } from './jobs';
 import { kieCreateImageTask, kiePollTasks } from './kie';
 import { chatCompletionJson, chatCompletionText } from './openai';
 import { formatPlatformDescriptions } from './platform-format';
@@ -82,7 +82,7 @@ export async function startImageGeneration(
 
   await updateSocialJob(job.id, companyId, {
     status: 'Generating image...',
-    input: { topic, ratio, imagePrompt, taskId },
+    input: mergeSocialJobInput(job.input, { topic, ratio, imagePrompt, taskId }),
   });
 
   return { jobId: job.id, taskId, imagePrompt };
@@ -112,11 +112,16 @@ export async function pollImageTask(
   const meta = await generateImageSocialCopy(companyId, tokens, topic);
   const formatted = formatPlatformDescriptions(meta, imageUrl);
 
+  const existing = await getSocialJob(jobId, companyId);
   await updateSocialJob(jobId, companyId, {
     status: 'Image ready for review',
     assetUrl: imageUrl,
     descriptions: formatted.descriptions,
-    input: { topic, taskId, imagePrompt: result.prompt },
+    input: mergeSocialJobInput(existing?.input, {
+      topic,
+      taskId,
+      imagePrompt: result.prompt,
+    }),
   });
 
   return {

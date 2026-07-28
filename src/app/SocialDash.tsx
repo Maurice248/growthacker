@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CustomSelect from './CustomSelect';
 import { createPortal } from 'react-dom';
 import {
@@ -27,20 +27,24 @@ import {
 } from './components';
 import {
   acceptStory,
+  fetchActiveSocialStudioBackgroundJob,
   fetchJobStatus,
   fetchLatestJob,
   fetchSocialConfig,
-  generateImage,
+  fetchSocialStudioBackgroundJob,
   generateStory,
-  pollImageUntilDone,
-  pollKiePhase,
-  pollStitchPhase,
-  pollVideoPhase,
+  getJobBackgroundRunStatus,
+  isSocialStudioBackgroundJobDone,
   postImage,
   postVideo,
   retryStory,
-  startVideoRender,
+  startSocialStudioBackgroundJob,
+  notifySocialStudioJobChange,
+  SOCIAL_STUDIO_JOB_ID_KEY,
+  SOCIAL_STUDIO_GEN_START_KEY,
+  SOCIAL_STUDIO_GEN_KIND_KEY,
 } from '@/lib/social-studio/client-api';
+import { CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT } from '@/lib/client-dashboard-nav';
 import GeneratorModal from './GeneratorModal';
 import RetryModal from './RetryModal';
 import ImagePromptModal from './ImagePromptModal';
@@ -275,6 +279,11 @@ export default function SocialDash() {
   const [showImageWorkspace, setShowImageWorkspace] = useState<boolean>(true);
   const [creatorStudioView, setCreatorStudioView] = useState<'video' | 'image'>('video');
   const [isImageGenerating, setIsImageGenerating] = useState<boolean>(false);
+  const [activeBackgroundJobId, setActiveBackgroundJobId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(SOCIAL_STUDIO_JOB_ID_KEY);
+  });
+  const applyBackgroundJobRef = useRef<(job: any) => void>(() => {});
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [generatedSocialImage, setGeneratedSocialImage] = useState<string | null>(null);
   const [supabaseImageUrl, setSupabaseImageUrl] = useState<string | null>(null);
@@ -415,25 +424,29 @@ export default function SocialDash() {
     fetchJobStatus().then(setStatus).catch(() => setStatus('Connection Error'));
   }, []);
 
-  // Timer logic for progress bar (max 6 minutes = 360s for video, 60s for images)
+  // Progress bar — elapsed time (matches cross-tab banner: ~5 min image, ~6 min video)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isGenerating) {
-      const MAX_TIME = generationType === 'images' ? 60 : 360; // seconds
-      interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 98) {
-            clearInterval(interval);
-            return 98; // Stay at 98% until status changes to success
-          }
-          return prev + (100 / MAX_TIME);
-        });
-      }, 1000);
+    const busy = !!activeBackgroundJobId || isGenerating;
+    if (!busy) return;
+
+    let startRaw = window.localStorage.getItem(SOCIAL_STUDIO_GEN_START_KEY);
+    if (!startRaw) {
+      startRaw = String(Date.now());
+      window.localStorage.setItem(SOCIAL_STUDIO_GEN_START_KEY, startRaw);
     }
-    return () => {
-      if (interval) clearInterval(interval);
+
+    const kindRaw = window.localStorage.getItem(SOCIAL_STUDIO_GEN_KIND_KEY);
+    const durationMs =
+      kindRaw === "video" || generationType === "video" ? 360_000 : 300_000;
+    const start = Number(startRaw);
+
+    const tick = () => {
+      setProgress(Math.min(99, Math.round(((Date.now() - start) / durationMs) * 100)));
     };
-  }, [isGenerating, generationType]);
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [activeBackgroundJobId, isGenerating, generationType]);
 
   // Monitor status to trigger video preview refresh only (completely decoupled from prompt/image loading progress)
   useEffect(() => {
@@ -513,9 +526,164 @@ export default function SocialDash() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const notifyEmbedGenerationActive = useCallback((active: boolean) => {
+    if (typeof window === 'undefined' || window.parent === window) return;
+    window.parent.postMessage(
+      { type: CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT, active },
+      window.location.origin
+    );
+  }, []);
+
+  const syncJobPreviewFromServer = useCallback((job: any) => {
+    if (!job) return;
+    setStatus(job.status || status);
+    if (job.id && job.kind === 'image') setCurrentImageJobId(job.id);
+    if (job.id && job.kind === 'video') setCurrentVideoJobId(job.id);
+    if (job.assetUrl && job.kind === 'image') {
+      setSupabaseImageUrl(job.assetUrl);
+      setGeneratedSocialImage(job.assetUrl);
+      setShowImageWorkspace(true);
+    }
+    if (job.assetUrl && job.kind === 'video') {
+      setSupabaseVideoUrl(job.assetUrl);
+    }
+    if (job.descriptions) {
+      const d = job.descriptions;
+      if (job.kind === 'image') {
+        setSocialDescriptions({
+          instagram: d.instagram || '',
+          facebook: d.facebook || '',
+          tiktok: d.tiktok || '',
+          linkedin: d.linkedin || '',
+          twitter: d.twitter || '',
+        });
+      } else if (job.kind === 'video') {
+        setVideoMetadata({
+          instagram: { content: d.instagram },
+          facebook: { content: d.facebook },
+          linkedin: { content: d.linkedin },
+          tiktok: { caption: d.tiktok },
+          youtube: { description: d.youtube },
+          twitter: { content: d.twitter },
+        });
+      }
+    }
+    if (job.story) setGeneratedStory(job.story);
+    if (job.scenes?.length) {
+      setGeneratedScenes(job.scenes);
+      const input = job.input as Record<string, unknown> | undefined;
+      if (typeof input?.audioUrl === 'string') setVideoAudioUrl(input.audioUrl);
+    }
+  }, [status]);
+
+  const finishBackgroundJob = useCallback(
+    (job: any) => {
+      window.localStorage.removeItem(SOCIAL_STUDIO_JOB_ID_KEY);
+      window.localStorage.removeItem(SOCIAL_STUDIO_GEN_START_KEY);
+      window.localStorage.removeItem(SOCIAL_STUDIO_GEN_KIND_KEY);
+      notifySocialStudioJobChange(null);
+      setActiveBackgroundJobId(null);
+      notifyEmbedGenerationActive(false);
+      syncJobPreviewFromServer(job);
+      const runStatus = getJobBackgroundRunStatus(job);
+      if (runStatus === 'failed' || job.error) {
+        showToast(job.error || 'Generation failed', 'info');
+        setIsGenerating(false);
+        setGenerationType(null);
+        setIsImageGenerating(false);
+        setLoading(null);
+        return;
+      }
+      setProgress(100);
+      setTimeout(() => {
+        setIsGenerating(false);
+        setGenerationType(null);
+        setIsImageGenerating(false);
+        setLoading(null);
+      }, 800);
+      if (job.kind === 'image') {
+        showToast('Images generated successfully!', 'success');
+      } else if (job.kind === 'video') {
+        showToast('Video created successfully!', 'success');
+        setGeneratedScenes([]);
+        setAcceptedStory(null);
+      }
+    },
+    [notifyEmbedGenerationActive, syncJobPreviewFromServer]
+  );
+
+  applyBackgroundJobRef.current = finishBackgroundJob;
+
+  async function startBackgroundJob(kind: 'image' | 'video' | 'video_render', payload: Record<string, unknown>) {
+    const data = await startSocialStudioBackgroundJob(kind, payload);
+    window.localStorage.setItem(SOCIAL_STUDIO_JOB_ID_KEY, data.jobId);
+    window.localStorage.setItem(SOCIAL_STUDIO_GEN_START_KEY, String(Date.now()));
+    window.localStorage.setItem(SOCIAL_STUDIO_GEN_KIND_KEY, kind === 'video_render' ? 'video' : kind);
+    notifySocialStudioJobChange(data.jobId);
+    setActiveBackgroundJobId(data.jobId);
+    notifyEmbedGenerationActive(true);
+    return data.jobId;
+  }
+
+  // Resume in-flight Creator Studio background job (reload / another tab)
+  useEffect(() => {
+    if (activeBackgroundJobId) return;
+    let cancelled = false;
+    fetchActiveSocialStudioBackgroundJob()
+      .then((job) => {
+        if (cancelled || !job?.id) return;
+        window.localStorage.setItem(SOCIAL_STUDIO_JOB_ID_KEY, job.id);
+        setActiveBackgroundJobId(job.id);
+        notifyEmbedGenerationActive(true);
+        syncJobPreviewFromServer(job);
+        const bgKind = (job.input as Record<string, unknown>)?.backgroundKind;
+        if (job.kind === 'image' || bgKind === 'image') {
+          setIsImageGenerating(true);
+          setGenerationType('images');
+          setIsGenerating(true);
+        } else {
+          setGenerationType('video');
+          setIsGenerating(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBackgroundJobId, notifyEmbedGenerationActive, syncJobPreviewFromServer]);
+
+  // Poll background Creator Studio job until completed or failed
+  useEffect(() => {
+    if (!activeBackgroundJobId) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const job = await fetchSocialStudioBackgroundJob(activeBackgroundJobId);
+        if (cancelled || !job) return;
+        if (job.status) setStatus(job.status);
+        syncJobPreviewFromServer(job);
+        const runStatus = getJobBackgroundRunStatus(job);
+        if (runStatus === 'pending' || runStatus === 'running') return;
+        if (isSocialStudioBackgroundJobDone(job)) {
+          applyBackgroundJobRef.current(job);
+        }
+      } catch (e) {
+        console.warn('[social-studio job poll]', e);
+      }
+    };
+
+    void poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeBackgroundJobId, syncJobPreviewFromServer]);
+
   const handleImagePromptSubmit = async (prompt: string) => {
     setShowImageModal(false);
-    setStatus("Generating images...");
+    setStatus('Generating images...');
     setIsGenerating(true);
     setGenerationType('images');
     setProgress(0);
@@ -525,35 +693,13 @@ export default function SocialDash() {
     setGeneratedSocialImage(null);
 
     try {
-      const start = await generateImage(prompt, imageRatio);
-      setCurrentImageJobId(start.jobId);
-      const result = await pollImageUntilDone(start.jobId, start.taskId, prompt);
-
-      setProgress(100);
-      setTimeout(() => {
-        setIsGenerating(false);
-        setGenerationType(null);
-      }, 1000);
-
-      const imageUrl = result.imageUrl;
-      const descriptions = result.descriptions || {};
-
-      setGeneratedSocialImage(imageUrl);
-      setSocialDescriptions({
-        instagram: descriptions.instagram || SAMPLE_SOCIAL_FALLBACK.instagram,
-        facebook: descriptions.facebook || SAMPLE_SOCIAL_FALLBACK.facebook,
-        tiktok: descriptions.tiktok || SAMPLE_SOCIAL_FALLBACK.tiktok,
-        linkedin: descriptions.linkedin || SAMPLE_SOCIAL_FALLBACK.linkedin,
-        twitter: descriptions.twitter || SAMPLE_SOCIAL_FALLBACK.twitter,
-      });
-      showToast("Images generated successfully!", 'success');
+      await startBackgroundJob('image', { prompt, ratio: imageRatio });
+      showToast('Image generation started in the background…', 'success');
     } catch (err: any) {
       console.error('[UI] Image generation error:', err);
       showToast(err?.message || 'Image generation failed', 'info');
       setIsGenerating(false);
       setGenerationType(null);
-      setSocialDescriptions({ ...SAMPLE_SOCIAL_FALLBACK });
-    } finally {
       setIsImageGenerating(false);
     }
   };
@@ -622,19 +768,23 @@ export default function SocialDash() {
 
     setLastInputs(formattedData);
     setGeneratedScenes([]);
+    setGeneratedStory(null);
+    setAcceptedStory(null);
+    setIsGenerating(true);
+    setGenerationType('video');
+    setProgress(0);
+    hasTriggeredInSession.current = true;
+    localStorage.setItem('sd_generation_start', Date.now().toString());
+    setStatus('Starting video generation...');
     setLoading('dynamic');
 
     try {
-      const result = await generateStory(formattedData);
-      const story = result?.output?.story || result?.story;
-      if (story) {
-        setGeneratedStory(story);
-        showToast('Story generated!', 'success');
-      } else {
-        showToast('No story returned', 'info');
-      }
+      await startBackgroundJob('video', formattedData);
+      showToast('Video generation started in the background…', 'success');
     } catch (err: any) {
-      showToast(err?.message || 'Story generation failed', 'info');
+      showToast(err?.message || 'Video generation failed', 'info');
+      setIsGenerating(false);
+      setGenerationType(null);
     } finally {
       setLoading(null);
     }
@@ -698,89 +848,13 @@ export default function SocialDash() {
     setLoading('confirm');
 
     try {
-      const renderStart = await startVideoRender({
+      await startBackgroundJob('video_render', {
         jobId: currentVideoJobId,
         story: acceptedStory,
         scenes: generatedScenes,
         audioUrl: videoAudioUrl,
       });
-
-      const imageTaskIds = renderStart.imageTaskIds || [];
-      const imagePoll = (await pollKiePhase(() =>
-        pollVideoPhase({
-          phase: 'images',
-          jobId: currentVideoJobId,
-          scenes: generatedScenes,
-          imageTaskIds,
-        })
-      )) as { complete?: boolean; scenes?: typeof generatedScenes; failures?: Array<{ failMsg?: string }> };
-
-      const scenesWithImages = imagePoll.scenes || generatedScenes;
-      const videoStart = await pollVideoPhase({
-        phase: 'start_videos',
-        jobId: currentVideoJobId,
-        scenes: scenesWithImages,
-      });
-
-      const videoPoll = (await pollKiePhase(() =>
-        pollVideoPhase({
-          phase: 'videos',
-          jobId: currentVideoJobId,
-          scenes: scenesWithImages,
-          videoTaskIds: videoStart.videoTaskIds,
-        })
-      )) as { complete?: boolean; scenes?: typeof generatedScenes; failures?: Array<{ failMsg?: string }> };
-
-      const scenesComplete = videoPoll.scenes || scenesWithImages;
-
-      setStatus('Stitching scene clips into final video...');
-      const stitchStart = await pollVideoPhase({
-        phase: 'start_stitch',
-        jobId: currentVideoJobId,
-        scenes: scenesComplete,
-        audioUrl: videoAudioUrl,
-      });
-
-      await pollStitchPhase(() =>
-        pollVideoPhase({
-          phase: 'stitch',
-          jobId: currentVideoJobId,
-          stitchJobId: stitchStart.stitchJobId,
-        })
-      );
-
-      setStatus('Finalizing video and captions...');
-      const final = await pollVideoPhase({
-        phase: 'complete_finalize',
-        jobId: currentVideoJobId,
-        story: acceptedStory,
-        scenes: scenesComplete,
-        stitchJobId: stitchStart.stitchJobId,
-      });
-
-      setProgress(100);
-      setGeneratedScenes([]);
-      setAcceptedStory(null);
-      if (final.assetUrl) {
-        setSupabaseVideoUrl(final.assetUrl);
-      }
-      if (final.descriptions) {
-        const d = final.descriptions;
-        setVideoMetadata({
-          instagram: { content: d.instagram },
-          facebook: { content: d.facebook },
-          linkedin: { content: d.linkedin },
-          tiktok: { caption: d.tiktok },
-          youtube: { description: d.youtube },
-          twitter: { content: d.twitter },
-        });
-      }
-      showToast('Video created successfully!', 'success');
-      handleRefreshPreview();
-      setTimeout(() => {
-        setIsGenerating(false);
-        setGenerationType(null);
-      }, 1000);
+      showToast('Video render started in the background…', 'success');
     } catch (err: any) {
       console.error('[UI] Confirm prompts error:', err);
       setIsGenerating(false);
@@ -1713,6 +1787,25 @@ export default function SocialDash() {
       )
     : null;
 
+  const creatorStudioProcessing =
+    (!!activeBackgroundJobId || isGenerating || isImageGenerating) && !isImagePosting;
+
+  const processingIsVideo =
+    generationType === "video" ||
+    (generationType !== "images" && !isImageGenerating && !!activeBackgroundJobId);
+
+  const processingHeadline = processingIsVideo
+    ? "Generating social video"
+    : "Generating social image";
+
+  const processingDetail =
+    status &&
+    !["Loading...", "Connection Error", "Waiting for data..."].includes(status)
+      ? status
+      : processingIsVideo
+        ? "Story, scenes, and render run on the server — you can switch tabs without canceling."
+        : "Image and platform descriptions are being created on the server.";
+
   return (
     <EditorialPage>
       {toastPortal}
@@ -1735,6 +1828,59 @@ export default function SocialDash() {
         activeId={creatorStudioView}
         onChange={(id) => setCreatorStudioView(id as "video" | "image")}
       />
+
+      {creatorStudioProcessing && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            marginTop: 20,
+            padding: "14px 18px",
+            borderRadius: 14,
+            background: "linear-gradient(135deg, #fff5f5, #fde8e8)",
+            border: "1.5px solid #f5c2c7",
+            boxShadow: "0 4px 16px rgba(193,18,31,0.08)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <Spinner size={16} color="#C1121F" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: "#9B2226",
+                }}
+              >
+                {processingHeadline} · {Math.round(progress)}%
+              </div>
+              <div style={{ fontSize: 12.5, color: "#C1121F", marginTop: 4, lineHeight: 1.45 }}>
+                {processingDetail}
+              </div>
+              <div
+                style={{
+                  marginTop: 10,
+                  height: 6,
+                  background: "#f5c2c7",
+                  borderRadius: 6,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${progress}%`,
+                    background: "linear-gradient(90deg, #C1121F, #9B2226)",
+                    borderRadius: 6,
+                    transition: "width 1s ease-out",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {creatorStudioView === "video" && (
         <>
@@ -1896,36 +2042,10 @@ export default function SocialDash() {
                     <Spinner size={14} color="white" /> Processing…
                   </>
                 ) : (
-                  <>Generate Video AI campaign →</>
+                  <>Generate Video →</>
                 )}
               </EditorialPillButton>
             </div>
-
-            {isGenerating && generationType !== "images" && (
-              <div style={{ marginTop: 20, padding: "16px 0", borderTop: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 700, color: "#003049" }}>
-                      Video generation in progress
-                    </div>
-                    <div style={{ fontSize: 13, color: "#8C8474", marginTop: 4 }}>
-                      Preview will update automatically · {Math.round(progress)}%
-                    </div>
-                  </div>
-                </div>
-                <div style={{ height: 4, background: "#E8DCC2", borderRadius: 4, overflow: "hidden" }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${progress}%`,
-                      background: "#C1121F",
-                      borderRadius: 4,
-                      transition: "width 0.4s ease",
-                    }}
-                  />
-                </div>
-              </div>
-            )}
           </section>
 
           {generatedStory && (
@@ -2375,7 +2495,7 @@ export default function SocialDash() {
                     <Spinner size={14} color="white" /> Generating…
                   </>
                 ) : (
-                  <>Generate social images →</>
+                  <>Generate Image →</>
                 )}
               </EditorialPillButton>
             </div>
@@ -2395,13 +2515,14 @@ export default function SocialDash() {
               <div style={{ padding: "48px 0", textAlign: "center" }}>
                 <Loader2 size={32} color="#003049" style={{ animation: "spin 1.5s linear infinite" }} />
                 <p style={{ margin: "16px 0 0", fontSize: 14, fontWeight: 600, color: "#003049" }}>
-                  {isInitialLoading ? "Loading platform preview…" : isImagePosting ? "Posting content…" : "Drafting platform creatives…"}
+                  {isInitialLoading
+                    ? "Loading platform preview…"
+                    : isImagePosting
+                      ? "Posting content…"
+                      : creatorStudioProcessing
+                        ? "Updating preview when your image is ready…"
+                        : "Drafting platform creatives…"}
                 </p>
-                {generationType === "images" && (
-                  <div style={{ width: 200, margin: "16px auto 0", height: 4, background: "#E8DCC2", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${progress}%`, background: "#C1121F", transition: "width 0.3s ease" }} />
-                  </div>
-                )}
               </div>
             ) : (
               <>

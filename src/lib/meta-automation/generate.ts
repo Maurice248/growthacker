@@ -230,6 +230,83 @@ export async function runVariantGeneration(automationId: string) {
   }
 }
 
+/** Create DB row only — heavy work runs in bootstrapAndRunVariantGeneration (after POST). */
+export async function createVariantGenerationJob(input: {
+  companyId: string;
+  numVariants: number;
+  evalLengthDays: number;
+  dailyBudgetCents: number;
+  automationEnabled?: boolean;
+}) {
+  return prisma.adAutomation.create({
+    data: {
+      companyId: input.companyId,
+      baseAdMediaUrl: 'pending',
+      baseConcept: {},
+      numVariants: input.numVariants,
+      evalLengthDays: input.evalLengthDays,
+      dailyBudgetCents: input.dailyBudgetCents,
+      automationEnabled: input.automationEnabled ?? false,
+      status: 'generating',
+      generation: 1,
+    },
+  });
+}
+
+/** Full background pipeline: resolve base ad, seed base variant, generate challengers. */
+export async function bootstrapAndRunVariantGeneration(
+  automationId: string,
+  input: {
+    baseAdId?: string | number;
+    baseAdText?: string;
+  }
+) {
+  const automation = await prisma.adAutomation.findUnique({ where: { id: automationId } });
+  if (!automation) throw new Error('Automation not found');
+
+  try {
+    const baseConcept = await fetchBaseAdConcept(automation.companyId, {
+      baseAdId: input.baseAdId,
+      baseAdText: input.baseAdText,
+    });
+
+    await prisma.adAutomation.update({
+      where: { id: automationId },
+      data: {
+        baseAdMediaUrl: baseConcept.mediaUrl,
+        baseConcept: baseConcept as object,
+        status: 'generating',
+        error: null,
+      },
+    });
+
+    const existingBase = await prisma.adVariant.findFirst({
+      where: { automationId, generation: automation.generation, role: 'base' },
+    });
+    if (!existingBase) {
+      await prisma.adVariant.create({
+        data: {
+          automationId,
+          generation: automation.generation,
+          mediaUrl: baseConcept.mediaUrl,
+          format: baseConcept.format,
+          concept: baseConcept as object,
+          role: 'base',
+        },
+      });
+    }
+
+    await runVariantGeneration(automationId);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Variant generation failed';
+    await prisma.adAutomation.update({
+      where: { id: automationId },
+      data: { status: 'error', error: message },
+    });
+    throw err;
+  }
+}
+
 export async function startVariantGeneration(input: {
   companyId: string;
   baseAdId?: string | number;

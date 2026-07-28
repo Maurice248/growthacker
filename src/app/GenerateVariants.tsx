@@ -8,6 +8,12 @@ import {
   EditorialSectionHeader,
   EditorialPillButton,
 } from "./components";
+import {
+  CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT,
+  VARIANT_GEN_AUTOMATION_ID_KEY,
+} from "@/lib/client-dashboard-nav";
+
+const VARIANT_ACTIVE_GENERATION_API = "/api/meta/automation/active-generation";
 
 type ApprovedAd = {
   id: string | number;
@@ -38,6 +44,8 @@ type AutomationRecord = {
 
 type GenerateVariantsProps = {
   approvedAds: ApprovedAd[];
+  embed?: boolean;
+  onBusyChange?: (payload: { active: boolean; progress: number; label: string }) => void;
   onContinueToCampaignSetup: (payload: {
     automationId: string;
     variants: VariantRow[];
@@ -98,6 +106,8 @@ const cardCaptionTitleStyle: CSSProperties = {
 
 export default function GenerateVariants({
   approvedAds,
+  embed = false,
+  onBusyChange,
   onContinueToCampaignSetup,
 }: GenerateVariantsProps) {
   const [defaults, setDefaults] = useState({
@@ -195,14 +205,34 @@ export default function GenerateVariants({
 
     void (async () => {
       try {
-        const res = await fetch("/api/meta/automation");
-        const data = await res.json();
-        if (!res.ok) return;
+        const storedId =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem(VARIANT_GEN_AUTOMATION_ID_KEY)
+            : null;
 
-        const automations = (data.automations || []) as AutomationRecord[];
-        const inProgress = automations.find((a) => a.status === "generating");
-        if (!inProgress) return;
+        if (storedId) {
+          const res = await fetch(`/api/meta/automation/${encodeURIComponent(storedId)}`);
+          const data = await res.json();
+          if (res.ok && data.automation?.status === "generating") {
+            applyAutomationState(data.automation as AutomationRecord);
+            restoreBaseAdSelection(data.automation as AutomationRecord);
+            setGenerating(true);
+            const startedAt = data.automation.createdAt
+              ? new Date(data.automation.createdAt).getTime()
+              : Date.now();
+            setGenerationStartedAt(startedAt);
+            setChallengerStartedAt(startedAt);
+            return;
+          }
+          window.localStorage.removeItem(VARIANT_GEN_AUTOMATION_ID_KEY);
+        }
 
+        const activeRes = await fetch(VARIANT_ACTIVE_GENERATION_API);
+        const activeData = await activeRes.json();
+        if (!activeRes.ok || !activeData.automation) return;
+
+        const inProgress = activeData.automation as AutomationRecord;
+        window.localStorage.setItem(VARIANT_GEN_AUTOMATION_ID_KEY, inProgress.id);
         applyAutomationState(inProgress);
         restoreBaseAdSelection(inProgress);
         setGenerating(true);
@@ -240,6 +270,7 @@ export default function GenerateVariants({
             setGenerating(false);
             setGenerationStartedAt(null);
             setChallengerStartedAt(null);
+            window.localStorage.removeItem(VARIANT_GEN_AUTOMATION_ID_KEY);
             return;
           }
 
@@ -247,6 +278,7 @@ export default function GenerateVariants({
             setGenerating(false);
             setGenerationStartedAt(null);
             setChallengerStartedAt(null);
+            window.localStorage.removeItem(VARIANT_GEN_AUTOMATION_ID_KEY);
             setError(formatGenerationError(current.error || "Variant generation failed"));
             return;
           }
@@ -255,6 +287,7 @@ export default function GenerateVariants({
             setGenerating(false);
             setGenerationStartedAt(null);
             setChallengerStartedAt(null);
+            window.localStorage.removeItem(VARIANT_GEN_AUTOMATION_ID_KEY);
             return;
           }
         } catch (err: unknown) {
@@ -307,14 +340,21 @@ export default function GenerateVariants({
         }),
       });
       const data = await res.json();
+      if (res.status === 409 && data.automation) {
+        applyAutomationState(data.automation as AutomationRecord);
+        window.localStorage.setItem(VARIANT_GEN_AUTOMATION_ID_KEY, data.automation.id);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Failed to start generation");
 
       applyAutomationState(data.automation as AutomationRecord);
+      window.localStorage.setItem(VARIANT_GEN_AUTOMATION_ID_KEY, data.automation.id);
     } catch (err: unknown) {
       setError(formatGenerationError(err instanceof Error ? err.message : "Generation failed"));
       setGenerating(false);
       setGenerationStartedAt(null);
       setChallengerStartedAt(null);
+      window.localStorage.removeItem(VARIANT_GEN_AUTOMATION_ID_KEY);
     }
   };
 
@@ -376,6 +416,21 @@ export default function GenerateVariants({
   };
 
   const summaryLine = `${numVariants} variant${numVariants === 1 ? "" : "s"} · ${evalLengthDays}-day evaluation · $${(dailyBudgetCents / 100).toFixed(2)}/day per ad`;
+
+  useEffect(() => {
+    const active = isInProgress;
+    onBusyChange?.({
+      active,
+      progress: active ? progressPercent : 0,
+      label: active ? progressLabel : "",
+    });
+
+    if (!embed || typeof window === "undefined" || window.parent === window) return;
+    window.parent.postMessage(
+      { type: CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT, active },
+      window.location.origin
+    );
+  }, [embed, isInProgress, onBusyChange, progressLabel, progressPercent]);
 
   return (
     <EditorialPage>

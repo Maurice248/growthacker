@@ -29,15 +29,24 @@ export async function GET() {
     const buckets = ['AD1', 'AD2', 'AD3', 'AD4', 'AD5'];
 
     for (const bucket of buckets) {
-      const { data: files } = await supabase.storage.from(bucket).list('', { limit: 100 });
-      if (!files?.length) continue;
-      for (const file of files) {
-        if (file.name === '.emptyFolderPlaceholder') continue;
-        storageLookup[file.name] = {
-          bucket,
-          time: file.created_at,
-          publicUrl: `${projectUrl}/storage/v1/object/public/${bucket}/${file.name}`,
-        };
+      const pageSize = 200;
+      let offset = 0;
+      for (;;) {
+        const { data: files } = await supabase.storage.from(bucket).list('', {
+          limit: pageSize,
+          offset,
+        });
+        if (!files?.length) break;
+        for (const file of files) {
+          if (file.name === '.emptyFolderPlaceholder') continue;
+          storageLookup[file.name] = {
+            bucket,
+            time: file.created_at,
+            publicUrl: `${projectUrl}/storage/v1/object/public/${bucket}/${file.name}`,
+          };
+        }
+        if (files.length < pageSize) break;
+        offset += pageSize;
       }
     }
 

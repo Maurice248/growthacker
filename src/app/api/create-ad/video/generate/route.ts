@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 import { NextResponse } from 'next/server';
 import { requireApiCompanyId } from '@/lib/api-auth';

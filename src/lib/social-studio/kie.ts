@@ -107,6 +107,24 @@ export function kieAllComplete(results: KieTaskResult[]): boolean {
   );
 }
 
+export async function kiePollTasksUntilComplete(
+  apiKey: string,
+  taskIds: string[],
+  options: { maxWaitMs?: number; intervalMs?: number } = {}
+): Promise<KieTaskResult[]> {
+  if (!taskIds.length) return [];
+  const maxWaitMs = options.maxWaitMs ?? 900_000;
+  const intervalMs = options.intervalMs ?? 25_000;
+  const deadline = Date.now() + maxWaitMs;
+  let results: KieTaskResult[] = [];
+  while (Date.now() < deadline) {
+    results = await kiePollTasks(apiKey, taskIds);
+    if (kieAllComplete(results)) return results;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return kiePollTasks(apiKey, taskIds);
+}
+
 export async function kieCreateImageTask(
   apiKey: string,
   prompt: string,

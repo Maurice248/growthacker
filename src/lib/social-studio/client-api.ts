@@ -1,4 +1,17 @@
 const API = '/api/social-studio';
+const JOBS_API = `${API}/jobs`;
+
+export const SOCIAL_STUDIO_JOB_ID_KEY = 'app_social_studio_job_id';
+export const SOCIAL_STUDIO_GEN_START_KEY = 'app_social_studio_gen_start';
+export const SOCIAL_STUDIO_GEN_KIND_KEY = 'app_social_studio_gen_kind';
+export const SOCIAL_STUDIO_JOB_EVENT = 'social-studio-background-job';
+
+export function notifySocialStudioJobChange(jobId: string | null) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(SOCIAL_STUDIO_JOB_EVENT, { detail: { jobId } }));
+}
+
+export type SocialStudioBackgroundKind = 'image' | 'video' | 'video_render';
 
 export async function fetchSocialConfig() {
   const res = await fetch(`${API}/config`);
@@ -19,6 +32,61 @@ export async function fetchJobStatus() {
   if (!res.ok) return 'Status unavailable';
   const data = await res.json();
   return data.status || 'Waiting for data...';
+}
+
+export async function startSocialStudioBackgroundJob(
+  kind: SocialStudioBackgroundKind,
+  payload: Record<string, unknown>
+) {
+  const res = await fetch(JOBS_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, payload }),
+  });
+  const data = await res.json();
+  if (!res.ok && res.status !== 409) {
+    throw new Error(data.error || 'Failed to start Creator Studio job');
+  }
+  return data as { jobId: string; status: string; error?: string };
+}
+
+export async function fetchSocialStudioBackgroundJob(jobId: string) {
+  const res = await fetch(`${JOBS_API}?jobId=${encodeURIComponent(jobId)}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to load job');
+  return data.job;
+}
+
+export async function fetchActiveSocialStudioBackgroundJob() {
+  const res = await fetch(`${JOBS_API}?active=1`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.job || null;
+}
+
+export function getJobBackgroundRunStatus(job: { input?: unknown }): string | null {
+  const input = job.input as Record<string, unknown> | null;
+  if (!input) return null;
+  const rs = input.runStatus;
+  if (rs === 'pending' || rs === 'running' || rs === 'completed' || rs === 'failed') {
+    return rs;
+  }
+  return null;
+}
+
+export function isSocialStudioBackgroundJobDone(job: {
+  input?: unknown;
+  kind?: string;
+  status?: string;
+  assetUrl?: string | null;
+  error?: string | null;
+}): boolean {
+  const runStatus = getJobBackgroundRunStatus(job);
+  if (runStatus === 'completed' || runStatus === 'failed') return true;
+  if (job.status === 'failed' || job.error) return true;
+  const status = String(job.status || '').toLowerCase();
+  if (job.assetUrl && status.includes('ready for review')) return true;
+  return false;
 }
 
 export async function generateImage(topic: string, ratio: string) {
