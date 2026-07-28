@@ -624,7 +624,7 @@ export function EditorialField({ value, onChange, disabled, placeholder, multili
     fontFamily: "var(--font-sans)",
     fontSize: 15,
     lineHeight: 1.6,
-    padding: "10px 0",
+    padding: "10px 0 10px 8px",
     border: "none",
     borderBottom: disabled ? "none" : "1px solid #C2B79A",
     background: "transparent",

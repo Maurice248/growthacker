@@ -926,7 +926,7 @@ export default function CampaignSetup({
                 </div>
               </EditorialDefinitionRow>
               <EditorialDefinitionRow label="Start date">
-                <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={{ ...inputSt, border: "none", borderBottom: "1px solid #C2B79A", borderRadius: 0, padding: "10px 0", background: "transparent" }} />
+                <input type="datetime-local" value={config.ad_set?.start_time || ""} onChange={e => setField("ad_set", "start_time", e.target.value)} style={{ ...inputSt, border: "none", borderBottom: "1px solid #C2B79A", borderRadius: 0, padding: "10px 0 10px 8px", background: "transparent" }} />
               </EditorialDefinitionRow>
               <EditorialDefinitionRow label="End date" isLast>
                 {config.ad_set?.has_end_date ? (
@@ -935,7 +935,7 @@ export default function CampaignSetup({
                       type="datetime-local"
                       value={config.ad_set?.stop_time || ""}
                       onChange={e => setField("ad_set", "stop_time", e.target.value)}
-                      style={{ ...inputSt, flex: 1, border: "none", borderBottom: "1px solid #C2B79A", borderRadius: 0, padding: "10px 0", background: "transparent", boxSizing: "border-box" }}
+                      style={{ ...inputSt, flex: 1, border: "none", borderBottom: "1px solid #C2B79A", borderRadius: 0, padding: "10px 0 10px 8px", background: "transparent", boxSizing: "border-box" }}
                     />
                     <EditorialTextLink onClick={() => { setField("ad_set", "has_end_date", false); setField("ad_set", "stop_time", ""); }}>
                       Remove
@@ -1474,7 +1474,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 // ─── Input Style ─────────────────────────────────────────────────────────────
 const inputSt: React.CSSProperties = {
-  padding: "10px 12px",
+  padding: "10px 14px",
   borderRadius: 9,
   border: "1.5px solid #E8DCC2",
   background: "#fff",

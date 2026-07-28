@@ -1256,6 +1256,7 @@ export default function Dashboard() {
   const [analysisCardsExpanded, setAnalysisCardsExpanded] = useState(COLLAPSED_ANALYSIS_SECTIONS);
   const freshAnalysisResultRef = useRef(false);
   const prevAnalysisDataIdRef = useRef<string | null>(null);
+  const createTabAnalysisSyncIdRef = useRef<string | null>(null);
   const [pendingAnalysisTopic, setPendingAnalysisTopic] = useLocalStorage("app_pending_analysis_topic", null);
   const pendingTopicRef = useRef<string | null>(null); // ref so realtime callback always sees latest value
   const companySlugRef = useRef<string | null>(null);
@@ -1750,20 +1751,36 @@ export default function Dashboard() {
   const [socialStudioGenProgress, setSocialStudioGenProgress] = useState(0);
   const socialStudioGenTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  function openCreateAdFromAnalysis() {
+  function applyCreateTabDefaultsFromAnalysis() {
     if (!analysisData) return;
-    clearCreateTabGenerationState();
-    setCreateTabAdsConfig(
-      buildCreateTabConfigFromAnalysis(analysisData, {
-        totalAds: 1,
-        videoCount: 0,
-        imageCount: 0,
-        items: [],
-      })
-    );
-    setCreateTabConfigOpen(true);
-    setTab("create");
+    setCreateTabAdsConfig((prev) => buildCreateTabConfigFromAnalysis(analysisData, prev));
   }
+
+  function openCreateAdConfigFromAnalysis() {
+    applyCreateTabDefaultsFromAnalysis();
+    setCreateTabConfigOpen(true);
+  }
+
+  // Prefill Create Ad config when analysis completes or user loads a different report
+  useEffect(() => {
+    if (analysisStatus !== "done" || !analysisData) return;
+
+    const dataId = analysisData.id ?? analysisData.topic ?? "current";
+    if (createTabAnalysisSyncIdRef.current === dataId) return;
+
+    const generationBusy =
+      generationActive || adStatus === "generating" || adStatus === "waiting";
+    if (generationBusy) return;
+
+    createTabAnalysisSyncIdRef.current = dataId;
+    clearCreateTabGenerationState();
+    setCreateTabAdsConfig((prev) => buildCreateTabConfigFromAnalysis(analysisData, prev));
+  }, [
+    analysisStatus,
+    analysisData,
+    generationActive,
+    adStatus,
+  ]);
 
   function resetCreateTabWorkspace() {
     clearCreateTabGenerationState();
@@ -5543,10 +5560,6 @@ export default function Dashboard() {
                   })}
                 </div>
               )}
-
-              <footer style={{ marginTop: 28 }}>
-                <EditorialTextLink onClick={() => setTab("reports")}>View all reports</EditorialTextLink>
-              </footer>
             </section>
 
             <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
@@ -5647,7 +5660,7 @@ export default function Dashboard() {
                         maxWidth: 320,
                         fontFamily: "inherit",
                         fontSize: 14.5,
-                        padding: "8px 0",
+                        padding: "8px 0 8px 8px",
                         border: "none",
                         borderBottom: "1px solid #C2B79A",
                         background: "transparent",
@@ -5688,7 +5701,7 @@ export default function Dashboard() {
                         value={locationSearchInput}
                         onChange={(e) => { setLocationSearchInput(e.target.value); setShowLocationDropdown(true); }}
                         onFocus={() => setShowLocationDropdown(true)}
-                        style={{ fontFamily: "inherit", fontSize: 14.5, padding: "8px 0", border: "none", borderBottom: "1px solid #C2B79A", background: "transparent", color: "var(--primary)", outline: "none", width: 180, marginLeft: researchCountries.length ? 8 : 0 }}
+                        style={{ fontFamily: "inherit", fontSize: 14.5, padding: "8px 0 8px 8px", border: "none", borderBottom: "1px solid #C2B79A", background: "transparent", color: "var(--primary)", outline: "none", width: 180, marginLeft: researchCountries.length ? 8 : 0 }}
                       />
                     </div>
                     {showLocationDropdown && locationSearchInput && (
@@ -5728,7 +5741,7 @@ export default function Dashboard() {
                         }}
                         min={1}
                         max={100}
-                        style={{ fontFamily: "inherit", fontSize: 15, padding: "6px 0", border: "none", borderBottom: "1px solid #C2B79A", background: "transparent", color: "var(--primary)", outline: "none", width: 64 }}
+                        style={{ fontFamily: "inherit", fontSize: 15, padding: "6px 0 6px 8px", border: "none", borderBottom: "1px solid #C2B79A", background: "transparent", color: "var(--primary)", outline: "none", width: 64 }}
                       />
                     </div>
                     <div>
@@ -5850,8 +5863,31 @@ export default function Dashboard() {
             {analysisStatus === "done" && analysisData && (
               <section className="animate-slide-up" style={{ marginTop: 48 }}>
                 <EditorialSectionHeader
-                  title="Analysis Summary"
-                  meta={analysisLastRunLabel ? `Last run · ${analysisLastRunLabel}` : undefined}
+                  title={
+                    <>
+                      Analysis Summary
+                      {analysisLastRunLabel ? (
+                        <span
+                          style={{
+                            color: "var(--text-muted)",
+                            fontWeight: 600,
+                            textTransform: "none",
+                            letterSpacing: "0.02em",
+                            marginLeft: 6,
+                          }}
+                        >
+                          ( Last run · {analysisLastRunLabel} )
+                        </span>
+                      ) : null}
+                    </>
+                  }
+                  meta={
+                    hasAnalysisResultCards ? (
+                      <EditorialTextLink onClick={toggleAllAnalysisSections}>
+                        {allAnalysisSectionsExpanded ? "Collapse All" : "Expand All"}
+                      </EditorialTextLink>
+                    ) : undefined
+                  }
                 />
 
                 {analysisData?.executive_summary && (
@@ -6031,33 +6067,6 @@ export default function Dashboard() {
                     </>
                   )}
 
-                <footer style={{ marginTop: 32, display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
-                  {hasAnalysisResultCards && (
-                    <EditorialTextLink onClick={toggleAllAnalysisSections}>
-                      {allAnalysisSectionsExpanded ? "Collapse all sections" : "Expand all sections"}
-                    </EditorialTextLink>
-                  )}
-                  <EditorialPillButton
-                    variant="danger"
-                    onClick={openCreateAdFromAnalysis}
-                    disabled={adStatus === "generating" || adStatus === "waiting"}
-                    style={{ marginLeft: "auto", padding: "10px 24px" }}
-                  >
-                    {adStatus === "generating" ? <><Spinner size={12} color="#fff" /> Sending to pipeline...</> :
-                      adStatus === "waiting" ? <><Spinner size={12} color="#fff" /> Generating ad...</> :
-                        "Create ad based on this analysis →"}
-                  </EditorialPillButton>
-                </footer>
-                {adStatus === "waiting" && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: "var(--amber)", textAlign: "right" }}>
-                    The ad pipeline is generating your ad using the analysis data. Results will appear in the Create Ad tab when ready.
-                  </div>
-                )}
-                {adStatus === "error" && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: "var(--red-strong)", textAlign: "right" }}>
-                    Could not reach the ad pipeline: {webhookError}. Please try again.
-                  </div>
-                )}
               </section>
             )}
           </div>
@@ -6230,7 +6239,7 @@ export default function Dashboard() {
                 {!createTabConfigOpen && (
                   <EditorialPillButton
                     variant="danger"
-                    onClick={() => setCreateTabConfigOpen(true)}
+                    onClick={openCreateAdConfigFromAnalysis}
                     disabled={adStatus === "generating" || adStatus === "waiting" || !analysisData}
                     style={{ padding: "10px 24px", whiteSpace: "nowrap" }}
                   >
@@ -8088,13 +8097,14 @@ export default function Dashboard() {
 
           {visibleIcpFields.length > 0 && (
             <section style={{ marginTop: 48 }}>
-              <EditorialSectionHeader title="Ideal Customer Profiles" meta="One per workflow" />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 48, padding: "24px 0", borderBottom: "1px solid var(--border)" }}>
-                {visibleIcpFields.map((field) => (
-                  <div key={field.key}>
-                    <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15.5, marginBottom: 10, color: "var(--text)" }}>
-                      {field.label.replace(/^ICP - /, "")}
-                    </div>
+              <EditorialSectionHeader title="Ideal Customer Profiles" meta="One per module" />
+              <EditorialDefinitionList>
+                {visibleIcpFields.map((field, index) => (
+                  <EditorialDefinitionRow
+                    key={field.key}
+                    label={field.label.replace(/^ICP - /, "")}
+                    isLast={index === visibleIcpFields.length - 1}
+                  >
                     <EditorialField
                       value={displayProfileData[field.key as keyof typeof displayProfileData] as string}
                       onChange={(v) => setProfileData({ ...profileData, [field.key]: v })}
@@ -8102,9 +8112,9 @@ export default function Dashboard() {
                       multiline
                       rows={4}
                     />
-                  </div>
+                  </EditorialDefinitionRow>
                 ))}
-              </div>
+              </EditorialDefinitionList>
             </section>
           )}
 

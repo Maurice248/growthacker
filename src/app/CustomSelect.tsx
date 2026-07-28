@@ -60,7 +60,7 @@ export default function CustomSelect({ value, onChange, options, style, variant 
         onClick={() => open ? setOpen(false) : openDropdown()}
         style={{
           width: "100%",
-          padding: isEditorial ? "10px 24px 10px 0" : "10px 32px 10px 12px",
+          padding: isEditorial ? "10px 24px 10px 8px" : "10px 32px 10px 14px",
           borderRadius: isEditorial ? 0 : 10,
           border: isEditorial ? "none" : open ? "1.5px solid #669BBC" : "1.5px solid #E8DCC2",
           borderBottom: isEditorial ? "1px solid #C2B79A" : undefined,
