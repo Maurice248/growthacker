@@ -141,7 +141,7 @@ export default function InviteAcceptPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Jane Smith"
-                className="pl-10"
+                className="pl-11"
                 required
               />
             </div>
@@ -158,7 +158,7 @@ export default function InviteAcceptPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="pl-10"
+                  className="pl-11"
                   required
                   minLength={8}
                   autoComplete="new-password"
@@ -176,7 +176,7 @@ export default function InviteAcceptPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="pl-10"
+                  className="pl-11"
                   required
                   minLength={8}
                   autoComplete="new-password"

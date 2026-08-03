@@ -110,7 +110,7 @@ export function ClientLoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@email.com"
-                className="pl-10"
+                className="pl-11"
                 required
                 autoComplete="email"
               />
@@ -127,7 +127,7 @@ export function ClientLoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="pl-10"
+                className="pl-11"
                 required
                 autoComplete="current-password"
               />
