@@ -1,13 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { getCompanyApiTokenSecrets } from '@/lib/api-token-secrets';
 import { resolveModuleAi } from '@/lib/ai-routing-runtime';
-import { buildApifyRequest, scrapeFacebookAds } from './apify';
+import { resolveApifyActorId } from './apify-actors';
+import { scrapeFacebookAds } from './apify';
 import { analyzeWithOpenAI, formatAnalysisReport } from './analyze';
 import {
   buildRelevanceTerms,
   resolveAnalysisCompanyContext,
 } from './company-context';
 import { processScrapedAds, trimForGptInput } from './process-ads';
+import { saveScrapedAds } from './save-ads';
 import type { AnalysisReport, CompetitorAnalysisInput } from './types';
 
 export type { AnalysisReport, CompetitorAnalysisInput } from './types';
@@ -31,7 +33,11 @@ export async function runCompetitorAnalysis(
   companyId: string,
   input: CompetitorAnalysisInput
 ): Promise<AnalysisReport> {
-  const tokens = await getAnalysisTokens(companyId);
+  const secrets = await getCompanyApiTokenSecrets(companyId);
+  const tokens = {
+    apify: secrets.apify?.trim() || null,
+    openai: secrets.openai?.trim() || null,
+  };
 
   if (!tokens.apify) {
     return {
@@ -41,7 +47,7 @@ export async function runCompetitorAnalysis(
       hooks_table: [],
       market_insights_table: [],
       gaps_table: [],
-      error: 'Apify API token is not configured. Add it in Integrations → API Tokens.',
+      error: 'Apify API token is not configured. Add it in Settings → Integrations → Apify.',
     };
   }
 
@@ -83,12 +89,16 @@ export async function runCompetitorAnalysis(
     };
   }
 
-  const companyContext = await resolveAnalysisCompanyContext(companyId, input);
+  const analysisInput: CompetitorAnalysisInput = {
+    ...input,
+    apify_actor: resolveApifyActorId(secrets.competitorApifyActor),
+  };
+
+  const companyContext = await resolveAnalysisCompanyContext(companyId, analysisInput);
   const topic = companyContext.topic;
   const relevanceTerms = buildRelevanceTerms(companyContext);
 
-  const apifyBody = buildApifyRequest(input);
-  const scraped = await scrapeFacebookAds(tokens.apify, apifyBody);
+  const scraped = await scrapeFacebookAds(tokens.apify, analysisInput);
   const processed = processScrapedAds(scraped, relevanceTerms);
 
   if (processed.meta.total_relevant === 0) {
@@ -102,6 +112,12 @@ export async function runCompetitorAnalysis(
       gaps_table: [],
       error: `No relevant ads found for keywords: ${input.keywords.join(', ')}. Try different keywords or countries.`,
     };
+  }
+
+  try {
+    await saveScrapedAds(companyId, processed, input);
+  } catch (err) {
+    console.error('[competitor-analysis] saveScrapedAds failed:', err);
   }
 
   const gptInput = trimForGptInput(processed);

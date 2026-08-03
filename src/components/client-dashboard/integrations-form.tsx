@@ -21,6 +21,10 @@ import {
   type AiModuleRoute,
   type AiModuleRoutingMap,
 } from '@/lib/ai-module-routing';
+import {
+  APIFY_META_ADS_ACTORS,
+  type ApifyMetaAdsActorId,
+} from '@/lib/competitor-analysis/apify-actors';
 
 type SecretField = { set: boolean; masked: string };
 
@@ -38,6 +42,13 @@ type DataForSeoCredentialView = {
   passwordSet: boolean;
   passwordMasked: string;
   configured: boolean;
+};
+
+type ApifyIntegrationView = {
+  set: boolean;
+  masked: string;
+  placeholder: string;
+  competitorApifyActor: ApifyMetaAdsActorId;
 };
 
 type IntegrationSettings = {
@@ -90,6 +101,8 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   const [form, setForm] = useState(emptyForm);
   const [apiTokenSecrets, setApiTokenSecrets] = useState<ApiTokenSecretView[]>([]);
   const [apiTokenForm, setApiTokenForm] = useState<Record<string, string>>({});
+  const [apifyView, setApifyView] = useState<ApifyIntegrationView | null>(null);
+  const [apifyForm, setApifyForm] = useState({ apiKey: '', actor: 'curious_coder' as ApifyMetaAdsActorId });
   const [dataforseoView, setDataforseoView] = useState<DataForSeoCredentialView | null>(null);
   const [dataforseoForm, setDataforseoForm] = useState({ login: '', password: '' });
   const [aiGateways, setAiGateways] = useState<GatewaySecretMap>(() => emptyGatewaySecrets());
@@ -127,6 +140,11 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
 
       setSettings(data);
       setApiTokenSecrets(tokenData.tokens ?? []);
+      setApifyView(tokenData.apify ?? null);
+      setApifyForm({
+        apiKey: '',
+        actor: tokenData.apify?.competitorApifyActor ?? 'curious_coder',
+      });
       setDataforseoView(tokenData.dataforseo ?? null);
       setApiTokenForm(Object.fromEntries((tokenData.tokens ?? []).map((t: ApiTokenSecretView) => [t.key, ''])));
       setDataforseoForm({ login: '', password: '' });
@@ -184,6 +202,8 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
     if (dataforseoForm.password.trim()) {
       tokenPayload.dataforseoPassword = dataforseoForm.password.trim();
     }
+    if (apifyForm.apiKey.trim()) tokenPayload.apify = apifyForm.apiKey.trim();
+    tokenPayload.competitorApifyActor = apifyForm.actor;
 
     try {
       const res = await fetch('/api/companies/integrations', {
@@ -227,6 +247,11 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
 
       setSettings(data);
       setApiTokenSecrets(tokenData.tokens ?? []);
+      setApifyView(tokenData.apify ?? null);
+      setApifyForm((prev) => ({
+        apiKey: '',
+        actor: tokenData.apify?.competitorApifyActor ?? prev.actor,
+      }));
       setDataforseoView(tokenData.dataforseo ?? null);
       setApiTokenForm(Object.fromEntries((tokenData.tokens ?? []).map((t: ApiTokenSecretView) => [t.key, ''])));
       setDataforseoForm({ login: '', password: '' });
@@ -384,6 +409,47 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
           </EditorialDefinitionList>
         </section>
 
+        <section className="mt-10">
+          <EditorialSectionHeader
+            title="Apify"
+            meta="Competitor Ads Library scraping · Cold Email leads finder"
+          />
+          <EditorialDefinitionList>
+            <EditorialDefinitionRow
+              label="API token"
+              labelSub={
+                apifyView?.set ? `Saved: ${apifyView.masked}` : 'Not configured'
+              }
+            >
+              <EditorialField
+                value={apifyForm.apiKey}
+                onChange={(v) => setApifyForm((prev) => ({ ...prev, apiKey: v }))}
+                type="password"
+                placeholder={apifyView?.placeholder ?? 'apify_api_…'}
+                style={{ maxWidth: 420 }}
+              />
+            </EditorialDefinitionRow>
+            <EditorialDefinitionRow label="Competitor scraper actor" isLast>
+              <select
+                value={apifyForm.actor}
+                onChange={(e) =>
+                  setApifyForm((prev) => ({
+                    ...prev,
+                    actor: e.target.value as ApifyMetaAdsActorId,
+                  }))
+                }
+                className="w-full max-w-[520px] border-0 border-b border-[#C2B79A] bg-transparent py-2.5 pl-2 font-[family-name:var(--font-display)] text-[15px] font-medium text-[var(--primary)] outline-none"
+              >
+                {APIFY_META_ADS_ACTORS.map((actor) => (
+                  <option key={actor.id} value={actor.id}>
+                    {actor.label}
+                  </option>
+                ))}
+              </select>
+            </EditorialDefinitionRow>
+          </EditorialDefinitionList>
+        </section>
+
         <AiModuleSettings
           readOnly={readOnly}
           gatewayForm={aiGatewayForm}
@@ -393,7 +459,10 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
           onConnectionChange={(patch) => setAiConnection((prev) => ({ ...prev, ...patch }))}
           routes={aiRoutes}
           onRouteChange={handleAiRouteChange}
-          apiTokenHints={apiTokenSecrets.map((t) => ({ key: t.key, set: t.set }))}
+          apiTokenHints={[
+            ...apiTokenSecrets.map((t) => ({ key: t.key, set: t.set })),
+            { key: 'apify', set: apifyView?.set ?? false },
+          ]}
         />
 
         <section className="mt-12">

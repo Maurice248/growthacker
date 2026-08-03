@@ -38,6 +38,7 @@ model Company {
   adAutomationDefaults AdAutomationDefaults?
   adAutomations        AdAutomation[]
   moduleAccess         CompanyModuleAccess?
+  competitorAds        CompetitorAd[]
 
   @@map("companies")
 }
@@ -640,6 +641,42 @@ model AdminAuditLog {
   @@index([actorUserId])
   @@index([targetType, targetId])
   @@map("admin_audit_logs")
+}
+
+model CompetitorAd {
+  id              String   @id @default(cuid())
+  companyId       String   @map("company_id")
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  adId            String   @map("ad_id")
+  pageName        String   @default("") @map("page_name")
+  pageUrl         String   @default("") @map("page_url")
+  adType          String   @default("text") @map("ad_type")
+  startDate       String   @default("") @map("start_date")
+  platforms       String   @default("")
+  hook            String   @default("")
+  headline        String   @default("")
+  body            String   @default("")
+  cta             String   @default("")
+  caption         String   @default("")
+  framework       String   @default("")
+  angles          String[] @default([])
+  hashtags        String[] @default([])
+  keywords        String[] @default([])
+  strength        String   @default("")
+  score           Int      @default(0)
+  imageUrl        String   @default("") @map("image_url")
+  hasVideo        Boolean  @default(false) @map("has_video")
+  impressionsText String?  @map("impressions_text")
+  impressionsMin  Int?     @map("impressions_min")
+  impressionsMax  Int?     @map("impressions_max")
+  raw             Json?
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime @updatedAt @map("last_seen_at")
+
+  @@unique([companyId, adId])
+  @@index([companyId, adType])
+  @@index([companyId, lastSeenAt(sort: Desc)])
+  @@map("competitor_ads")
 }
 
 model CompanyModuleAccess {

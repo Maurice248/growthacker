@@ -197,6 +197,7 @@ export function getUnlockedModuleStatusesForAdmin(): ModuleStatus[] {
 export const MODULE_TAB_IDS: Record<ModuleId, Set<string>> = {
   meta: new Set([
     'overview',
+    'ads_library',
     'create',
     'variants',
     'campaigns',

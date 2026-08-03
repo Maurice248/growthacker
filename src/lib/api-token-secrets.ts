@@ -6,9 +6,13 @@ import {
   type DataForSeoCredentialView,
 } from '@/lib/dataforseo-credentials';
 import { AI_GATEWAY_KEY_FIELDS, type AiGatewayKeyField } from '@/lib/ai-module-routing';
+import {
+  DEFAULT_APIFY_META_ADS_ACTOR,
+  resolveApifyActorId,
+  type ApifyMetaAdsActorId,
+} from '@/lib/competitor-analysis/apify-actors';
 
 export const API_TOKEN_SECRET_DEFINITIONS = [
-  { key: 'apify', label: 'Apify', placeholder: 'apify_api_…' },
   { key: 'openai', label: 'OpenAI', placeholder: 'sk-…' },
   { key: 'assemblyai', label: 'AssemblyAI', placeholder: '…' },
   { key: 'elevenLabs', label: 'ElevenLabs', placeholder: 'sk_…' },
@@ -20,6 +24,9 @@ export const API_TOKEN_SECRET_DEFINITIONS = [
   { key: 'instantlyAi', label: 'Instantly.ai', placeholder: '…' },
 ] as const;
 
+/** Apify API key — edited in the dedicated Apify section, not the generic API Tokens grid. */
+export const APIFY_API_KEY = 'apify' as const;
+
 /** Stored in apiTokenSecretsEnc but edited via dedicated login/password fields. */
 export const DATAFORSEO_SECRET_KEY = 'dataforseo' as const;
 
@@ -30,19 +37,32 @@ export const AI_GATEWAY_SECRET_DEFINITIONS = AI_GATEWAY_KEY_FIELDS.map((field) =
   placeholder: field.placeholder,
 }));
 
-export type ApiTokenSecretKey = (typeof API_TOKEN_SECRET_DEFINITIONS)[number]['key'];
+export type ApiTokenSecretKey =
+  | (typeof API_TOKEN_SECRET_DEFINITIONS)[number]['key']
+  | typeof APIFY_API_KEY;
 
 export type ApiTokenSecretsMap = Record<ApiTokenSecretKey, string> &
   Record<AiGatewayKeyField, string> & {
     dataforseo: string;
   };
 
+export type CompanyApiTokenStore = ApiTokenSecretsMap & {
+  competitorApifyActor: ApifyMetaAdsActorId;
+};
+
 export type ApiTokenSecretView = {
-  key: ApiTokenSecretKey;
+  key: (typeof API_TOKEN_SECRET_DEFINITIONS)[number]['key'];
   label: string;
   placeholder: string;
   set: boolean;
   masked: string;
+};
+
+export type ApifyIntegrationView = {
+  set: boolean;
+  masked: string;
+  placeholder: string;
+  competitorApifyActor: ApifyMetaAdsActorId;
 };
 
 export type AiGatewaySecretView = {
@@ -53,22 +73,30 @@ export type AiGatewaySecretView = {
   masked: string;
 };
 
-const EMPTY_SECRETS = {
+const EMPTY_SECRETS: CompanyApiTokenStore = {
+  apify: '',
+  competitorApifyActor: DEFAULT_APIFY_META_ADS_ACTOR,
   ...Object.fromEntries(API_TOKEN_SECRET_DEFINITIONS.map((d) => [d.key, ''])),
   ...Object.fromEntries(AI_GATEWAY_SECRET_DEFINITIONS.map((d) => [d.key, ''])),
-} as ApiTokenSecretsMap;
+  dataforseo: '',
+} as CompanyApiTokenStore;
 
-function parseSecretsEnc(value: string | null | undefined): ApiTokenSecretsMap {
-  if (!value) return { ...EMPTY_SECRETS, dataforseo: '' };
+type ParsedSecretsBlob = Partial<ApiTokenSecretsMap> & {
+  dataforseo?: string;
+  competitorApifyActor?: string;
+};
+
+function parseSecretsEnc(value: string | null | undefined): CompanyApiTokenStore {
+  if (!value) return { ...EMPTY_SECRETS };
   try {
-    const parsed = JSON.parse(decryptSecret(value)) as Partial<ApiTokenSecretsMap> & {
-      dataforseo?: string;
-    };
+    const parsed = JSON.parse(decryptSecret(value)) as ParsedSecretsBlob;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { ...EMPTY_SECRETS, dataforseo: '' };
+      return { ...EMPTY_SECRETS };
     }
     return {
       ...EMPTY_SECRETS,
+      apify: parsed.apify?.trim() || '',
+      competitorApifyActor: resolveApifyActorId(parsed.competitorApifyActor),
       ...Object.fromEntries(
         API_TOKEN_SECRET_DEFINITIONS.map((d) => [d.key, parsed[d.key]?.trim() || ''])
       ),
@@ -76,9 +104,9 @@ function parseSecretsEnc(value: string | null | undefined): ApiTokenSecretsMap {
         AI_GATEWAY_SECRET_DEFINITIONS.map((d) => [d.key, parsed[d.key]?.trim() || ''])
       ),
       dataforseo: parsed.dataforseo?.trim() || '',
-    } as ApiTokenSecretsMap;
+    };
   } catch {
-    return { ...EMPTY_SECRETS, dataforseo: '' };
+    return { ...EMPTY_SECRETS };
   }
 }
 
@@ -95,6 +123,16 @@ export function toApiTokenSecretsView(secrets: ApiTokenSecretsMap): ApiTokenSecr
   });
 }
 
+export function toApifyIntegrationView(store: CompanyApiTokenStore): ApifyIntegrationView {
+  const secret = store.apify || '';
+  return {
+    set: Boolean(secret),
+    masked: secret ? maskSecret(secret) : '',
+    placeholder: 'apify_api_…',
+    competitorApifyActor: store.competitorApifyActor,
+  };
+}
+
 export function toAiGatewaySecretsView(secrets: ApiTokenSecretsMap): AiGatewaySecretView[] {
   return AI_GATEWAY_SECRET_DEFINITIONS.map((def) => {
     const secret = secrets[def.key] || '';
@@ -108,7 +146,7 @@ export function toAiGatewaySecretsView(secrets: ApiTokenSecretsMap): AiGatewaySe
   });
 }
 
-export async function getCompanyApiTokenSecrets(companyId: string): Promise<ApiTokenSecretsMap> {
+export async function getCompanyApiTokenSecrets(companyId: string): Promise<CompanyApiTokenStore> {
   const rows = await prisma.$queryRaw<
     Array<{ apiTokenSecretsEnc: string | null; elevenLabsApiKeyEnc: string | null }>
   >`
@@ -134,14 +172,22 @@ export async function upsertCompanyApiTokenSecrets(
     dataforseo?: string;
     dataforseoLogin?: string;
     dataforseoPassword?: string;
+    competitorApifyActor?: string;
   }
-): Promise<ApiTokenSecretView[]> {
+): Promise<{ tokens: ApiTokenSecretView[]; apify: ApifyIntegrationView }> {
   const existing = await getCompanyApiTokenSecrets(companyId);
-  const merged = { ...existing };
+  const merged: CompanyApiTokenStore = { ...existing };
 
   for (const def of [...API_TOKEN_SECRET_DEFINITIONS, ...AI_GATEWAY_SECRET_DEFINITIONS]) {
     const value = input[def.key]?.trim();
     if (value) merged[def.key] = value;
+  }
+
+  const apifyValue = input.apify?.trim();
+  if (apifyValue) merged.apify = apifyValue;
+
+  if (input.competitorApifyActor !== undefined) {
+    merged.competitorApifyActor = resolveApifyActorId(input.competitorApifyActor);
   }
 
   const combinedDataForSeo = buildDataForSeoCredential(
@@ -178,7 +224,10 @@ export async function upsertCompanyApiTokenSecrets(
     `;
   }
 
-  return toApiTokenSecretsView(merged);
+  return {
+    tokens: toApiTokenSecretsView(merged),
+    apify: toApifyIntegrationView(merged),
+  };
 }
 
 export function getDataForSeoCredentialView(

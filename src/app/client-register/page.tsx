@@ -99,7 +99,7 @@ export default function ClientRegisterPage() {
                 value={adminName}
                 onChange={(e) => setAdminName(e.target.value)}
                 placeholder="Jane Smith"
-                className="pl-11"
+                className="!pl-11"
                 required
               />
             </div>
@@ -126,7 +126,7 @@ export default function ClientRegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@email.com"
-                className="pl-11"
+                className="!pl-11"
                 required
                 autoComplete="email"
               />
@@ -144,7 +144,7 @@ export default function ClientRegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="pl-11"
+                  className="!pl-11"
                   required
                   minLength={8}
                   autoComplete="new-password"
@@ -162,7 +162,7 @@ export default function ClientRegisterPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="pl-11"
+                  className="!pl-11"
                   required
                   minLength={8}
                   autoComplete="new-password"

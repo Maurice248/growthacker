@@ -150,6 +150,66 @@ export function processScrapedAds(raw: unknown, relevanceTerms: string[] = []): 
     return { image_url: imgs[0] || thumbs[0] || '', has_video: ((s.videos || []) as unknown[]).length > 0 };
   }
 
+  function parseImpressionToken(token: string): number | null {
+    const t = token.trim().replace(/,/g, '');
+    if (!t) return null;
+    const m = t.match(/^([\d.]+)\s*([KkMm])?$/);
+    if (!m) return null;
+    let n = parseFloat(m[1]);
+    if (Number.isNaN(n)) return null;
+    const suffix = (m[2] || '').toUpperCase();
+    if (suffix === 'K') n *= 1000;
+    else if (suffix === 'M') n *= 1_000_000;
+    return Math.round(n);
+  }
+
+  function getImpressions(ad: Record<string, unknown>): {
+    text: string | null;
+    min: number | null;
+    max: number | null;
+  } {
+    const withIndex = ad.impressions_with_index as Record<string, unknown> | undefined;
+    const textFromIndex = withIndex?.impressions_text;
+    if (typeof textFromIndex === 'string' && textFromIndex.trim()) {
+      const text = textFromIndex.trim();
+      const range = text.split(/\s*[-–—]\s*/);
+      if (range.length >= 2) {
+        const lo = parseImpressionToken(range[0]);
+        const hi = parseImpressionToken(range[1]);
+        if (lo != null && hi != null) return { text, min: lo, max: hi };
+        if (lo != null) return { text, min: lo, max: lo };
+      }
+      const single = parseImpressionToken(text);
+      if (single != null) return { text, min: single, max: single };
+      return { text, min: null, max: null };
+    }
+
+    const imp = ad.impressions as Record<string, unknown> | undefined;
+    if (imp) {
+      const lo = imp.lower_bound != null ? parseInt(String(imp.lower_bound), 10) : null;
+      const hi = imp.upper_bound != null ? parseInt(String(imp.upper_bound), 10) : null;
+      const loOk = lo != null && !Number.isNaN(lo);
+      const hiOk = hi != null && !Number.isNaN(hi);
+      if (loOk || hiOk) {
+        const min = loOk ? lo : hi;
+        const max = hiOk ? hi : lo;
+        const text =
+          loOk && hiOk && lo !== hi ? `${lo} - ${hi}` : String(max ?? min ?? '');
+        return { text, min: min ?? null, max: max ?? null };
+      }
+    }
+
+    const total = ad.total_impressions;
+    if (total != null && total !== '') {
+      const n = typeof total === 'number' ? total : parseInt(String(total), 10);
+      if (!Number.isNaN(n)) {
+        return { text: String(n), min: n, max: n };
+      }
+    }
+
+    return { text: null, min: null, max: null };
+  }
+
   const processed: Record<string, unknown>[] = [];
   const pages: Record<string, Record<string, unknown>> = {};
   const skipped = { deleted: 0, irrelevant: 0, template: 0 };
@@ -179,6 +239,7 @@ export function processScrapedAds(raw: unknown, relevanceTerms: string[] = []): 
     const angles = getAngles(copy.full);
     const str = scoreAd(copy, type);
     const media = getMedia(ad);
+    const impressions = getImpressions(ad);
 
     const item = {
       ad_id: safe(ad.ad_archive_id || ad.id),
@@ -211,6 +272,10 @@ export function processScrapedAds(raw: unknown, relevanceTerms: string[] = []): 
       score: str.score,
       image_url: media.image_url,
       has_video: media.has_video,
+      impressions_text: impressions.text,
+      impressions_min: impressions.min,
+      impressions_max: impressions.max,
+      raw: (ad.actor_payload as Record<string, unknown> | undefined) ?? ad,
     };
 
     processed.push(item);

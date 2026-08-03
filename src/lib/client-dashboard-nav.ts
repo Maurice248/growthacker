@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Phone,
   Smartphone,
+  Library,
 } from 'lucide-react';
 
 export type ClientNavItem = {
@@ -43,6 +44,7 @@ export const CLIENT_TOP_TABS = CLIENT_CONFIGURATION_TABS;
 
 export const CLIENT_META_ADS_TABS: ClientNavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'ads_library', label: 'Ads Library', icon: Library },
   { id: 'create', label: 'Create Ad', icon: WandSparkles },
   { id: 'variants', label: 'Generate Ad Variants', icon: Sparkles },
   { id: 'campaigns', label: 'Campaign Setup', icon: Settings2 },
@@ -187,6 +189,7 @@ const MAIN_APP_TABS = new Set([
   'profile',
   'analysis',
   'overview',
+  'ads_library',
   'create',
   'variants',
   'campaigns',

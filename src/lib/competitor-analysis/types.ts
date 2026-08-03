@@ -1,3 +1,5 @@
+import type { ApifyMetaAdsActorId } from './apify-actors';
+
 export type CompetitorAnalysisInput = {
   topic?: string;
   keywords: string[];
@@ -5,6 +7,8 @@ export type CompetitorAnalysisInput = {
   max_ads?: number;
   only_active?: boolean;
   sort?: string;
+  /** Apify Meta Ads Library actor (see apify-actors.ts). */
+  apify_actor?: ApifyMetaAdsActorId;
   /** When both true (default), Ads Library uses media_type=all. */
   scrape_image?: boolean;
   scrape_video?: boolean;
@@ -42,6 +46,10 @@ export type ProcessedAd = {
   score: number;
   image_url: string;
   has_video: boolean;
+  impressions_text?: string | null;
+  impressions_min?: number | null;
+  impressions_max?: number | null;
+  raw?: Record<string, unknown>;
 };
 
 export type ProcessedAdsResult = {

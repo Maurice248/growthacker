@@ -40,27 +40,8 @@ export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {
   vercelAiGateway: 'Vercel AI Gateway',
 };
 
-/** Vendors selectable in the Provider column when a gateway is chosen. */
-export const AI_VENDOR_IDS = [
-  'openai',
-  'anthropic',
-  'google',
-  'meta',
-  'mistral',
-  'deepseek',
-  'xai',
-] as const;
-export type AiVendorId = (typeof AI_VENDOR_IDS)[number];
-
-export const AI_VENDOR_LABELS: Record<AiVendorId, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  meta: 'Meta',
-  mistral: 'Mistral',
-  deepseek: 'DeepSeek',
-  xai: 'xAI',
-};
+/** Default vendor when none is stored (gateway catalogs are loaded dynamically). */
+export const FALLBACK_GATEWAY_VENDOR = 'openai';
 
 /** OpenRouter chat completions (OpenAI-compatible). */
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
@@ -80,30 +61,10 @@ export const AI_PROVIDER_DEFAULT_BASE_URLS: Record<AiProviderId, string> = {
   vercelAiGateway: VERCEL_AI_GATEWAY_DEFAULT_BASE_URL,
 };
 
-/** Model slugs differ per gateway, so each gateway keeps its own vendor catalog. */
-export const AI_GATEWAY_MODELS: Record<AiGatewayProviderId, Record<AiVendorId, string[]>> = {
-  openrouter: {
-    openai: ['openai/gpt-4o-mini', 'openai/gpt-4o', 'openai/gpt-4.1-mini', 'openai/gpt-4.1'],
-    anthropic: [
-      'anthropic/claude-3.5-haiku',
-      'anthropic/claude-3.5-sonnet',
-      'anthropic/claude-sonnet-4',
-    ],
-    google: ['google/gemini-2.0-flash-001', 'google/gemini-2.5-flash', 'google/gemini-2.5-pro'],
-    meta: ['meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.1-8b-instruct'],
-    mistral: ['mistralai/mistral-small', 'mistralai/mistral-large'],
-    deepseek: ['deepseek/deepseek-chat', 'deepseek/deepseek-r1'],
-    xai: ['x-ai/grok-2-1212', 'x-ai/grok-3'],
-  },
-  vercelAiGateway: {
-    openai: ['openai/gpt-4o-mini', 'openai/gpt-4o', 'openai/gpt-4.1-mini', 'openai/gpt-4.1'],
-    anthropic: ['anthropic/claude-3-5-haiku', 'anthropic/claude-3-5-sonnet', 'anthropic/claude-sonnet-4'],
-    google: ['google/gemini-2.0-flash', 'google/gemini-2.5-flash', 'google/gemini-2.5-pro'],
-    meta: ['meta/llama-3.3-70b', 'meta/llama-3.1-8b'],
-    mistral: ['mistral/mistral-small', 'mistral/mistral-large'],
-    deepseek: ['deepseek/deepseek-v3', 'deepseek/deepseek-r1'],
-    xai: ['xai/grok-2', 'xai/grok-3'],
-  },
+/** Used when parsing saved routes before a live catalog is available. */
+export const FALLBACK_GATEWAY_MODELS: Record<AiGatewayProviderId, string> = {
+  openrouter: 'openai/gpt-4o-mini',
+  vercelAiGateway: 'openai/gpt-4o-mini',
 };
 
 export const AI_DIRECT_MODELS: Record<AiDirectProviderId, string[]> = {
@@ -140,7 +101,7 @@ export function defaultGatewayConnectionSettings(): AiGatewayConnectionSettings 
   };
 }
 
-export type AiGatewayRouteOption = { vendor: AiVendorId; model: string };
+export type AiGatewayRouteOption = { vendor: string; model: string };
 export type AiDirectRouteOption = { model: string };
 
 /**
@@ -157,8 +118,14 @@ export type AiModuleRoute = {
 
 export type AiModuleRoutingMap = Record<AiModuleId, AiModuleRoute>;
 
-export function defaultGatewayModel(provider: AiGatewayProviderId, vendor: AiVendorId): string {
-  return AI_GATEWAY_MODELS[provider][vendor][0];
+export function defaultGatewayModel(
+  provider: AiGatewayProviderId,
+  vendor: string,
+  modelsByVendor?: Record<string, string[]>
+): string {
+  const models = modelsByVendor?.[vendor];
+  if (models?.length) return models[0];
+  return FALLBACK_GATEWAY_MODELS[provider];
 }
 
 export function defaultAiModuleRoute(): AiModuleRoute {
@@ -166,8 +133,11 @@ export function defaultAiModuleRoute(): AiModuleRoute {
     selected: 'openai',
     googleGemini: { model: AI_DIRECT_MODELS.googleGemini[0] },
     openai: { model: AI_DIRECT_MODELS.openai[0] },
-    openrouter: { vendor: 'openai', model: defaultGatewayModel('openrouter', 'openai') },
-    vercelAiGateway: { vendor: 'openai', model: defaultGatewayModel('vercelAiGateway', 'openai') },
+    openrouter: { vendor: FALLBACK_GATEWAY_VENDOR, model: FALLBACK_GATEWAY_MODELS.openrouter },
+    vercelAiGateway: {
+      vendor: FALLBACK_GATEWAY_VENDOR,
+      model: FALLBACK_GATEWAY_MODELS.vercelAiGateway,
+    },
   };
 }
 
@@ -179,10 +149,6 @@ export function defaultAiModuleRouting(): AiModuleRoutingMap {
 
 export function isAiProviderId(value: unknown): value is AiProviderId {
   return AI_PROVIDER_IDS.includes(value as AiProviderId);
-}
-
-export function isAiVendorId(value: unknown): value is AiVendorId {
-  return AI_VENDOR_IDS.includes(value as AiVendorId);
 }
 
 export function isGatewayProvider(provider: AiProviderId): provider is AiGatewayProviderId {
@@ -205,8 +171,11 @@ function parseDirectOption(raw: unknown, provider: AiDirectProviderId): AiDirect
 
 function parseGatewayOption(raw: unknown, provider: AiGatewayProviderId): AiGatewayRouteOption {
   const entry = (raw ?? {}) as { vendor?: unknown; model?: unknown };
-  const vendor = isAiVendorId(entry.vendor) ? entry.vendor : 'openai';
-  return { vendor, model: parseString(entry.model, defaultGatewayModel(provider, vendor)) };
+  const vendor =
+    typeof entry.vendor === 'string' && entry.vendor.trim()
+      ? entry.vendor.trim()
+      : FALLBACK_GATEWAY_VENDOR;
+  return { vendor, model: parseString(entry.model, FALLBACK_GATEWAY_MODELS[provider]) };
 }
 
 export function parseAiModuleRoute(raw: unknown): AiModuleRoute {

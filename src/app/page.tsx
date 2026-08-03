@@ -63,6 +63,7 @@ import {
   Phone,
   Smartphone,
   SlidersHorizontal,
+  Library,
 } from "lucide-react";
 import OutreachTab from "./OutreachTab";
 import NewsletterTab from "./NewsletterTab";
@@ -73,6 +74,7 @@ import { useSession, signOut } from "next-auth/react";
 import { tenantStorageKey } from "@/lib/tenant-storage";
 import CampaignSetup from "./CampaignSetup";
 import AdPerformance from "./AdPerformance";
+import AdsLibrary from "./AdsLibrary";
 import GenerateVariants from "./GenerateVariants";
 import SocialDash from "./SocialDash";
 import SocialOverview from "./SocialOverview";
@@ -230,6 +232,7 @@ const CONFIGURATION_TABS = [
 
 const META_ADS_TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "ads_library", label: "Ads Library", icon: Library },
   { id: "create", label: "Create Ad", icon: WandSparkles },
   { id: "variants", label: "Generate Ad Variants", icon: Sparkles },
   { id: "campaigns", label: "Campaign Setup", icon: Settings2 },
@@ -260,7 +263,7 @@ const NEWSLETTER_TABS = [
 
 const NEWSLETTER_TAB_IDS = new Set(NEWSLETTER_TABS.map((t) => t.id));
 
-const META_ADS_IDS = new Set(["overview", "create", "variants", "campaigns", "live_campaigns", "ad_performance", "reports"]);
+const META_ADS_IDS = new Set(["overview", "ads_library", "create", "variants", "campaigns", "live_campaigns", "ad_performance", "reports"]);
 
 const OUTREACH_FUTURE_TABS = [
   { id: "cold-dm", label: "Cold DM", icon: MessageSquare },
@@ -6670,6 +6673,13 @@ export default function Dashboard() {
           )}
           <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
         </EditorialPage>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
+          ADS LIBRARY
+      ═══════════════════════════════════════════════════════ */}
+      {tab === "ads_library" && (
+        <AdsLibrary onOpenCompetitors={() => setTab("analysis")} />
       )}
 
       {/* ═══════════════════════════════════════════════════════

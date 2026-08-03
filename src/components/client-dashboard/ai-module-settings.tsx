@@ -1,21 +1,23 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { EditorialDefinitionList, EditorialDefinitionRow, EditorialField } from '@/app/components';
 import { EditorialSectionHeader } from '@/components/editorial/editorial-layout';
 import { OutreachSelect } from '@/components/cold-email/outreach-ui';
 import {
+  firstModelForVendor,
+  vendorOptionsForCatalog,
+  type AiGatewayCatalogMap,
+} from '@/lib/ai-gateway-catalog';
+import {
   AI_DIRECT_MODELS,
   AI_GATEWAY_KEY_FIELDS,
-  AI_GATEWAY_MODELS,
   AI_MODULE_DESCRIPTIONS,
   AI_MODULE_IDS,
   AI_MODULE_LABELS,
   AI_PROVIDER_IDS,
   AI_PROVIDER_LABELS,
-  AI_VENDOR_IDS,
-  AI_VENDOR_LABELS,
   OPENROUTER_DEFAULT_BASE_URL,
   VERCEL_AI_GATEWAY_DEFAULT_BASE_URL,
   defaultGatewayModel,
@@ -30,7 +32,6 @@ import {
   type AiModuleRoute,
   type AiModuleRoutingMap,
   type AiProviderId,
-  type AiVendorId,
 } from '@/lib/ai-module-routing';
 
 type ApiTokenHint = { key: string; set: boolean };
@@ -72,10 +73,15 @@ function withCurrentValue(options: string[], value: string): string[] {
   return value && !options.includes(value) ? [value, ...options] : options;
 }
 
-function modelOptionsFor(route: AiModuleRoute, provider: AiProviderId): string[] {
+function modelOptionsFor(
+  route: AiModuleRoute,
+  provider: AiProviderId,
+  catalogs: AiGatewayCatalogMap | null
+): string[] {
   if (isGatewayProvider(provider)) {
     const gateway = route[provider];
-    return withCurrentValue(AI_GATEWAY_MODELS[provider][gateway.vendor], gateway.model);
+    const fromCatalog = catalogs?.[provider]?.modelsByVendor[gateway.vendor] ?? [];
+    return withCurrentValue(fromCatalog, gateway.model);
   }
   return withCurrentValue(AI_DIRECT_MODELS[provider as AiDirectProviderId], route[provider].model);
 }
@@ -87,6 +93,8 @@ function ProviderRow({
   readOnly,
   onRouteChange,
   ready,
+  catalogs,
+  catalogLoading,
 }: {
   moduleId: AiModuleId;
   provider: AiProviderId;
@@ -94,15 +102,21 @@ function ProviderRow({
   readOnly: boolean;
   onRouteChange: AiModuleSettingsProps['onRouteChange'];
   ready: boolean;
+  catalogs: AiGatewayCatalogMap | null;
+  catalogLoading: boolean;
 }) {
   const selected = route.selected === provider;
   const isGateway = isGatewayProvider(provider);
   const model = route[provider].model;
 
-  const handleVendorChange = (vendor: AiVendorId) => {
+  const handleVendorChange = (vendor: string) => {
     const gatewayId = provider as AiGatewayProviderId;
+    const catalog = catalogs?.[gatewayId];
+    const nextModel =
+      firstModelForVendor(catalog, vendor) ??
+      defaultGatewayModel(gatewayId, vendor, catalog?.modelsByVendor);
     onRouteChange(moduleId, {
-      [gatewayId]: { vendor, model: defaultGatewayModel(gatewayId, vendor) },
+      [gatewayId]: { vendor, model: nextModel },
     } as Partial<AiModuleRoute>);
   };
 
@@ -146,12 +160,22 @@ function ProviderRow({
 
       <div>
         {isGateway ? (
-          <OutreachSelect
-            value={route[provider].vendor}
-            onChange={(vendor) => handleVendorChange(vendor as AiVendorId)}
-            disabled={readOnly}
-            options={AI_VENDOR_IDS.map((id) => ({ value: id, label: AI_VENDOR_LABELS[id] }))}
-          />
+          catalogLoading && !catalogs ? (
+            <span className="flex items-center gap-1.5 text-[12.5px] text-[var(--text-muted)]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading providers…
+            </span>
+          ) : (
+            <OutreachSelect
+              value={route[provider].vendor}
+              onChange={handleVendorChange}
+              disabled={readOnly}
+              options={vendorOptionsForCatalog(
+                catalogs?.[provider as AiGatewayProviderId],
+                route[provider].vendor
+              )}
+            />
+          )
         ) : (
           <span className="text-[12.5px] text-[var(--text-muted)]">Direct provider</span>
         )}
@@ -160,8 +184,8 @@ function ProviderRow({
       <OutreachSelect
         value={model}
         onChange={handleModelChange}
-        disabled={readOnly}
-        options={modelOptionsFor(route, provider).map((id) => ({ value: id, label: id }))}
+        disabled={readOnly || (isGateway && catalogLoading && !catalogs)}
+        options={modelOptionsFor(route, provider, catalogs).map((id) => ({ value: id, label: id }))}
       />
     </div>
   );
@@ -180,6 +204,43 @@ export function AiModuleSettings({
 }: AiModuleSettingsProps) {
   const [showOpenRouterAdvanced, setShowOpenRouterAdvanced] = useState(false);
   const [showGatewayAdvanced, setShowGatewayAdvanced] = useState(false);
+  const [catalogs, setCatalogs] = useState<AiGatewayCatalogMap | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoading(true);
+    setCatalogError(null);
+
+    const params = new URLSearchParams({
+      openrouterBaseUrl: connection.openrouterBaseUrl || OPENROUTER_DEFAULT_BASE_URL,
+      vercelGatewayBaseUrl: connection.vercelGatewayBaseUrl || VERCEL_AI_GATEWAY_DEFAULT_BASE_URL,
+    });
+
+    fetch(`/api/ai-routing/catalog?${params.toString()}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load model catalogs');
+        if (cancelled) return;
+        setCatalogs({
+          openrouter: data.openrouter,
+          vercelAiGateway: data.vercelAiGateway,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setCatalogError(err instanceof Error ? err.message : 'Failed to load model catalogs');
+        setCatalogs(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connection.openrouterBaseUrl, connection.vercelGatewayBaseUrl]);
 
   return (
     <>
@@ -281,8 +342,20 @@ export function AiModuleSettings({
         />
         <p className="mb-8 max-w-3xl text-[13px] leading-relaxed text-[var(--text-muted)]">
           One provider per module. Gateways route through a vendor of your choice; direct providers
-          call OpenAI or Gemini with the keys saved under API Keys.
+          call OpenAI or Gemini with the keys saved under API Keys. Provider and model lists for
+          OpenRouter and Vercel AI Gateway are loaded from each gateway&apos;s public catalog (refreshed
+          hourly).
         </p>
+
+        {catalogError && (
+          <div className="mb-6 flex items-start gap-1.5 text-[12px] text-[var(--red)]">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Could not refresh gateway model lists: {catalogError}. Saved model slugs still work;
+              retry by reloading this page.
+            </span>
+          </div>
+        )}
 
         <div className="space-y-12">
           {AI_MODULE_IDS.map((moduleId) => {
@@ -318,6 +391,8 @@ export function AiModuleSettings({
                     readOnly={readOnly}
                     onRouteChange={onRouteChange}
                     ready={providerReady(provider, apiTokenHints, savedGateways, gatewayForm)}
+                    catalogs={catalogs}
+                    catalogLoading={catalogLoading}
                   />
                 ))}
 

@@ -4,6 +4,7 @@ import {
   getCompanyApiTokenSecrets,
   getDataForSeoCredentialView,
   toApiTokenSecretsView,
+  toApifyIntegrationView,
   upsertCompanyApiTokenSecrets,
   type ApiTokenSecretKey,
 } from '@/lib/api-token-secrets';
@@ -17,6 +18,7 @@ export async function GET() {
   const secrets = await getCompanyApiTokenSecrets(companyId);
   return NextResponse.json({
     tokens: toApiTokenSecretsView(secrets),
+    apify: toApifyIntegrationView(secrets),
     dataforseo: getDataForSeoCredentialView(secrets),
   });
 }
@@ -32,11 +34,13 @@ export async function PUT(request: NextRequest) {
     dataforseo?: string;
     dataforseoLogin?: string;
     dataforseoPassword?: string;
+    competitorApifyActor?: string;
   };
-  const tokens = await upsertCompanyApiTokenSecrets(companyId, body);
+  const saved = await upsertCompanyApiTokenSecrets(companyId, body);
   const secrets = await getCompanyApiTokenSecrets(companyId);
   return NextResponse.json({
-    tokens,
+    tokens: saved.tokens,
+    apify: saved.apify,
     dataforseo: getDataForSeoCredentialView(secrets),
   });
 }
