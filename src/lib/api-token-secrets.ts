@@ -5,6 +5,7 @@ import {
   toDataForSeoCredentialView,
   type DataForSeoCredentialView,
 } from '@/lib/dataforseo-credentials';
+import { AI_GATEWAY_KEY_FIELDS, type AiGatewayKeyField } from '@/lib/ai-module-routing';
 
 export const API_TOKEN_SECRET_DEFINITIONS = [
   { key: 'apify', label: 'Apify', placeholder: 'apify_api_…' },
@@ -22,11 +23,19 @@ export const API_TOKEN_SECRET_DEFINITIONS = [
 /** Stored in apiTokenSecretsEnc but edited via dedicated login/password fields. */
 export const DATAFORSEO_SECRET_KEY = 'dataforseo' as const;
 
+/** Stored alongside the API tokens but edited in the AI Gateways section. */
+export const AI_GATEWAY_SECRET_DEFINITIONS = AI_GATEWAY_KEY_FIELDS.map((field) => ({
+  key: field.key,
+  label: field.label,
+  placeholder: field.placeholder,
+}));
+
 export type ApiTokenSecretKey = (typeof API_TOKEN_SECRET_DEFINITIONS)[number]['key'];
 
-export type ApiTokenSecretsMap = Record<ApiTokenSecretKey, string> & {
-  dataforseo: string;
-};
+export type ApiTokenSecretsMap = Record<ApiTokenSecretKey, string> &
+  Record<AiGatewayKeyField, string> & {
+    dataforseo: string;
+  };
 
 export type ApiTokenSecretView = {
   key: ApiTokenSecretKey;
@@ -36,9 +45,18 @@ export type ApiTokenSecretView = {
   masked: string;
 };
 
-const EMPTY_SECRETS = Object.fromEntries(
-  API_TOKEN_SECRET_DEFINITIONS.map((d) => [d.key, ''])
-) as ApiTokenSecretsMap;
+export type AiGatewaySecretView = {
+  key: AiGatewayKeyField;
+  label: string;
+  placeholder: string;
+  set: boolean;
+  masked: string;
+};
+
+const EMPTY_SECRETS = {
+  ...Object.fromEntries(API_TOKEN_SECRET_DEFINITIONS.map((d) => [d.key, ''])),
+  ...Object.fromEntries(AI_GATEWAY_SECRET_DEFINITIONS.map((d) => [d.key, ''])),
+} as ApiTokenSecretsMap;
 
 function parseSecretsEnc(value: string | null | undefined): ApiTokenSecretsMap {
   if (!value) return { ...EMPTY_SECRETS, dataforseo: '' };
@@ -54,6 +72,9 @@ function parseSecretsEnc(value: string | null | undefined): ApiTokenSecretsMap {
       ...Object.fromEntries(
         API_TOKEN_SECRET_DEFINITIONS.map((d) => [d.key, parsed[d.key]?.trim() || ''])
       ),
+      ...Object.fromEntries(
+        AI_GATEWAY_SECRET_DEFINITIONS.map((d) => [d.key, parsed[d.key]?.trim() || ''])
+      ),
       dataforseo: parsed.dataforseo?.trim() || '',
     } as ApiTokenSecretsMap;
   } catch {
@@ -63,6 +84,19 @@ function parseSecretsEnc(value: string | null | undefined): ApiTokenSecretsMap {
 
 export function toApiTokenSecretsView(secrets: ApiTokenSecretsMap): ApiTokenSecretView[] {
   return API_TOKEN_SECRET_DEFINITIONS.map((def) => {
+    const secret = secrets[def.key] || '';
+    return {
+      key: def.key,
+      label: def.label,
+      placeholder: def.placeholder,
+      set: Boolean(secret),
+      masked: secret ? maskSecret(secret) : '',
+    };
+  });
+}
+
+export function toAiGatewaySecretsView(secrets: ApiTokenSecretsMap): AiGatewaySecretView[] {
+  return AI_GATEWAY_SECRET_DEFINITIONS.map((def) => {
     const secret = secrets[def.key] || '';
     return {
       key: def.key,
@@ -96,7 +130,7 @@ export async function getCompanyApiTokenSecrets(companyId: string): Promise<ApiT
 
 export async function upsertCompanyApiTokenSecrets(
   companyId: string,
-  input: Partial<Record<ApiTokenSecretKey, string>> & {
+  input: Partial<Record<ApiTokenSecretKey | AiGatewayKeyField, string>> & {
     dataforseo?: string;
     dataforseoLogin?: string;
     dataforseoPassword?: string;
@@ -105,7 +139,7 @@ export async function upsertCompanyApiTokenSecrets(
   const existing = await getCompanyApiTokenSecrets(companyId);
   const merged = { ...existing };
 
-  for (const def of API_TOKEN_SECRET_DEFINITIONS) {
+  for (const def of [...API_TOKEN_SECRET_DEFINITIONS, ...AI_GATEWAY_SECRET_DEFINITIONS]) {
     const value = input[def.key]?.trim();
     if (value) merged[def.key] = value;
   }

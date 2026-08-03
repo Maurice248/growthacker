@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getCompanyApiTokenSecrets } from '@/lib/api-token-secrets';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import { buildApifyRequest, scrapeFacebookAds } from './apify';
 import { analyzeWithOpenAI, formatAnalysisReport } from './analyze';
 import {
@@ -41,18 +42,6 @@ export async function runCompetitorAnalysis(
       market_insights_table: [],
       gaps_table: [],
       error: 'Apify API token is not configured. Add it in Integrations → API Tokens.',
-    };
-  }
-
-  if (!tokens.openai) {
-    return {
-      success: false,
-      executive_summary: '',
-      competitors_table: [],
-      hooks_table: [],
-      market_insights_table: [],
-      gaps_table: [],
-      error: 'OpenAI API token is not configured. Add it in Integrations → API Tokens.',
     };
   }
 
@@ -116,7 +105,24 @@ export async function runCompetitorAnalysis(
   }
 
   const gptInput = trimForGptInput(processed);
-  const aiRaw = await analyzeWithOpenAI(tokens.openai, gptInput, companyContext);
+
+  let ai;
+  try {
+    ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
+  } catch (err) {
+    return {
+      success: false,
+      topic,
+      executive_summary: '',
+      competitors_table: [],
+      hooks_table: [],
+      market_insights_table: [],
+      gaps_table: [],
+      error: err instanceof Error ? err.message : 'AI provider is not configured.',
+    };
+  }
+
+  const aiRaw = await analyzeWithOpenAI(ai, gptInput, companyContext);
   const report = formatAnalysisReport(aiRaw, topic, gptInput);
 
   await saveReportToSupabase(companyId, report, { ...input, topic, company_id: companyId });

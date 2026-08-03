@@ -72,6 +72,7 @@ model CompanyIntegration {
   wordpressUsername       String?
   wordpressAppPasswordEnc String?
   apiTokenSecretsEnc      String?
+  aiRoutingConfig         Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

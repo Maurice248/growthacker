@@ -56,7 +56,18 @@ OUTPUT FORMAT — return ONLY valid JSON:
 }
 
 export function buildIdeaGenerationUserPrompt(item: AdItemInput): string {
-  return `Generate 3 Facebook ad story ideas based on this input. Return only the JSON object — no other text.
+  const idea = (item.idea || '').replace(/"/g, '\\"');
+  const params = item.adParams || {};
+  const hasParams = Object.values(params).some((v) => String(v || '').trim());
+  const typeNote =
+    item.type === 'image'
+      ? 'Each idea must be a single static image ad description (subject, composition, colors, optional on-image text) — not a video script.'
+      : 'Each idea must be a first-person video ad story/script suitable for the duration.';
+  const sourceNote = hasParams
+    ? 'Primary creative direction comes from adParams. Treat the idea field as optional extra context only when non-empty.'
+    : 'Use the idea field as the primary creative brief.';
+
+  return `Generate 3 Facebook ad ${item.type === 'image' ? 'image concept' : 'story'} ideas. ${typeNote} ${sourceNote} Return only the JSON object — no other text.
 
 Input:
 {
@@ -65,10 +76,11 @@ Input:
   "duration": "${item.duration || ''}",
   "audioStyle": "${item.audioStyle || ''}",
   "videoStyle": "${item.videoStyle || item.imageStyle || ''}",
-  "idea": "${(item.idea || '').replace(/"/g, '\\"')}",
+  "idea": "${idea}",
   "character": "${item.character || ''}",
   "voiceId": "${item.voiceId || ''}",
-  "Language": "${item.language || 'English'}"
+  "Language": "${item.language || 'English'}",
+  "adParams": ${JSON.stringify(params)}
 }`;
 }
 

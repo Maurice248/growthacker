@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { chatCompletionJson } from '@/lib/social-studio/openai';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import { resolveOutreachContext } from './company-context';
 import { resolveLeadListId } from './config';
 import {
@@ -18,11 +19,11 @@ export async function generateCampaignContent(
   input: CampaignGenerateInput
 ): Promise<{ preview: CampaignAiContent; executionId: string }> {
   const tokens = await getColdEmailTokens(companyId);
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+  const ai = await resolveModuleAi(companyId, 'outreach', tokens.openai);
   const ctx = await resolveOutreachContext(companyId);
 
   const raw = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildCampaignSystemPrompt(ctx) },
       { role: 'user', content: buildCampaignUserPrompt(ctx, input) },

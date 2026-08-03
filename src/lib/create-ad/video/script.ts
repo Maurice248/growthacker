@@ -4,7 +4,7 @@ import {
   buildVoiceoverScriptUserPrompt,
 } from '../prompts';
 import { resolveCreateAdCompanyContext } from '../company-context';
-import { requireToken } from '../tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { AdItemInput, CreateAdTokens } from '../types';
 
 export async function generateVoiceoverScript(
@@ -12,11 +12,11 @@ export async function generateVoiceoverScript(
   tokens: CreateAdTokens,
   item: AdItemInput
 ): Promise<{ id: number; script: string }> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildVoiceoverScriptSystemPrompt(ctx) },
       { role: 'user', content: buildVoiceoverScriptUserPrompt(item) },

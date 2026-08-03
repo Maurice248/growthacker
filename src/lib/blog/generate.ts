@@ -9,6 +9,7 @@ import {
   updateWordPressMediaMeta,
   uploadWordPressMedia,
 } from '@/lib/wordpress';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import { ensureBlogConfig, getBlogConfig, resolveBlogContext } from './company-context';
 import { getBlogCategoryById } from './categories';
 import { researchKeywordsForSeeds } from './dataforseo';
@@ -53,7 +54,7 @@ async function generateOutline(
 ): Promise<BlogOutline> {
   const ctx = await resolveBlogContext(companyId);
   const config = await ensureBlogConfig(companyId);
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+  const ai = await resolveModuleAi(companyId, 'blog', tokens.openai);
   const titlePrompts = getTitlePrompts(ctx, config.titlePrompt, config.titleUserPrompt);
 
   const userPrompt = titlePrompts.userTemplate
@@ -86,7 +87,7 @@ async function generateOutline(
         : '';
 
     const parsed = await chatCompletionJson(
-      openaiKey,
+      ai,
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `${userPrompt}${retryNote}` },
@@ -115,7 +116,7 @@ async function generateArticle(
 ): Promise<BlogArticle> {
   const ctx = await resolveBlogContext(companyId);
   const config = await ensureBlogConfig(companyId);
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+  const ai = await resolveModuleAi(companyId, 'blog', tokens.openai);
   const prepared = prepareOutlineForArticle(outline);
   const articlePrompts = getArticlePrompts(ctx, config.articleSystemPrompt, config.articleUserPrompt);
 
@@ -137,7 +138,7 @@ async function generateArticle(
     : buildDefaultArticleUserPrompt(prepared as BlogOutline, todayIso(), ctx);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: `${articlePrompts.system}\n\n${BLOG_ARTICLE_JSON_SCHEMA}` },
       { role: 'user', content: userPrompt },
@@ -169,11 +170,11 @@ async function generateImageMeta(
 ): Promise<BlogImageMeta> {
   const ctx = await resolveBlogContext(companyId);
   const config = await ensureBlogConfig(companyId);
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+  const ai = await resolveModuleAi(companyId, 'blog', tokens.openai);
   const imagePrompts = getImagePrompts(ctx, config.imagePromptSystem);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: imagePrompts.system },
       { role: 'user', content: buildDefaultImageUserPrompt(articleHtml) },
@@ -201,9 +202,9 @@ async function resolveWpCategoryId(
     if (!categories.length) return undefined;
 
     const ctx = await resolveBlogContext(companyId);
-    const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+    const ai = await resolveModuleAi(companyId, 'blog', tokens.openai);
     const parsed = await chatCompletionJson(
-      openaiKey,
+      ai,
       [
         {
           role: 'system',
@@ -227,7 +228,7 @@ export async function startBlogGeneration(
   options: { categoryId: string }
 ): Promise<{ jobId: string; taskId: string }> {
   const tokens = await getBlogTokens(companyId);
-  requireToken(tokens, 'openai', 'OpenAI');
+  await resolveModuleAi(companyId, 'blog', tokens.openai);
   requireToken(tokens, 'kie', 'KIE');
   requireToken(tokens, 'dataforseo', 'DataForSEO');
 

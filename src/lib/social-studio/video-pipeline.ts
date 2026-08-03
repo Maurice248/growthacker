@@ -19,6 +19,7 @@ import { formatUploadPostAuth } from './upload-post';
 import { uploadVideoToPublicUrl } from './storage';
 import { postVideoToPlatforms } from './upload-post';
 import { requireToken } from './tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type {
   KieTaskResult,
   PlatformDescriptions,
@@ -43,11 +44,11 @@ export async function generateStory(
   tokens: SocialStudioTokens,
   input: VideoFormInput
 ): Promise<{ story: string }> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'social', tokens.openai);
   const ctx = await resolveSocialContext(companyId);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildStorySystem(ctx) },
       { role: 'user', content: buildStoryUser(input, ctx) },
@@ -65,11 +66,11 @@ export async function retryStory(
   originalStory: string,
   retryPrompt: string
 ): Promise<{ story: string }> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'social', tokens.openai);
   const ctx = await resolveSocialContext(companyId);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildStoryRetrySystem(ctx) },
       { role: 'user', content: buildStoryRetryUser(originalStory, retryPrompt, input) },
@@ -86,7 +87,7 @@ export async function generateScenes(
   story: string,
   input: VideoFormInput
 ): Promise<{ scenes: SocialScene[]; audioUrl: string }> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'social', tokens.openai);
   const ctx = await resolveSocialContext(companyId);
   const voiceId = input.voice || 'KLoLpdGWK7agg0O2TJYg';
 
@@ -94,7 +95,7 @@ export async function generateScenes(
   const transcript = await transcribeAndSegment(tokens, audioUrl);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildVisualPromptsSystem(ctx) },
       { role: 'user', content: buildVisualPromptsUser(story, transcript.text) },
@@ -294,7 +295,7 @@ export async function completeVideoFinalize(
   stitchJobId: string
 ): Promise<{ assetUrl: string; descriptions: PlatformDescriptions }> {
   const uploadPostKey = requireToken(tokens, 'uploadPost', 'Upload Post API token');
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'social', tokens.openai);
   const ctx = await resolveSocialContext(companyId);
 
   await updateSocialJob(jobId, companyId, { status: 'Downloading stitched video...', scenes });
@@ -303,7 +304,7 @@ export async function completeVideoFinalize(
   const assetUrl = await uploadVideoToPublicUrl(videoBuffer, companyId);
 
   const metaParsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildVideoMetadataSystem(ctx) },
       { role: 'user', content: buildVideoMetadataUser(story, ctx) },

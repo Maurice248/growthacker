@@ -1,6 +1,6 @@
 import { chatCompletionJson } from '@/lib/create-ad/openai';
 import { resolveCreateAdCompanyContext } from '@/lib/create-ad/company-context';
-import { requireToken } from '@/lib/create-ad/tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { CreateAdTokens } from '@/lib/create-ad/types';
 import type { BaseAdConcept, VariantConcept } from './types';
 
@@ -12,13 +12,13 @@ export async function generateVariantConcept(
   baseConcept: BaseAdConcept,
   variantIndex: number
 ): Promise<VariantConcept> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId);
   const angle = VARIANT_ANGLES[variantIndex % VARIANT_ANGLES.length];
   const isVideo = baseConcept.format === 'Video';
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       {
         role: 'system',

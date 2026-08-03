@@ -4,7 +4,7 @@ import {
   buildVisualPromptsUserPrompt,
 } from '../prompts';
 import { getCharacterImage, resolveCreateAdCompanyContext } from '../company-context';
-import { requireToken } from '../tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { AdItemInput, CreateAdTokens, VideoScene } from '../types';
 
 function getPhase(index: number, total: number, agentPhase?: number): number {
@@ -42,13 +42,13 @@ export async function generateVisualPrompts(
   item: AdItemInput,
   scriptLines: string[]
 ): Promise<VideoScene[]> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId);
   const character = String(item.character || 'female').toLowerCase().trim();
   const characterImage = getCharacterImage(character);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildVisualPromptsSystemPrompt(ctx) },
       { role: 'user', content: buildVisualPromptsUserPrompt(scriptLines, item) },

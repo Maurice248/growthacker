@@ -1,6 +1,6 @@
 import { chatCompletionJson } from '@/lib/create-ad/openai';
 import { resolveCreateAdCompanyContext } from '@/lib/create-ad/company-context';
-import { requireToken } from '@/lib/create-ad/tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { CreateAdTokens } from '@/lib/create-ad/types';
 
 export type AdCopyFields = {
@@ -24,11 +24,11 @@ export async function generateVariantAdCopy(
 ): Promise<Record<string, AdCopyFields>> {
   if (!variants.length) return {};
 
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       {
         role: 'system',

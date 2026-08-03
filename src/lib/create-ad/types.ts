@@ -15,6 +15,14 @@ export type CreateAdTokens = {
   elevenLabs: string | null;
 };
 
+export type CreateAdParams = {
+  hookPattern?: string;
+  angle?: string;
+  framework?: string;
+  gapOpportunity?: string;
+  ctaPattern?: string;
+};
+
 export type AdItemInput = {
   id: number;
   type: 'video' | 'image';
@@ -26,6 +34,7 @@ export type AdItemInput = {
   idea?: string;
   character?: string;
   voiceId?: string;
+  adParams?: CreateAdParams;
 };
 
 export type IdeaResult = {

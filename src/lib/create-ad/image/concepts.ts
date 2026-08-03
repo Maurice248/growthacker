@@ -6,7 +6,7 @@ import {
   buildStructurizerUserPrompt,
 } from '@/lib/create-ad/prompts';
 import { resolveCreateAdCompanyContext } from '@/lib/create-ad/company-context';
-import { requireToken } from '@/lib/create-ad/tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { AdItemInput, CreateAdTokens, ImageAdConcept, ReportData } from '@/lib/create-ad/types';
 
 export async function structurizeReport(
@@ -15,11 +15,11 @@ export async function structurizeReport(
   reportData: ReportData,
   adsConfig?: unknown
 ): Promise<string> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildStructurizerSystemPrompt(ctx) },
       { role: 'user', content: buildStructurizerUserPrompt(reportData, adsConfig) },
@@ -37,11 +37,11 @@ export async function generateImageConcepts(
   reportData: ReportData,
   structurizerOutput?: string
 ): Promise<ImageAdConcept[]> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildImageAdConceptsSystemPrompt(ctx) },
       {

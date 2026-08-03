@@ -28,7 +28,7 @@ const TAB_META = {
     label: 'API Keys',
     title: 'API Keys',
     subtitle:
-      'Connect Meta Ads, WordPress, DataForSEO, and third-party API tokens for your workspace.',
+      'Connect Meta, WordPress, AI gateways (OpenRouter, Vercel AI Gateway), module routing, and third-party API tokens.',
   },
 } as const;
 

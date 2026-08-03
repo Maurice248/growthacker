@@ -4,7 +4,7 @@ import {
   buildMetadataUserPrompt,
 } from './prompts';
 import { resolveCreateAdCompanyContext } from './company-context';
-import { requireToken } from './tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { AdMetadata, CreateAdTokens, ReportData } from './types';
 
 export async function generateAdMetadata(
@@ -14,7 +14,7 @@ export async function generateAdMetadata(
   adsConfig: unknown,
   imageMeta?: Record<string, unknown>
 ): Promise<AdMetadata[]> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId);
 
   const cleanData = JSON.stringify({
@@ -28,7 +28,7 @@ export async function generateAdMetadata(
     .trim();
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildMetadataSystemPrompt(ctx) },
       { role: 'user', content: buildMetadataUserPrompt(cleanData, imageMeta) },

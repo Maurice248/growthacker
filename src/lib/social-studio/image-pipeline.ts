@@ -11,6 +11,7 @@ import {
 } from './prompts';
 import { postImageToPlatforms } from './upload-post';
 import { requireToken } from './tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { PlatformDescriptions, SocialMetadata, SocialStudioTokens } from './types';
 
 function sanitizeImagePrompt(raw: string): string {
@@ -26,11 +27,11 @@ export async function generateImagePrompt(
   tokens: SocialStudioTokens,
   topic: string
 ): Promise<string> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'social', tokens.openai);
   const ctx = await resolveSocialContext(companyId);
 
   const raw = await chatCompletionText(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildImagePromptSystem(ctx) },
       { role: 'user', content: buildImagePromptUser(topic, ctx) },
@@ -46,11 +47,11 @@ export async function generateImageSocialCopy(
   tokens: SocialStudioTokens,
   topic: string
 ): Promise<SocialMetadata> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'social', tokens.openai);
   const ctx = await resolveSocialContext(companyId);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildImageSocialCopySystem(ctx) },
       { role: 'user', content: buildImageSocialCopyUser(topic, ctx) },

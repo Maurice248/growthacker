@@ -1,3 +1,5 @@
+import { toAiEndpoint, type AiCredential } from '@/lib/ai-endpoint';
+
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 export type ChatCompletionOptions = {
@@ -53,7 +55,7 @@ export function parseJsonFromAiOutput(raw: unknown): Record<string, unknown> {
 }
 
 export async function chatCompletion(
-  openaiKey: string,
+  credential: AiCredential,
   messages: ChatMessage[],
   options: ChatCompletionOptions = {}
 ): Promise<string> {
@@ -63,21 +65,22 @@ export async function chatCompletion(
     timeoutMs = 180_000,
   } = options;
 
+  const endpoint = toAiEndpoint(credential);
   const requestMessages = jsonMode ? ensureJsonModeMessages(messages) : messages;
 
   const body: Record<string, unknown> = {
-    model,
+    model: endpoint.model || model,
     messages: requestMessages,
   };
   if (jsonMode) {
     body.response_format = { type: 'json_object' };
   }
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch(`${endpoint.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${openaiKey}`,
+      Authorization: `Bearer ${endpoint.apiKey}`,
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
@@ -85,37 +88,37 @@ export async function chatCompletion(
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`OpenAI returned HTTP ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(`AI provider returned HTTP ${res.status}: ${text.slice(0, 300)}`);
   }
 
   let data: { choices?: Array<{ message?: { content?: string } }> };
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`OpenAI returned invalid JSON: ${text.slice(0, 200)}`);
+    throw new Error(`AI provider returned invalid JSON: ${text.slice(0, 200)}`);
   }
 
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error('OpenAI returned empty response');
+    throw new Error('AI provider returned empty response');
   }
 
   return content;
 }
 
 export async function chatCompletionJson(
-  openaiKey: string,
+  credential: AiCredential,
   messages: ChatMessage[],
   options: ChatCompletionOptions = {}
 ): Promise<Record<string, unknown>> {
-  const content = await chatCompletion(openaiKey, messages, options);
+  const content = await chatCompletion(credential, messages, options);
   return parseJsonFromAiOutput(content);
 }
 
 export async function chatCompletionText(
-  openaiKey: string,
+  credential: AiCredential,
   messages: ChatMessage[],
   options: ChatCompletionOptions = {}
 ): Promise<string> {
-  return chatCompletion(openaiKey, messages, { ...options, jsonMode: false });
+  return chatCompletion(credential, messages, { ...options, jsonMode: false });
 }

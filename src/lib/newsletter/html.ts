@@ -2,7 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { chatCompletionText } from '@/lib/social-studio/openai';
 import { resolveNewsletterContext } from './company-context';
 import { buildHtmlSystemPrompt, buildHtmlUserPrompt } from './prompts';
-import { getNewsletterTokens, requireToken } from './tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
+import { getNewsletterTokens } from './tokens';
 import type { NewsletterData } from './types';
 
 function normalizeHtmlPlaceholders(html: string): string {
@@ -35,11 +36,11 @@ export async function buildNewsletterHtml(
   topic: string
 ): Promise<string> {
   const tokens = await getNewsletterTokens(companyId);
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+  const ai = await resolveModuleAi(companyId, 'newsletter', tokens.openai);
   const ctx = await resolveNewsletterContext(companyId);
 
   const raw = await chatCompletionText(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildHtmlSystemPrompt(ctx) },
       { role: 'user', content: buildHtmlUserPrompt(content, service, topic) },

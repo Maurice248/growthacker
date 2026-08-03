@@ -1,0 +1,252 @@
+/** Shared AI provider + per-module routing (used by settings UI and server runtime). */
+
+/** Order matches client dashboard sidebar: Meta Ads → Social → Cold Email → Newsletter → Blog. */
+export const AI_MODULE_IDS = ['metaAds', 'social', 'outreach', 'newsletter', 'blog'] as const;
+export type AiModuleId = (typeof AI_MODULE_IDS)[number];
+
+export const AI_MODULE_LABELS: Record<AiModuleId, string> = {
+  metaAds: 'Meta Ads',
+  social: 'Social Channels',
+  newsletter: 'Newsletter',
+  outreach: 'Cold Email',
+  blog: 'Blog',
+};
+
+export const AI_MODULE_DESCRIPTIONS: Record<AiModuleId, string> = {
+  metaAds: 'Competitor analysis, ad copy, variants, campaign ideas',
+  social: 'Image/video captions and social copy',
+  newsletter: 'Newsletter content and HTML templates',
+  outreach: 'Cold email generation',
+  blog: 'Blog drafts, SEO content, and automation',
+};
+
+export const AI_GATEWAY_PROVIDER_IDS = ['openrouter', 'vercelAiGateway'] as const;
+export type AiGatewayProviderId = (typeof AI_GATEWAY_PROVIDER_IDS)[number];
+
+export const AI_DIRECT_PROVIDER_IDS = ['googleGemini', 'openai'] as const;
+export type AiDirectProviderId = (typeof AI_DIRECT_PROVIDER_IDS)[number];
+
+/** Row order in the settings table: direct providers first, then gateways. */
+export const AI_PROVIDER_IDS = [
+  ...AI_DIRECT_PROVIDER_IDS,
+  ...AI_GATEWAY_PROVIDER_IDS,
+] as const;
+export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
+
+export const AI_PROVIDER_LABELS: Record<AiProviderId, string> = {
+  googleGemini: 'Gemini',
+  openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+  vercelAiGateway: 'Vercel AI Gateway',
+};
+
+/** Vendors selectable in the Provider column when a gateway is chosen. */
+export const AI_VENDOR_IDS = [
+  'openai',
+  'anthropic',
+  'google',
+  'meta',
+  'mistral',
+  'deepseek',
+  'xai',
+] as const;
+export type AiVendorId = (typeof AI_VENDOR_IDS)[number];
+
+export const AI_VENDOR_LABELS: Record<AiVendorId, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  google: 'Google',
+  meta: 'Meta',
+  mistral: 'Mistral',
+  deepseek: 'DeepSeek',
+  xai: 'xAI',
+};
+
+/** OpenRouter chat completions (OpenAI-compatible). */
+export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
+
+/** Vercel AI Gateway OpenAI-compatible endpoint. */
+export const VERCEL_AI_GATEWAY_DEFAULT_BASE_URL = 'https://ai-gateway.vercel.sh/v1';
+
+export const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+
+/** Gemini exposes an OpenAI-compatible surface, so every provider uses one client shape. */
+export const GEMINI_OPENAI_COMPAT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
+
+export const AI_PROVIDER_DEFAULT_BASE_URLS: Record<AiProviderId, string> = {
+  googleGemini: GEMINI_OPENAI_COMPAT_BASE_URL,
+  openai: OPENAI_DEFAULT_BASE_URL,
+  openrouter: OPENROUTER_DEFAULT_BASE_URL,
+  vercelAiGateway: VERCEL_AI_GATEWAY_DEFAULT_BASE_URL,
+};
+
+/** Model slugs differ per gateway, so each gateway keeps its own vendor catalog. */
+export const AI_GATEWAY_MODELS: Record<AiGatewayProviderId, Record<AiVendorId, string[]>> = {
+  openrouter: {
+    openai: ['openai/gpt-4o-mini', 'openai/gpt-4o', 'openai/gpt-4.1-mini', 'openai/gpt-4.1'],
+    anthropic: [
+      'anthropic/claude-3.5-haiku',
+      'anthropic/claude-3.5-sonnet',
+      'anthropic/claude-sonnet-4',
+    ],
+    google: ['google/gemini-2.0-flash-001', 'google/gemini-2.5-flash', 'google/gemini-2.5-pro'],
+    meta: ['meta-llama/llama-3.3-70b-instruct', 'meta-llama/llama-3.1-8b-instruct'],
+    mistral: ['mistralai/mistral-small', 'mistralai/mistral-large'],
+    deepseek: ['deepseek/deepseek-chat', 'deepseek/deepseek-r1'],
+    xai: ['x-ai/grok-2-1212', 'x-ai/grok-3'],
+  },
+  vercelAiGateway: {
+    openai: ['openai/gpt-4o-mini', 'openai/gpt-4o', 'openai/gpt-4.1-mini', 'openai/gpt-4.1'],
+    anthropic: ['anthropic/claude-3-5-haiku', 'anthropic/claude-3-5-sonnet', 'anthropic/claude-sonnet-4'],
+    google: ['google/gemini-2.0-flash', 'google/gemini-2.5-flash', 'google/gemini-2.5-pro'],
+    meta: ['meta/llama-3.3-70b', 'meta/llama-3.1-8b'],
+    mistral: ['mistral/mistral-small', 'mistral/mistral-large'],
+    deepseek: ['deepseek/deepseek-v3', 'deepseek/deepseek-r1'],
+    xai: ['xai/grok-2', 'xai/grok-3'],
+  },
+};
+
+export const AI_DIRECT_MODELS: Record<AiDirectProviderId, string[]> = {
+  googleGemini: ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+  openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'],
+};
+
+export const AI_GATEWAY_KEY_FIELDS = [
+  {
+    key: 'openrouter' as const,
+    label: 'OpenRouter',
+    placeholder: 'sk-or-v1-…',
+    hint: 'OpenAI-compatible chat completions at openrouter.ai/api/v1.',
+  },
+  {
+    key: 'vercelAiGateway' as const,
+    label: 'Vercel AI Gateway',
+    placeholder: 'vck_… or gateway bearer token',
+    hint: 'Separate gateway hop; model slugs come from your Vercel AI Gateway dashboard.',
+  },
+];
+
+export type AiGatewayKeyField = (typeof AI_GATEWAY_KEY_FIELDS)[number]['key'];
+
+export type AiGatewayConnectionSettings = {
+  openrouterBaseUrl: string;
+  vercelGatewayBaseUrl: string;
+};
+
+export function defaultGatewayConnectionSettings(): AiGatewayConnectionSettings {
+  return {
+    openrouterBaseUrl: OPENROUTER_DEFAULT_BASE_URL,
+    vercelGatewayBaseUrl: VERCEL_AI_GATEWAY_DEFAULT_BASE_URL,
+  };
+}
+
+export type AiGatewayRouteOption = { vendor: AiVendorId; model: string };
+export type AiDirectRouteOption = { model: string };
+
+/**
+ * Every provider keeps its own vendor/model choice so switching the selected
+ * checkbox never discards what was configured on the other rows.
+ */
+export type AiModuleRoute = {
+  selected: AiProviderId;
+  googleGemini: AiDirectRouteOption;
+  openai: AiDirectRouteOption;
+  openrouter: AiGatewayRouteOption;
+  vercelAiGateway: AiGatewayRouteOption;
+};
+
+export type AiModuleRoutingMap = Record<AiModuleId, AiModuleRoute>;
+
+export function defaultGatewayModel(provider: AiGatewayProviderId, vendor: AiVendorId): string {
+  return AI_GATEWAY_MODELS[provider][vendor][0];
+}
+
+export function defaultAiModuleRoute(): AiModuleRoute {
+  return {
+    selected: 'openai',
+    googleGemini: { model: AI_DIRECT_MODELS.googleGemini[0] },
+    openai: { model: AI_DIRECT_MODELS.openai[0] },
+    openrouter: { vendor: 'openai', model: defaultGatewayModel('openrouter', 'openai') },
+    vercelAiGateway: { vendor: 'openai', model: defaultGatewayModel('vercelAiGateway', 'openai') },
+  };
+}
+
+export function defaultAiModuleRouting(): AiModuleRoutingMap {
+  return Object.fromEntries(
+    AI_MODULE_IDS.map((id) => [id, defaultAiModuleRoute()])
+  ) as AiModuleRoutingMap;
+}
+
+export function isAiProviderId(value: unknown): value is AiProviderId {
+  return AI_PROVIDER_IDS.includes(value as AiProviderId);
+}
+
+export function isAiVendorId(value: unknown): value is AiVendorId {
+  return AI_VENDOR_IDS.includes(value as AiVendorId);
+}
+
+export function isGatewayProvider(provider: AiProviderId): provider is AiGatewayProviderId {
+  return provider === 'openrouter' || provider === 'vercelAiGateway';
+}
+
+/** Model configured for the provider currently selected on a module. */
+export function selectedRouteModel(route: AiModuleRoute): string {
+  return route[route.selected].model;
+}
+
+function parseString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function parseDirectOption(raw: unknown, provider: AiDirectProviderId): AiDirectRouteOption {
+  const entry = (raw ?? {}) as { model?: unknown };
+  return { model: parseString(entry.model, AI_DIRECT_MODELS[provider][0]) };
+}
+
+function parseGatewayOption(raw: unknown, provider: AiGatewayProviderId): AiGatewayRouteOption {
+  const entry = (raw ?? {}) as { vendor?: unknown; model?: unknown };
+  const vendor = isAiVendorId(entry.vendor) ? entry.vendor : 'openai';
+  return { vendor, model: parseString(entry.model, defaultGatewayModel(provider, vendor)) };
+}
+
+export function parseAiModuleRoute(raw: unknown): AiModuleRoute {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return defaultAiModuleRoute();
+  const entry = raw as Record<string, unknown>;
+  return {
+    selected: isAiProviderId(entry.selected) ? entry.selected : 'openai',
+    googleGemini: parseDirectOption(entry.googleGemini, 'googleGemini'),
+    openai: parseDirectOption(entry.openai, 'openai'),
+    openrouter: parseGatewayOption(entry.openrouter, 'openrouter'),
+    vercelAiGateway: parseGatewayOption(entry.vercelAiGateway, 'vercelAiGateway'),
+  };
+}
+
+export function parseAiModuleRouting(raw: unknown): AiModuleRoutingMap {
+  const base = defaultAiModuleRouting();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
+  for (const moduleId of AI_MODULE_IDS) {
+    const entry = (raw as Record<string, unknown>)[moduleId];
+    if (entry) base[moduleId] = parseAiModuleRoute(entry);
+  }
+  return base;
+}
+
+export function parseGatewayConnection(raw: unknown): AiGatewayConnectionSettings {
+  const defaults = defaultGatewayConnectionSettings();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return defaults;
+  const entry = raw as Record<string, unknown>;
+  return {
+    openrouterBaseUrl: parseString(entry.openrouterBaseUrl, defaults.openrouterBaseUrl),
+    vercelGatewayBaseUrl: parseString(entry.vercelGatewayBaseUrl, defaults.vercelGatewayBaseUrl),
+  };
+}
+
+/** Maps provider choice to its API Keys field key (direct providers only). */
+export function directProviderSecretKey(provider: AiProviderId): AiDirectProviderId | null {
+  if (provider === 'openai' || provider === 'googleGemini') return provider;
+  return null;
+}
+
+export function gatewayProviderSecretKey(provider: AiProviderId): AiGatewayKeyField | null {
+  return isGatewayProvider(provider) ? provider : null;
+}

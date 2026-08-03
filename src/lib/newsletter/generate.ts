@@ -1,4 +1,5 @@
 import { chatCompletionText } from '@/lib/social-studio/openai';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import { resolveNewsletterContext } from './company-context';
 import {
   buildContentSystemPrompt,
@@ -6,7 +7,7 @@ import {
   buildRegenerateUserPrompt,
 } from './prompts';
 import { parseNewsletterSections } from './parse-sections';
-import { getNewsletterTokens, requireToken } from './tokens';
+import { getNewsletterTokens } from './tokens';
 import type { NewsletterData, NewsletterTokens } from './types';
 
 export async function generateNewsletterContent(
@@ -15,11 +16,11 @@ export async function generateNewsletterContent(
   service: string,
   topic: string
 ): Promise<NewsletterData> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+  const ai = await resolveModuleAi(companyId, 'newsletter', tokens.openai);
   const ctx = await resolveNewsletterContext(companyId);
 
   const raw = await chatCompletionText(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildContentSystemPrompt(ctx) },
       { role: 'user', content: buildContentUserPrompt(ctx, service, topic) },
@@ -38,11 +39,11 @@ export async function regenerateNewsletterContent(
   retryPrompt: string,
   previousContent: NewsletterData
 ): Promise<NewsletterData> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI');
+  const ai = await resolveModuleAi(companyId, 'newsletter', tokens.openai);
   const ctx = await resolveNewsletterContext(companyId);
 
   const raw = await chatCompletionText(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildContentSystemPrompt(ctx) },
       {

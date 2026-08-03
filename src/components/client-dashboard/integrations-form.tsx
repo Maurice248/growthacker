@@ -9,6 +9,18 @@ import {
   EditorialField,
 } from '@/app/components';
 import { EditorialSectionHeader, editorialPillButtonClass } from '@/components/editorial/editorial-layout';
+import { AiModuleSettings } from '@/components/client-dashboard/ai-module-settings';
+import {
+  defaultAiModuleRouting,
+  defaultGatewayConnectionSettings,
+  parseAiModuleRouting,
+  parseGatewayConnection,
+  type AiGatewayConnectionSettings,
+  type AiGatewayKeyField,
+  type AiModuleId,
+  type AiModuleRoute,
+  type AiModuleRoutingMap,
+} from '@/lib/ai-module-routing';
 
 type SecretField = { set: boolean; masked: string };
 
@@ -37,6 +49,32 @@ type IntegrationSettings = {
   wordpressAppPassword: SecretField;
 };
 
+type GatewaySecretView = { key: AiGatewayKeyField; set: boolean; masked: string };
+
+type GatewaySecretMap = Record<AiGatewayKeyField, GatewaySecretView>;
+
+const GATEWAY_KEYS: AiGatewayKeyField[] = ['openrouter', 'vercelAiGateway'];
+
+function emptyGatewaySecrets(): GatewaySecretMap {
+  return {
+    openrouter: { key: 'openrouter', set: false, masked: '' },
+    vercelAiGateway: { key: 'vercelAiGateway', set: false, masked: '' },
+  };
+}
+
+function toGatewaySecretMap(list: GatewaySecretView[] | undefined): GatewaySecretMap {
+  const map = emptyGatewaySecrets();
+  for (const item of list ?? []) {
+    if (GATEWAY_KEYS.includes(item.key)) map[item.key] = item;
+  }
+  return map;
+}
+
+const emptyGatewayForm: Record<AiGatewayKeyField, string> = {
+  openrouter: '',
+  vercelAiGateway: '',
+};
+
 const emptyForm = {
   metaAccessToken: '',
   metaAdAccountId: '',
@@ -54,6 +92,13 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   const [apiTokenForm, setApiTokenForm] = useState<Record<string, string>>({});
   const [dataforseoView, setDataforseoView] = useState<DataForSeoCredentialView | null>(null);
   const [dataforseoForm, setDataforseoForm] = useState({ login: '', password: '' });
+  const [aiGateways, setAiGateways] = useState<GatewaySecretMap>(() => emptyGatewaySecrets());
+  const [aiGatewayForm, setAiGatewayForm] =
+    useState<Record<AiGatewayKeyField, string>>(emptyGatewayForm);
+  const [aiConnection, setAiConnection] = useState<AiGatewayConnectionSettings>(() =>
+    defaultGatewayConnectionSettings()
+  );
+  const [aiRoutes, setAiRoutes] = useState<AiModuleRoutingMap>(() => defaultAiModuleRouting());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +115,15 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
       const tokenRes = await fetch('/api/tokens/secret');
       const tokenData = await tokenRes.json();
       if (!tokenRes.ok) throw new Error(tokenData.error || 'Failed to load API tokens');
+
+      const aiRes = await fetch('/api/ai-routing');
+      const aiData = await aiRes.json();
+      if (!aiRes.ok) throw new Error(aiData.error || 'Failed to load AI routing');
+
+      setAiRoutes(parseAiModuleRouting(aiData.routes));
+      setAiConnection(parseGatewayConnection(aiData.connection));
+      setAiGateways(toGatewaySecretMap(aiData.gateways));
+      setAiGatewayForm(emptyGatewayForm);
 
       setSettings(data);
       setApiTokenSecrets(tokenData.tokens ?? []);
@@ -94,6 +148,13 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleAiRouteChange = (moduleId: AiModuleId, patch: Partial<AiModuleRoute>) => {
+    setAiRoutes((prev) => ({
+      ...prev,
+      [moduleId]: { ...prev[moduleId], ...patch },
+    }));
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -141,6 +202,29 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
       const tokenData = await tokenRes.json();
       if (!tokenRes.ok) throw new Error(tokenData.error || 'Failed to save API tokens');
 
+      const gatewayKeys: Partial<Record<AiGatewayKeyField, string>> = {};
+      for (const key of GATEWAY_KEYS) {
+        const value = aiGatewayForm[key]?.trim();
+        if (value) gatewayKeys[key] = value;
+      }
+
+      const aiRes = await fetch('/api/ai-routing', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          routes: aiRoutes,
+          connection: aiConnection,
+          gatewayKeys,
+        }),
+      });
+      const aiData = await aiRes.json();
+      if (!aiRes.ok) throw new Error(aiData.error || 'Failed to save AI routing');
+
+      setAiRoutes(parseAiModuleRouting(aiData.routes));
+      setAiConnection(parseGatewayConnection(aiData.connection));
+      setAiGateways(toGatewaySecretMap(aiData.gateways));
+      setAiGatewayForm(emptyGatewayForm);
+
       setSettings(data);
       setApiTokenSecrets(tokenData.tokens ?? []);
       setDataforseoView(tokenData.dataforseo ?? null);
@@ -151,6 +235,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
         metaAccessToken: '',
         wordpressAppPassword: '',
       }));
+
       setSuccess('Integration settings saved.');
       router.refresh();
     } catch (err) {
@@ -299,10 +384,22 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
           </EditorialDefinitionList>
         </section>
 
-        <section className="mt-10">
+        <AiModuleSettings
+          readOnly={readOnly}
+          gatewayForm={aiGatewayForm}
+          onGatewayFormChange={(key, value) => setAiGatewayForm((prev) => ({ ...prev, [key]: value }))}
+          savedGateways={aiGateways}
+          connection={aiConnection}
+          onConnectionChange={(patch) => setAiConnection((prev) => ({ ...prev, ...patch }))}
+          routes={aiRoutes}
+          onRouteChange={handleAiRouteChange}
+          apiTokenHints={apiTokenSecrets.map((t) => ({ key: t.key, set: t.set }))}
+        />
+
+        <section className="mt-12">
           <EditorialSectionHeader
             title="API Tokens"
-            meta="Leave blank to keep the current saved value"
+            meta="Third-party services · OpenAI and Google Gemini keys feed the direct providers above"
           />
           <div className="grid grid-cols-1 gap-x-12 lg:grid-cols-2">
             {apiTokenSecrets.map((token) => (

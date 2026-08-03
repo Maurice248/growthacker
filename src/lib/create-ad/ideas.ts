@@ -4,7 +4,7 @@ import {
   buildIdeaGenerationUserPrompt,
 } from './prompts';
 import { resolveCreateAdCompanyContext } from './company-context';
-import { requireToken } from './tokens';
+import { resolveModuleAi } from '@/lib/ai-routing-runtime';
 import type { AdItemInput, CreateAdTokens, IdeaResult } from './types';
 
 export async function generateIdeas(
@@ -13,11 +13,11 @@ export async function generateIdeas(
   item: AdItemInput,
   brandConfig?: unknown
 ): Promise<{ ideas: IdeaResult[] }> {
-  const openaiKey = requireToken(tokens, 'openai', 'OpenAI API token');
+  const ai = await resolveModuleAi(companyId, 'metaAds', tokens.openai);
   const ctx = await resolveCreateAdCompanyContext(companyId, brandConfig);
 
   const parsed = await chatCompletionJson(
-    openaiKey,
+    ai,
     [
       { role: 'system', content: buildIdeaGenerationSystemPrompt(ctx) },
       { role: 'user', content: buildIdeaGenerationUserPrompt(item) },

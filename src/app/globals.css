@@ -1449,6 +1449,10 @@ pre {
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
     gap: 8px !important;
   }
+
+  .create-ad-params-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ── Create Ads: 2-col input grids → single col on mobile ── */

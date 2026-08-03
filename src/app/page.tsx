@@ -993,16 +993,79 @@ function AnalysisSummaryNavRow({
   );
 }
 
+function formatHookParamOption(row) {
+  if (!row) return "";
+  const pattern = row.pattern || "Hook";
+  const example = row.example ? `: "${row.example}"` : "";
+  return `${pattern}${example}`;
+}
+
+function formatGapParamOption(row) {
+  if (!row) return "";
+  if (row.opportunity) return String(row.opportunity);
+  if (row.gap) return String(row.gap);
+  return "";
+}
+
+function marketInsightValues(analysis, ...labels) {
+  const table = analysis?.market_insights_table || [];
+  const lower = labels.map((l) => l.toLowerCase());
+  return table
+    .filter((r) => lower.some((l) => (r?.field || "").toLowerCase().includes(l)))
+    .map((r) => r?.value)
+    .filter(Boolean)
+    .map(String);
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values)];
+}
+
+function buildCreateAdParameterOptions(analysis) {
+  const hooks = analysis?.hooks_table || [];
+  const gaps = sortGapsByPriority(analysis?.gaps_table || analysis?.gap_opportunities || []);
+  return {
+    hookPattern: hooks.map(formatHookParamOption).filter(Boolean),
+    angle: uniqueStrings(marketInsightValues(analysis, "angle")),
+    framework: uniqueStrings(marketInsightValues(analysis, "framework")),
+    gapOpportunity: gaps.map(formatGapParamOption).filter(Boolean),
+    ctaPattern: uniqueStrings(marketInsightValues(analysis, "cta")),
+  };
+}
+
+function buildCreateAdParameterDefaults(analysis) {
+  const options = buildCreateAdParameterOptions(analysis);
+  return {
+    hookPattern: options.hookPattern[0] || "",
+    angle: options.angle[0] || getAnalysisInsightValue(analysis, "angle") || "",
+    framework: options.framework[0] || getAnalysisInsightValue(analysis, "framework") || "",
+    gapOpportunity: options.gapOpportunity[0] || "",
+    ctaPattern: options.ctaPattern[0] || getAnalysisInsightValue(analysis, "cta") || "",
+  };
+}
+
+function emptyCreateAdParams() {
+  return {
+    hookPattern: "",
+    angle: "",
+    framework: "",
+    gapOpportunity: "",
+    ctaPattern: "",
+  };
+}
+
+function hasCreateAdParams(adParams) {
+  if (!adParams || typeof adParams !== "object") return false;
+  return Object.values(adParams).some((v) => String(v || "").trim());
+}
+
 function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
   const scripts = analysis?.ready_ad_scripts || [];
   const scriptIndex = scripts.length > 0 ? scripts.length - 1 : 0;
   const existing = prevConfig.items[0];
   const id = existing?.id || Date.now();
   const adType = inferAdTypeFromAnalysis(analysis, scriptIndex);
-  const idea = normalizeIdeaForAdType(
-    buildStoryboardFromAnalysis(analysis, scriptIndex),
-    adType
-  );
+  const adParams = buildCreateAdParameterDefaults(analysis);
 
   const item =
     adType === "video"
@@ -1015,13 +1078,15 @@ function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
           language: existing?.language || "English",
           character: existing?.character || "male",
           voiceId: existing?.voiceId || "rTOopItG6FIkKMIVxsl5",
-          idea,
+          idea: "",
+          adParams,
         }
       : {
           id,
           type: "image",
           imageStyle: existing?.imageStyle || "Bold & Colorful",
-          idea,
+          idea: "",
+          adParams,
         };
 
   return {
@@ -1030,6 +1095,241 @@ function buildCreateTabConfigFromAnalysis(analysis, prevConfig) {
     imageCount: adType === "image" ? 1 : 0,
     items: [item],
   };
+}
+
+function CreateAdParametersBlock({
+  item,
+  idx,
+  isVideo,
+  analysisData,
+  adStatus,
+  adScenesGenerating,
+  sentIdeaIds,
+  generatedIdeas,
+  onUpdateAdParam,
+  onUpdateIdea,
+  onGenerateIdeas,
+  onClearGeneratedIdeas,
+}) {
+  const paramOptions = buildCreateAdParameterOptions(analysisData || {});
+  const adParams = item.adParams || emptyCreateAdParams();
+  const paramsReady = hasCreateAdParams(adParams);
+  const ideaList = generatedIdeas[item.id];
+  const accent = isVideo ? "#003049" : "#92400e";
+  const accentBorder = isVideo ? "#bae6fd" : "#fde68a";
+  const accentBg = isVideo ? "linear-gradient(135deg, #f0f9ff, #e0f2fe)" : "linear-gradient(135deg, #fffbeb, #fef3c7)";
+  const generateLabel = isVideo ? "✨ Generate an idea" : "✨ Generate image prompt";
+  const promptLabel = isVideo ? (
+    <>Script / Storyboard Idea</>
+  ) : (
+    <>Image Description / Prompt</>
+  );
+  const generateDisabled = sentIdeaIds[item.id] || !paramsReady;
+
+  const toSelectOptions = (values, current) => {
+    const list = [...(values || [])];
+    if (current && !list.includes(current)) list.unshift(current);
+    const opts = list.map((v) => ({ value: v, label: v }));
+    if (!opts.length) opts.push({ value: "", label: "— Run analysis first —" });
+    else if (!current) opts.unshift({ value: "", label: "Select…" });
+    return opts;
+  };
+
+  const paramFields = [
+    { key: "hookPattern", label: "Top Hook Patterns", options: paramOptions.hookPattern },
+    { key: "angle", label: "Angle", options: paramOptions.angle },
+    { key: "framework", label: "Framework", options: paramOptions.framework },
+    { key: "gapOpportunity", label: "Gap Opportunities", options: paramOptions.gapOpportunity },
+    { key: "ctaPattern", label: "CTA Pattern", options: paramOptions.ctaPattern },
+  ];
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        marginTop: 24,
+        paddingTop: 20,
+        borderTop: "1.5px solid #E8DCC2",
+      }}
+    >
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
+        <div
+          style={{
+            padding: "10px 20px",
+            borderRadius: 10,
+            border: "1.5px solid #E8DCC2",
+            background: "#FDF6E3",
+            fontSize: 13,
+            fontWeight: 800,
+            color: "#003049",
+            letterSpacing: "0.02em",
+          }}
+        >
+          Prompt Parameters
+        </div>
+      </div>
+
+      <div
+        className="create-ad-params-row"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+          gap: 10,
+        }}
+      >
+        {paramFields.map(({ key, label, options }) => (
+          <div key={key} style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                color: "#8C8474",
+                marginBottom: 6,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                lineHeight: 1.3,
+              }}
+            >
+              {label}
+            </div>
+            <CustomSelect
+              value={adParams[key] || ""}
+              onChange={(v) => onUpdateAdParam(idx, key, v)}
+              options={toSelectOptions(options, adParams[key])}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              color: isVideo ? "#003049" : "#92400e",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            {promptLabel}
+          </div>
+          {adStatus !== "generating" && !adScenesGenerating[item.id] && (
+            <button
+              type="button"
+              disabled={generateDisabled}
+              onClick={() => onGenerateIdeas(idx, item, isVideo)}
+              title={!paramsReady ? "Select prompt parameters from competitor analysis first" : undefined}
+              style={{
+                padding: "5px 12px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: generateDisabled
+                  ? "#9FA8A3"
+                  : isVideo
+                    ? "linear-gradient(135deg, #003049, #38bdf8)"
+                    : "linear-gradient(135deg, #b45309, #d97706)",
+                color: "#fff",
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: generateDisabled ? "not-allowed" : "pointer",
+                transition: "all 0.2s",
+                textTransform: "uppercase",
+                opacity: generateDisabled ? 0.6 : 1,
+                boxShadow: generateDisabled
+                  ? "none"
+                  : isVideo
+                    ? "0 3px 10px rgba(2,132,199,0.4)"
+                    : "0 3px 10px rgba(217,119,6,0.4)",
+              }}
+            >
+              {sentIdeaIds[item.id] ? "✨ Generating..." : generateLabel}
+            </button>
+          )}
+        </div>
+        <textarea
+          placeholder={
+            isVideo
+              ? "Describe your video concept, offer, or story angle…"
+              : "Describe the aesthetic, colors, and subject of the image…"
+          }
+          value={item.idea}
+          disabled={!!sentIdeaIds[item.id]}
+          onChange={(e) => onUpdateIdea(idx, e.target.value)}
+          style={{
+            width: "100%",
+            minHeight: 80,
+            padding: "12px",
+            borderRadius: "var(--radius-md)",
+            border: isVideo
+              ? `1.5px solid ${item.idea?.trim() ? "#bae6fd" : "#E8DCC2"}`
+              : "1.5px solid #fde68a",
+            background: sentIdeaIds[item.id] ? "#FDF6E3" : "#fff",
+            fontSize: 12,
+            outline: "none",
+            color: isVideo ? "#1A4A66" : "#78350f",
+            resize: "vertical",
+            fontFamily: "inherit",
+            cursor: sentIdeaIds[item.id] ? "not-allowed" : "auto",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      {ideaList && ideaList.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            padding: "16px",
+            borderRadius: 12,
+            border: `1.5px solid ${accentBorder}`,
+            background: accentBg,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            ✨ AI Generated Ideas — Click to use
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+            {ideaList.map((ideaObj, ideaIndex) => (
+              <div
+                key={`${item.id}-idea-${ideaIndex}`}
+                onClick={() => {
+                  onUpdateIdea(idx, ideaObj.idea);
+                  onClearGeneratedIdeas(item.id);
+                }}
+                style={{
+                  padding: "13px 16px",
+                  borderRadius: 10,
+                  border: `1.5px solid ${accentBorder}`,
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  color: isVideo ? "#1A4A66" : "#78350f",
+                  transition: "all 0.18s",
+                  lineHeight: 1.6,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = accent;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = accentBorder;
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
+              >
+                {ideaObj.idea}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 
@@ -1598,7 +1898,7 @@ export default function Dashboard() {
     videoCount: 1,
     imageCount: 0,
     items: [
-      { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
+      { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5", adParams: emptyCreateAdParams() }
     ]
   });
   const [createTabConfigOpen, setCreateTabConfigOpen] = useState(false);
@@ -1795,7 +2095,7 @@ export default function Dashboard() {
       videoCount: 1,
       imageCount: 0,
       items: [
-        { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" }
+        { id: Date.now(), type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5", adParams: emptyCreateAdParams() }
       ]
     });
   }
@@ -3241,12 +3541,12 @@ export default function Dashboard() {
           const type = vCount < 3 ? "video" : "image";
 
           if (type === "video") {
-            newItems.push({ id: Date.now() + i, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5" });
+            newItems.push({ id: Date.now() + i, type: "video", duration: "28 seconds", audioStyle: "Background Music", videoStyle: "Bold & Colorful", language: "English", idea: "", character: "male", voiceId: "rTOopItG6FIkKMIVxsl5", adParams: emptyCreateAdParams() });
           } else {
             // Check if we can add image
             const iCount = newItems.filter(x => x.type === "image").length;
             if (iCount < 2) {
-              newItems.push({ id: Date.now() + i, type: "image", imageStyle: "Bold & Colorful", idea: "" });
+              newItems.push({ id: Date.now() + i, type: "image", imageStyle: "Bold & Colorful", idea: "", adParams: emptyCreateAdParams() });
             } else {
               // If we reach 3V and 2I, we can't add more anyway due to n=5 limit
               break;
@@ -3279,6 +3579,7 @@ export default function Dashboard() {
 
       const itemId = prev.items[idx].id;
       const preservedIdea = currentItem.idea || "";
+      const preservedParams = currentItem.adParams || emptyCreateAdParams();
       // Clear generated ideas and pending state for this item on type switch
       setSentIdeaIds(s => { const n = { ...s }; delete n[itemId]; return n; });
       setGeneratedIdeas(g => { const n = { ...g }; delete n[itemId]; return n; });
@@ -3295,6 +3596,7 @@ export default function Dashboard() {
           idea: preservedIdea,
           character: currentItem.character || "male",
           voiceId: currentItem.voiceId || "rTOopItG6FIkKMIVxsl5",
+          adParams: preservedParams,
         };
       } else {
         newItems[idx] = {
@@ -3302,6 +3604,7 @@ export default function Dashboard() {
           type: "image",
           imageStyle: currentItem.imageStyle || "Bold & Colorful",
           idea: normalizeIdeaForAdType(preservedIdea, "image"),
+          adParams: preservedParams,
         };
       }
       const vCount = newItems.filter(x => x.type === "video").length;
@@ -3316,6 +3619,64 @@ export default function Dashboard() {
       newItems[idx] = { ...newItems[idx], [field]: value };
       return { ...prev, items: newItems };
     });
+  }
+
+  function updateCreateTabItemAdParam(idx, field, value) {
+    setCreateTabAdsConfig((prev) => {
+      const newItems = [...prev.items];
+      const current = newItems[idx];
+      newItems[idx] = {
+        ...current,
+        adParams: { ...(current.adParams || emptyCreateAdParams()), [field]: value },
+      };
+      return { ...prev, items: newItems };
+    });
+  }
+
+  async function handleGenerateCreateAdIdeas(idx, item, isVideo) {
+    if (sentIdeaIds[item.id]) return;
+    if (!hasCreateAdParams(item.adParams)) {
+      addSbToast("Select Prompt Parameters from your competitor analysis first.", "error");
+      return;
+    }
+    if (isVideo && item.audioStyle !== "Background Music" && !voiceLabels[item.id]) {
+      addSbToast("Please select a voice first — click the 🎙️ Voices button.", "error");
+      return;
+    }
+    setSentIdeaIds((prev) => ({ ...prev, [item.id]: true }));
+    addSbToast(`Generating ${isVideo ? "video" : "image"} ideas from parameters…`);
+    try {
+      const res = await fetch(CREATE_AD_IDEAS_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...item, brand_config: getBrandConfigForAnalysis() }),
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        let ideasArr = [];
+        if (Array.isArray(data)) {
+          if (data[0] && Array.isArray(data[0].ideas)) ideasArr = data[0].ideas;
+          else if (data[0] && data[0].idea) ideasArr = data;
+          else if (Array.isArray(data[0])) ideasArr = data[0];
+        } else if (data && Array.isArray(data.ideas)) {
+          ideasArr = data.ideas;
+        }
+        if (ideasArr && ideasArr.length > 0) {
+          setGeneratedIdeas((prev) => ({ ...prev, [item.id]: ideasArr }));
+          addSbToast("Ideas generated — click one to use in the prompt.", "success");
+        } else {
+          console.error("Unrecognized JSON format from ad pipeline:", data);
+          addSbToast("No valid ideas format returned.", "error");
+        }
+      } else {
+        addSbToast("Failed to generate ideas", "error");
+      }
+    } catch {
+      addSbToast("Error fetching ideas", "error");
+    } finally {
+      setSentIdeaIds((prev) => ({ ...prev, [item.id]: false }));
+    }
   }
 
 
@@ -6423,7 +6784,7 @@ export default function Dashboard() {
                           border: isError ? "2px solid #C1121F" : isVideo ? "1.5px solid #C2D6E2" : "1.5px solid #E8DCC2",
                           overflow: "hidden",
                           boxShadow: isError ? "0 4px 20px rgba(239,68,68,0.12)" : "0 2px 12px rgba(0,0,0,0.06)",
-                          width: "100%", maxWidth: 520, boxSizing: "border-box",
+                          width: "100%", maxWidth: 680, boxSizing: "border-box",
                         }}>
                           {/* Config card header */}
                           <div style={{
@@ -6514,45 +6875,7 @@ export default function Dashboard() {
                                     options={[{ value: "male", label: "👨 Male" }, { value: "female", label: "👩 Female" }]}
                                   />
                                 </div>
-                                {item.audioStyle !== "Background Music" && (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#8C8474", marginBottom: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setVoiceModalOpenForId(item.id)}
-                                    style={{
-                                      width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
-                                      border: voiceLabels[item.id] ? "none" : "2px dashed #669BBC",
-                                      background: voiceLabels[item.id] ? "#003049" : "#E7F0F6", color: voiceLabels[item.id] ? "#fff" : "#003049",
-                                      fontSize: 12, fontWeight: 700, cursor: "pointer",
-                                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                                      fontFamily: "inherit", transition: "all 0.15s",
-                                    }}
-                                    onMouseEnter={e => { e.currentTarget.style.background = voiceLabels[item.id] ? "#1A4A66" : "#C2D6E2"; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = voiceLabels[item.id] ? "#003049" : "#E7F0F6"; }}
-                                  >
-                                    🎙️ {voiceLabels[item.id] ? "Voice Selected" : "Select Voice *"}
-                                  </button>
-                                  {voiceLabels[item.id] && (
-                                    <div style={{
-                                      display: "flex", alignItems: "center", gap: 4, minWidth: 0,
-                                      padding: "4px 8px", background: "#E7F0F6",
-                                      border: "1px solid #C2D6E2", borderRadius: 6,
-                                      overflow: "hidden",
-                                    }}>
-                                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 600, color: "#1A4A66" }}>
-                                        {voiceLabels[item.id]}
-                                      </span>
-                                      <span style={{ fontSize: 9, fontWeight: 700, color: "#003049", textTransform: "uppercase", background: "#C2D6E2", padding: "1px 4px", borderRadius: 3, flexShrink: 0 }}>
-                                        ✓
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                                )}
-                              </div>
-                              <div className="config-input-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                                <div>
+                                <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#8C8474", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Visual Style</div>
                                   <CustomSelect
                                     value={item.videoStyle}
@@ -6560,7 +6883,45 @@ export default function Dashboard() {
                                     options={VIDEO_STYLES.map(s => ({ value: s, label: s }))}
                                   />
                                 </div>
-                                <div>
+                              </div>
+                              {item.audioStyle !== "Background Music" && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "#8C8474", marginBottom: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Voice</div>
+                                <button
+                                  type="button"
+                                  onClick={() => setVoiceModalOpenForId(item.id)}
+                                  style={{
+                                    width: "100%", padding: "10px", borderRadius: "var(--radius-md)",
+                                    border: voiceLabels[item.id] ? "none" : "2px dashed #669BBC",
+                                    background: voiceLabels[item.id] ? "#003049" : "#E7F0F6", color: voiceLabels[item.id] ? "#fff" : "#003049",
+                                    fontSize: 12, fontWeight: 700, cursor: "pointer",
+                                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                                    fontFamily: "inherit", transition: "all 0.15s",
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = voiceLabels[item.id] ? "#1A4A66" : "#C2D6E2"; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = voiceLabels[item.id] ? "#003049" : "#E7F0F6"; }}
+                                >
+                                  🎙️ {voiceLabels[item.id] ? "Voice Selected" : "Select Voice *"}
+                                </button>
+                                {voiceLabels[item.id] && (
+                                  <div style={{
+                                    display: "flex", alignItems: "center", gap: 4, minWidth: 0,
+                                    padding: "4px 8px", background: "#E7F0F6",
+                                    border: "1px solid #C2D6E2", borderRadius: 6,
+                                    overflow: "hidden",
+                                  }}>
+                                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 600, color: "#1A4A66" }}>
+                                      {voiceLabels[item.id]}
+                                    </span>
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: "#003049", textTransform: "uppercase", background: "#C2D6E2", padding: "1px 4px", borderRadius: 3, flexShrink: 0 }}>
+                                      ✓
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              )}
+                              <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                                <div style={{ width: "100%", maxWidth: 320 }}>
                                   <div style={{ fontSize: 10, fontWeight: 800, color: "#8C8474", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Language</div>
                                   <CustomSelect
                                     value={item.language || "English"}
@@ -6568,121 +6929,6 @@ export default function Dashboard() {
                                     options={LANGUAGES.map(l => ({ value: l, label: l }))}
                                   />
                                 </div>
-                              </div>
-                              <div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#003049", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                    Script / Storyboard Idea <span style={{ color: "#C1121F" }}>*</span>
-                                  </div>
-                                  {/* Hide Generate An Idea button once prompts are being generated */}
-                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && <button
-                                    disabled={sentIdeaIds[item.id] || !item.idea?.trim()}
-                                    onClick={async () => {
-                                      if (sentIdeaIds[item.id]) return;
-                                      if (!item.idea?.trim()) {
-                                        addSbToast("Please enter a Script / Storyboard Idea first.", "error");
-                                        return;
-                                      }
-                                      // Require voice selection for video items (not needed for Background Music)
-                                      if (isVideo && item.audioStyle !== "Background Music" && !voiceLabels[item.id]) {
-                                        addSbToast("Please select a voice first — click the 🎙️ Voices button.", "error");
-                                        return;
-                                      }
-                                      setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
-                                      addSbToast(`Generating Video ${idx + 1} ideas...`);
-                                      try {
-                                        const res = await fetch(CREATE_AD_IDEAS_API, {
-                                          method: "POST",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ ...item, brand_config: getBrandConfigForAnalysis() }),
-                                          cache: "no-store"
-                                        });
-                                        if (res.ok) {
-                                          const data = await res.json();
-                                          let ideasArr = [];
-                                          if (Array.isArray(data)) {
-                                            if (data[0] && Array.isArray(data[0].ideas)) ideasArr = data[0].ideas;
-                                            else if (data[0] && data[0].idea) ideasArr = data;
-                                            else if (Array.isArray(data[0])) ideasArr = data[0];
-                                          } else if (data && Array.isArray(data.ideas)) {
-                                            ideasArr = data.ideas;
-                                          }
-                                          if (ideasArr && ideasArr.length > 0) {
-                                            setGeneratedIdeas(prev => ({ ...prev, [item.id]: ideasArr }));
-                                            addSbToast("Ideas generated successfully!", "success");
-                                          } else {
-                                            console.error("Unrecognized JSON format from ad pipeline:", data);
-                                            addSbToast("No valid ideas format returned.", "error");
-                                          }
-                                        } else {
-                                          addSbToast("Failed to generate ideas", "error");
-                                        }
-                                      } catch (err) {
-                                        addSbToast("Error fetching ideas", "error");
-                                      } finally {
-                                        setSentIdeaIds(prev => ({ ...prev, [item.id]: false }));
-                                      }
-                                    }}
-                                    style={{
-                                      padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "none",
-                                      background: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "#9FA8A3" : "linear-gradient(135deg, #003049, #38bdf8)",
-                                      color: "#fff", fontSize: 10, fontWeight: 700,
-                                      cursor: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "not-allowed" : "pointer",
-                                      transition: "all 0.2s", textTransform: "uppercase",
-                                      opacity: (sentIdeaIds[item.id] || !item.idea?.trim()) ? 0.6 : 1,
-                                      boxShadow: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "none" : "0 3px 10px rgba(2,132,199,0.4)"
-                                    }}
-                                  >
-                                    {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
-                                  </button>}
-                                </div>
-                                <textarea
-                                  placeholder="Required — describe your video concept, offer, or story angle..."
-                                  value={item.idea}
-                                  disabled={!!sentIdeaIds[item.id]}
-                                  onChange={(e) => updateCreateTabItemField(idx, "idea", e.target.value)}
-                                  style={{
-                                    width: "100%", minHeight: 80, padding: "12px", borderRadius: "var(--radius-md)",
-                                    border: `1.5px solid ${item.idea?.trim() ? "#bae6fd" : "#fca5a5"}`,
-                                    background: sentIdeaIds[item.id] ? "#FDF6E3" : item.idea?.trim() ? "#fff" : "#fff7f7",
-                                    fontSize: 12, outline: "none", color: "#1A4A66", resize: "vertical", fontFamily: "inherit",
-                                    cursor: sentIdeaIds[item.id] ? "not-allowed" : "auto"
-                                  }}
-                                />
-                                {generatedIdeas[item.id] && generatedIdeas[item.id].length > 0 && (
-                                  <div style={{
-                                    marginTop: 16, display: "flex", flexDirection: "column", gap: 10,
-                                    padding: "16px", borderRadius: 12,
-                                    border: "1.5px solid #bae6fd",
-                                    background: "linear-gradient(135deg, #f0f9ff, #e0f2fe)"
-                                  }}>
-                                    <div style={{ fontSize: 11, fontWeight: 800, color: "#003049", textTransform: "uppercase", letterSpacing: "0.04em" }}>✨ AI Generated Ideas — Click to use</div>
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                                      {generatedIdeas[item.id].map((ideaObj, ideaIndex) => (
-                                        <div
-                                          key={`${item.id}-${ideaIndex}`}
-                                          onClick={() => {
-                                            updateCreateTabItemField(idx, "idea", ideaObj.idea);
-                                            setGeneratedIdeas(prev => {
-                                              const updated = { ...prev };
-                                              delete updated[item.id];
-                                              return updated;
-                                            });
-                                          }}
-                                          style={{
-                                            padding: "13px 16px", borderRadius: 10, border: "1.5px solid #bae6fd",
-                                            background: "#fff", cursor: "pointer", fontSize: 12, color: "#1A4A66",
-                                            transition: "all 0.18s", lineHeight: 1.6, boxShadow: "0 2px 8px rgba(2,132,199,0.07)"
-                                          }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#003049"; e.currentTarget.style.background = "#f0f9ff"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 18px rgba(2,132,199,0.15)"; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#bae6fd"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(2,132,199,0.07)"; }}
-                                        >
-                                          {ideaObj.idea}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             </div>
                           ) : (
@@ -6695,114 +6941,28 @@ export default function Dashboard() {
                                   options={VIDEO_STYLES.map(s => ({ value: s, label: s }))}
                                 />
                               </div>
-                              <div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                  <div style={{ fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em" }}>Image Description / Prompt</div>
-                                  {adStatus !== "generating" && !adScenesGenerating[item.id] && <button
-                                    disabled={sentIdeaIds[item.id] || !item.idea?.trim()}
-                                    onClick={async () => {
-                                      if (sentIdeaIds[item.id]) return;
-                                      if (!item.idea?.trim()) {
-                                        addSbToast("Please enter an Image Description / Prompt first.", "error");
-                                        return;
-                                      }
-                                      setSentIdeaIds(prev => ({ ...prev, [item.id]: true }));
-                                      addSbToast(`Generating Image ${idx + 1} ideas...`);
-                                      try {
-                                        const res = await fetch(CREATE_AD_IDEAS_API, {
-                                          method: "POST",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ ...item, brand_config: getBrandConfigForAnalysis() }),
-                                          cache: "no-store"
-                                        });
-                                        if (res.ok) {
-                                          const data = await res.json();
-                                          let ideasArr = [];
-                                          if (Array.isArray(data)) {
-                                            if (data[0] && Array.isArray(data[0].ideas)) ideasArr = data[0].ideas;
-                                            else if (data[0] && data[0].idea) ideasArr = data;
-                                            else if (Array.isArray(data[0])) ideasArr = data[0];
-                                          } else if (data && Array.isArray(data.ideas)) {
-                                            ideasArr = data.ideas;
-                                          }
-                                          if (ideasArr && ideasArr.length > 0) {
-                                            setGeneratedIdeas(prev => ({ ...prev, [item.id]: ideasArr }));
-                                            addSbToast("Ideas generated successfully!", "success");
-                                          } else {
-                                            console.error("Unrecognized JSON format from ad pipeline:", data);
-                                            addSbToast("No valid ideas format returned.", "error");
-                                          }
-                                        } else {
-                                          addSbToast("Failed to generate ideas", "error");
-                                        }
-                                      } catch (err) {
-                                        addSbToast("Error fetching ideas", "error");
-                                      } finally {
-                                        setSentIdeaIds(prev => ({ ...prev, [item.id]: false }));
-                                      }
-                                    }}
-                                    style={{
-                                      padding: "5px 12px", borderRadius: "var(--radius-sm)", border: "none",
-                                      background: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "#9FA8A3" : "linear-gradient(135deg, #b45309, #d97706)",
-                                      color: "#fff", fontSize: 10, fontWeight: 700,
-                                      cursor: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "not-allowed" : "pointer",
-                                      transition: "all 0.2s", textTransform: "uppercase",
-                                      opacity: (sentIdeaIds[item.id] || !item.idea?.trim()) ? 0.6 : 1,
-                                      boxShadow: (sentIdeaIds[item.id] || !item.idea?.trim()) ? "none" : "0 3px 10px rgba(217,119,6,0.4)"
-                                    }}
-                                  >
-                                    {sentIdeaIds[item.id] ? "✨ Generating..." : "✨ Generate an idea"}
-                                  </button>}
-                                </div>
-                                <textarea
-                                  placeholder="Describe the aesthetic, colors, and subject of the image..."
-                                  value={item.idea}
-                                  disabled={!!sentIdeaIds[item.id]}
-                                  onChange={(e) => updateCreateTabItemField(idx, "idea", e.target.value)}
-                                  style={{
-                                    width: "100%", minHeight: 80, padding: "12px", borderRadius: "var(--radius-md)",
-                                    border: "1.5px solid #fde68a", background: sentIdeaIds[item.id] ? "#FDF6E3" : "#fff",
-                                    fontSize: 12, outline: "none", color: "#78350f", resize: "vertical", fontFamily: "inherit",
-                                    cursor: sentIdeaIds[item.id] ? "not-allowed" : "auto"
-                                  }}
-                                />
-                                {generatedIdeas[item.id] && generatedIdeas[item.id].length > 0 && (
-                                  <div style={{
-                                    marginTop: 16, display: "flex", flexDirection: "column", gap: 10,
-                                    padding: "16px", borderRadius: 12,
-                                    border: "1.5px solid #fde68a",
-                                    background: "linear-gradient(135deg, #fffbeb, #fef3c7)"
-                                  }}>
-                                    <div style={{ fontSize: 11, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.04em" }}>✨ AI Generated Ideas — Click to use</div>
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                                      {generatedIdeas[item.id].map((ideaObj, ideaIndex) => (
-                                        <div
-                                          key={`${item.id}-img-${ideaIndex}`}
-                                          onClick={() => {
-                                            updateCreateTabItemField(idx, "idea", ideaObj.idea);
-                                            setGeneratedIdeas(prev => {
-                                              const updated = { ...prev };
-                                              delete updated[item.id];
-                                              return updated;
-                                            });
-                                          }}
-                                          style={{
-                                            padding: "13px 16px", borderRadius: 10, border: "1.5px solid #fde68a",
-                                            background: "#fff", cursor: "pointer", fontSize: 12, color: "#78350f",
-                                            transition: "all 0.18s", lineHeight: 1.6, boxShadow: "0 2px 8px rgba(217,119,6,0.07)"
-                                          }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#d97706"; e.currentTarget.style.background = "#fffbeb"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 18px rgba(217,119,6,0.15)"; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#fde68a"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(217,119,6,0.07)"; }}
-                                        >
-                                          {ideaObj.idea}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
                             </div>
                           )}
+                          <CreateAdParametersBlock
+                            item={item}
+                            idx={idx}
+                            isVideo={isVideo}
+                            analysisData={analysisData}
+                            adStatus={adStatus}
+                            adScenesGenerating={adScenesGenerating}
+                            sentIdeaIds={sentIdeaIds}
+                            generatedIdeas={generatedIdeas}
+                            onUpdateAdParam={updateCreateTabItemAdParam}
+                            onUpdateIdea={(i, v) => updateCreateTabItemField(i, "idea", v)}
+                            onGenerateIdeas={handleGenerateCreateAdIdeas}
+                            onClearGeneratedIdeas={(id) =>
+                              setGeneratedIdeas((prev) => {
+                                const updated = { ...prev };
+                                delete updated[id];
+                                return updated;
+                              })
+                            }
+                          />
                           {/* ── View Image & Video Prompts button ── */}
                           {adScenesGenerating[item.id] ? (
                             <div style={{
@@ -6999,7 +7159,7 @@ export default function Dashboard() {
                       return (!allIdeasFilled || ideaGenerating) ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#92400e", fontSize: 13 }}>
                           <span style={{ fontSize: 16 }}>{ideaGenerating ? "⏳" : "✏️"}</span>
-                          <span>{ideaGenerating ? <><Spinner size={12} color="#92400e" /> <b>Generating idea…</b> please wait before confirming.</> : <>Fill in the <b>Script / Storyboard Idea</b> for each ad to unlock generation.</>}</span>
+                          <span>{ideaGenerating ? <><Spinner size={12} color="#92400e" /> <b>Generating idea…</b> please wait before confirming.</> : <>Use <b>Prompt Parameters</b> to generate an idea, or fill in the prompt below for each ad.</>}</span>
                         </div>
                       ) : (
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">

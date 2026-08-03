@@ -1,3 +1,4 @@
+import { toAiEndpoint, type AiCredential } from '@/lib/ai-endpoint';
 import type { AnalysisReport } from './types';
 import type { AnalysisCompanyContext } from './company-context';
 import { buildSystemPrompt, buildUserPrompt } from './prompts';
@@ -193,18 +194,19 @@ export function formatAnalysisReport(
 }
 
 export async function analyzeWithOpenAI(
-  openaiKey: string,
+  credential: AiCredential,
   gptInput: Record<string, unknown>,
   companyContext: AnalysisCompanyContext
 ) {
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const endpoint = toAiEndpoint(credential);
+  const res = await fetch(`${endpoint.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${openaiKey}`,
+      Authorization: `Bearer ${endpoint.apiKey}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: endpoint.model || 'gpt-4o-mini',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: buildSystemPrompt(companyContext) },
