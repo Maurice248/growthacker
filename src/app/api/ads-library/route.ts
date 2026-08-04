@@ -3,69 +3,40 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { requireApiCompanyId } from '@/lib/api-auth';
+import {
+  adCreationDateWhere,
+  adStatusWhere,
+  copyCharRangeWhere,
+  copyLengthWhere,
+  countriesExcludeWhere,
+  countriesIncludeWhere,
+  countryWhere,
+  createdPresetWhere,
+  daysRunningWhere,
+  languageWhere,
+  languagesExcludeWhere,
+  languagesIncludeWhere,
+  lastSeenDateWhere,
+  lastSeenPresetWhere,
+  mediaTypesWhere,
+  statusCheckboxesWhere,
+  videoDurationRangeWhere,
+  videoLengthWhere,
+  type AdStatusFilter,
+  type CopyLengthBucket,
+  type DaysRunningBucket,
+  type VideoLengthBucket,
+} from '@/lib/ads-library/query-filters';
 import { prisma } from '@/lib/prisma';
 
 const DEFAULT_PAGE_SIZE = 24;
 const MAX_PAGE_SIZE = 100;
 
-type ImpressionsBucket = 'under_1k' | '1k_10k' | '10k_100k' | 'over_100k' | 'unknown';
-
-const IMPRESSIONS_BUCKETS = new Set<ImpressionsBucket>([
-  'under_1k',
-  '1k_10k',
-  '10k_100k',
-  'over_100k',
-  'unknown',
-]);
-
-function impressionsWhere(bucket: ImpressionsBucket): Prisma.CompetitorAdWhereInput {
-  switch (bucket) {
-    case 'under_1k':
-      return {
-        OR: [
-          { impressionsMax: { lt: 1000 } },
-          {
-            impressionsMax: null,
-            impressionsMin: { lt: 1000, not: null },
-          },
-        ],
-      };
-    case '1k_10k':
-      return {
-        OR: [
-          { impressionsMax: { gte: 1000, lt: 10_000 } },
-          {
-            impressionsMax: null,
-            impressionsMin: { gte: 1000, lt: 10_000 },
-          },
-        ],
-      };
-    case '10k_100k':
-      return {
-        OR: [
-          { impressionsMax: { gte: 10_000, lt: 100_000 } },
-          {
-            impressionsMax: null,
-            impressionsMin: { gte: 10_000, lt: 100_000 },
-          },
-        ],
-      };
-    case 'over_100k':
-      return {
-        OR: [
-          { impressionsMax: { gte: 100_000 } },
-          {
-            impressionsMax: null,
-            impressionsMin: { gte: 100_000 },
-          },
-        ],
-      };
-    case 'unknown':
-      return { impressionsMin: null, impressionsMax: null };
-    default:
-      return {};
-  }
-}
+const COPY_LENGTH = new Set<CopyLengthBucket>(['short', 'medium', 'long']);
+const VIDEO_LENGTH = new Set<VideoLengthBucket>(['none', 'short', 'medium', 'long']);
+const DAYS_RUNNING = new Set<DaysRunningBucket>(['under_7', '7_30', '30_90', 'over_90']);
+const DATE_PRESETS = new Set(['last_7', 'last_14', 'last_30', 'last_90', 'last_180']);
+const STATUS = new Set<AdStatusFilter>(['active', 'inactive']);
 
 const AD_LIBRARY_LIST_SELECT = {
   id: true,
@@ -127,16 +98,51 @@ function serializeAdList(row: AdLibraryListRow) {
   };
 }
 
+function mergeWhere(base: Prisma.CompetitorAdWhereInput, extra: Prisma.CompetitorAdWhereInput) {
+  const keys = Object.keys(extra);
+  if (keys.length === 0) return;
+  if (!base.AND) {
+    base.AND = [extra];
+    return;
+  }
+  if (Array.isArray(base.AND)) {
+    base.AND.push(extra);
+  } else {
+    base.AND = [base.AND, extra];
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const companyId = await requireApiCompanyId();
     if (companyId instanceof NextResponse) return companyId;
 
     const { searchParams } = new URL(request.url);
-    const adType = searchParams.get('adType')?.trim() || '';
-    const keyword = searchParams.get('keyword')?.trim() || '';
+    const adType = searchParams.get('adType')?.trim() || searchParams.get('mediaType')?.trim() || '';
     const angle = searchParams.get('angle')?.trim() || '';
-    const impressions = searchParams.get('impressions')?.trim() as ImpressionsBucket | '';
+    const country = searchParams.get('country')?.trim() || '';
+    const status = searchParams.get('status')?.trim() || '';
+    const language = searchParams.get('language')?.trim() || '';
+    const copyLength = searchParams.get('copyLength')?.trim() || '';
+    const videoLength = searchParams.get('videoLength')?.trim() || '';
+    const daysRunning = searchParams.get('daysRunning')?.trim() || '';
+    const createdPreset = searchParams.get('createdPreset')?.trim() || '';
+    const lastSeenPreset = searchParams.get('lastSeenPreset')?.trim() || '';
+    const createdFrom = searchParams.get('createdFrom')?.trim() || '';
+    const createdTo = searchParams.get('createdTo')?.trim() || '';
+    const lastSeenFrom = searchParams.get('lastSeenFrom')?.trim() || '';
+    const lastSeenTo = searchParams.get('lastSeenTo')?.trim() || '';
+    const countriesInclude = searchParams.get('countriesInclude')?.trim() || '';
+    const countriesExclude = searchParams.get('countriesExclude')?.trim() || '';
+    const languagesInclude = searchParams.get('languagesInclude')?.trim() || '';
+    const languagesExclude = searchParams.get('languagesExclude')?.trim() || '';
+    const statusActive = searchParams.get('statusActive') === '1';
+    const statusInactive = searchParams.get('statusInactive') === '1';
+    const copyMin = searchParams.get('copyMin')?.trim() || '';
+    const copyMax = searchParams.get('copyMax')?.trim() || '';
+    const videoMin = searchParams.get('videoMin')?.trim() || '';
+    const videoMax = searchParams.get('videoMax')?.trim() || '';
+    const mediaTypes = searchParams.get('mediaTypes')?.trim() || '';
     const q = searchParams.get('q')?.trim() || '';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
     const pageSize = Math.min(
@@ -149,26 +155,116 @@ export async function GET(request: Request) {
     if (adType && adType !== 'all') {
       where.adType = adType;
     }
-    if (keyword) {
-      where.keywords = { has: keyword };
+    const mediaTypeList = mediaTypes
+      .split(',')
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (mediaTypeList.length) {
+      mergeWhere(where, mediaTypesWhere(mediaTypeList));
     }
     if (angle) {
       where.angles = { has: angle };
     }
-    if (impressions && IMPRESSIONS_BUCKETS.has(impressions as ImpressionsBucket)) {
-      Object.assign(where, impressionsWhere(impressions as ImpressionsBucket));
+    const includeCountryList = countriesInclude
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const excludeCountryList = countriesExclude
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (includeCountryList.length) {
+      mergeWhere(where, countriesIncludeWhere(includeCountryList));
+    } else if (country) {
+      mergeWhere(where, countryWhere(country));
     }
-    if (q) {
-      where.OR = [
-        { hook: { contains: q, mode: 'insensitive' } },
-        { headline: { contains: q, mode: 'insensitive' } },
-        { body: { contains: q, mode: 'insensitive' } },
-        { cta: { contains: q, mode: 'insensitive' } },
-        { pageName: { contains: q, mode: 'insensitive' } },
-      ];
+    if (excludeCountryList.length) {
+      mergeWhere(where, countriesExcludeWhere(excludeCountryList));
+    }
+    if (statusActive || statusInactive) {
+      mergeWhere(where, statusCheckboxesWhere(statusActive, statusInactive));
+    } else if (status && STATUS.has(status as AdStatusFilter)) {
+      mergeWhere(where, adStatusWhere(status as AdStatusFilter));
+    }
+    const includeLangList = languagesInclude
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const excludeLangList = languagesExclude
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (includeLangList.length) {
+      mergeWhere(where, languagesIncludeWhere(includeLangList));
+    } else if (language) {
+      mergeWhere(where, languageWhere(language));
+    }
+    if (excludeLangList.length) {
+      mergeWhere(where, languagesExcludeWhere(excludeLangList));
+    }
+    const copyMinN = copyMin ? parseInt(copyMin, 10) : NaN;
+    const copyMaxN = copyMax ? parseInt(copyMax, 10) : NaN;
+    if (Number.isFinite(copyMinN) || Number.isFinite(copyMaxN)) {
+      mergeWhere(
+        where,
+        copyCharRangeWhere(
+          Number.isFinite(copyMinN) ? copyMinN : undefined,
+          Number.isFinite(copyMaxN) ? copyMaxN : undefined
+        )
+      );
+    } else if (copyLength && COPY_LENGTH.has(copyLength as CopyLengthBucket)) {
+      mergeWhere(where, copyLengthWhere(copyLength as CopyLengthBucket));
+    }
+    const videoMinN = videoMin ? parseInt(videoMin, 10) : NaN;
+    const videoMaxN = videoMax ? parseInt(videoMax, 10) : NaN;
+    if (Number.isFinite(videoMinN) || Number.isFinite(videoMaxN)) {
+      mergeWhere(
+        where,
+        videoDurationRangeWhere(
+          Number.isFinite(videoMinN) ? videoMinN : undefined,
+          Number.isFinite(videoMaxN) ? videoMaxN : undefined
+        )
+      );
+    } else if (videoLength && VIDEO_LENGTH.has(videoLength as VideoLengthBucket)) {
+      mergeWhere(where, videoLengthWhere(videoLength as VideoLengthBucket));
+    }
+    if (daysRunning && DAYS_RUNNING.has(daysRunning as DaysRunningBucket)) {
+      mergeWhere(where, daysRunningWhere(daysRunning as DaysRunningBucket));
+    }
+    if (createdPreset && DATE_PRESETS.has(createdPreset)) {
+      mergeWhere(
+        where,
+        createdPresetWhere(createdPreset as 'last_7' | 'last_14' | 'last_30' | 'last_90' | 'last_180')
+      );
+    } else if (createdFrom || createdTo) {
+      mergeWhere(where, adCreationDateWhere(createdFrom, createdTo));
+    }
+    if (lastSeenPreset && DATE_PRESETS.has(lastSeenPreset)) {
+      mergeWhere(
+        where,
+        lastSeenPresetWhere(lastSeenPreset as 'last_7' | 'last_14' | 'last_30' | 'last_90' | 'last_180')
+      );
+    } else if (lastSeenFrom || lastSeenTo) {
+      mergeWhere(where, lastSeenDateWhere(lastSeenFrom, lastSeenTo));
     }
 
-    const [total, rows, adTypeGroups, keywordRows, angleRows] = await Promise.all([
+    const terms = q
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    for (const term of terms) {
+      mergeWhere(where, {
+        OR: [
+          { hook: { contains: term, mode: 'insensitive' } },
+          { headline: { contains: term, mode: 'insensitive' } },
+          { body: { contains: term, mode: 'insensitive' } },
+          { cta: { contains: term, mode: 'insensitive' } },
+          { pageName: { contains: term, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const [total, rows, adTypeGroups, facetRows, angleRows] = await Promise.all([
       prisma.competitorAd.count({ where }),
       prisma.competitorAd.findMany({
         where,
@@ -184,7 +280,7 @@ export async function GET(request: Request) {
       }),
       prisma.competitorAd.findMany({
         where: { companyId },
-        select: { keywords: true },
+        select: { reachCountries: true, languageCode: true },
       }),
       prisma.competitorAd.findMany({
         where: { companyId },
@@ -192,9 +288,11 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    const keywordSet = new Set<string>();
-    for (const r of keywordRows) {
-      for (const k of r.keywords) keywordSet.add(k);
+    const countrySet = new Set<string>();
+    const languageSet = new Set<string>();
+    for (const r of facetRows) {
+      for (const c of r.reachCountries) countrySet.add(c);
+      if (r.languageCode) languageSet.add(r.languageCode);
     }
     const angleSet = new Set<string>();
     for (const r of angleRows) {
@@ -210,7 +308,8 @@ export async function GET(request: Request) {
         adTypes: adTypeGroups
           .map((g) => ({ value: g.adType, count: g._count.adType }))
           .sort((a, b) => b.count - a.count),
-        keywords: [...keywordSet].sort((a, b) => a.localeCompare(b)),
+        countries: [...countrySet].sort((a, b) => a.localeCompare(b)),
+        languages: [...languageSet].sort((a, b) => a.localeCompare(b)),
         angles: [...angleSet].sort((a, b) => a.localeCompare(b)),
       },
     });

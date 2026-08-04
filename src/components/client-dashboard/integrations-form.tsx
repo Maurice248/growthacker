@@ -49,6 +49,7 @@ type ApifyIntegrationView = {
   masked: string;
   placeholder: string;
   competitorApifyActor: ApifyMetaAdsActorId;
+  adsLibraryApifyActor: ApifyMetaAdsActorId;
 };
 
 type IntegrationSettings = {
@@ -102,7 +103,11 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   const [apiTokenSecrets, setApiTokenSecrets] = useState<ApiTokenSecretView[]>([]);
   const [apiTokenForm, setApiTokenForm] = useState<Record<string, string>>({});
   const [apifyView, setApifyView] = useState<ApifyIntegrationView | null>(null);
-  const [apifyForm, setApifyForm] = useState({ apiKey: '', actor: 'curious_coder' as ApifyMetaAdsActorId });
+  const [apifyForm, setApifyForm] = useState({
+    apiKey: '',
+    actor: 'curious_coder' as ApifyMetaAdsActorId,
+    adsLibraryActor: 'curious_coder' as ApifyMetaAdsActorId,
+  });
   const [dataforseoView, setDataforseoView] = useState<DataForSeoCredentialView | null>(null);
   const [dataforseoForm, setDataforseoForm] = useState({ login: '', password: '' });
   const [aiGateways, setAiGateways] = useState<GatewaySecretMap>(() => emptyGatewaySecrets());
@@ -144,6 +149,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
       setApifyForm({
         apiKey: '',
         actor: tokenData.apify?.competitorApifyActor ?? 'curious_coder',
+        adsLibraryActor: tokenData.apify?.adsLibraryApifyActor ?? tokenData.apify?.competitorApifyActor ?? 'curious_coder',
       });
       setDataforseoView(tokenData.dataforseo ?? null);
       setApiTokenForm(Object.fromEntries((tokenData.tokens ?? []).map((t: ApiTokenSecretView) => [t.key, ''])));
@@ -204,6 +210,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
     }
     if (apifyForm.apiKey.trim()) tokenPayload.apify = apifyForm.apiKey.trim();
     tokenPayload.competitorApifyActor = apifyForm.actor;
+    tokenPayload.adsLibraryApifyActor = apifyForm.adsLibraryActor;
 
     try {
       const res = await fetch('/api/companies/integrations', {
@@ -251,6 +258,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
       setApifyForm((prev) => ({
         apiKey: '',
         actor: tokenData.apify?.competitorApifyActor ?? prev.actor,
+        adsLibraryActor: tokenData.apify?.adsLibraryApifyActor ?? prev.adsLibraryActor,
       }));
       setDataforseoView(tokenData.dataforseo ?? null);
       setApiTokenForm(Object.fromEntries((tokenData.tokens ?? []).map((t: ApiTokenSecretView) => [t.key, ''])));
@@ -429,13 +437,31 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
                 style={{ maxWidth: 420 }}
               />
             </EditorialDefinitionRow>
-            <EditorialDefinitionRow label="Competitor scraper actor" isLast>
+            <EditorialDefinitionRow label="Competitor scraper actor">
               <select
                 value={apifyForm.actor}
                 onChange={(e) =>
                   setApifyForm((prev) => ({
                     ...prev,
                     actor: e.target.value as ApifyMetaAdsActorId,
+                  }))
+                }
+                className="w-full max-w-[520px] border-0 border-b border-[#C2B79A] bg-transparent py-2.5 pl-2 font-[family-name:var(--font-display)] text-[15px] font-medium text-[var(--primary)] outline-none"
+              >
+                {APIFY_META_ADS_ACTORS.map((actor) => (
+                  <option key={actor.id} value={actor.id}>
+                    {actor.label}
+                  </option>
+                ))}
+              </select>
+            </EditorialDefinitionRow>
+            <EditorialDefinitionRow label="Ads Library scraper actor" isLast>
+              <select
+                value={apifyForm.adsLibraryActor}
+                onChange={(e) =>
+                  setApifyForm((prev) => ({
+                    ...prev,
+                    adsLibraryActor: e.target.value as ApifyMetaAdsActorId,
                   }))
                 }
                 className="w-full max-w-[520px] border-0 border-b border-[#C2B79A] bg-transparent py-2.5 pl-2 font-[family-name:var(--font-display)] text-[15px] font-medium text-[var(--primary)] outline-none"

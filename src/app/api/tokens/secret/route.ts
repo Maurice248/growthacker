@@ -35,6 +35,7 @@ export async function PUT(request: NextRequest) {
     dataforseoLogin?: string;
     dataforseoPassword?: string;
     competitorApifyActor?: string;
+    adsLibraryApifyActor?: string;
   };
   const saved = await upsertCompanyApiTokenSecrets(companyId, body);
   const secrets = await getCompanyApiTokenSecrets(companyId);

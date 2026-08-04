@@ -48,6 +48,7 @@ export type ApiTokenSecretsMap = Record<ApiTokenSecretKey, string> &
 
 export type CompanyApiTokenStore = ApiTokenSecretsMap & {
   competitorApifyActor: ApifyMetaAdsActorId;
+  adsLibraryApifyActor: ApifyMetaAdsActorId;
 };
 
 export type ApiTokenSecretView = {
@@ -63,6 +64,7 @@ export type ApifyIntegrationView = {
   masked: string;
   placeholder: string;
   competitorApifyActor: ApifyMetaAdsActorId;
+  adsLibraryApifyActor: ApifyMetaAdsActorId;
 };
 
 export type AiGatewaySecretView = {
@@ -76,6 +78,7 @@ export type AiGatewaySecretView = {
 const EMPTY_SECRETS: CompanyApiTokenStore = {
   apify: '',
   competitorApifyActor: DEFAULT_APIFY_META_ADS_ACTOR,
+  adsLibraryApifyActor: DEFAULT_APIFY_META_ADS_ACTOR,
   ...Object.fromEntries(API_TOKEN_SECRET_DEFINITIONS.map((d) => [d.key, ''])),
   ...Object.fromEntries(AI_GATEWAY_SECRET_DEFINITIONS.map((d) => [d.key, ''])),
   dataforseo: '',
@@ -84,6 +87,7 @@ const EMPTY_SECRETS: CompanyApiTokenStore = {
 type ParsedSecretsBlob = Partial<ApiTokenSecretsMap> & {
   dataforseo?: string;
   competitorApifyActor?: string;
+  adsLibraryApifyActor?: string;
 };
 
 function parseSecretsEnc(value: string | null | undefined): CompanyApiTokenStore {
@@ -97,6 +101,9 @@ function parseSecretsEnc(value: string | null | undefined): CompanyApiTokenStore
       ...EMPTY_SECRETS,
       apify: parsed.apify?.trim() || '',
       competitorApifyActor: resolveApifyActorId(parsed.competitorApifyActor),
+      adsLibraryApifyActor: resolveApifyActorId(
+        parsed.adsLibraryApifyActor ?? parsed.competitorApifyActor
+      ),
       ...Object.fromEntries(
         API_TOKEN_SECRET_DEFINITIONS.map((d) => [d.key, parsed[d.key]?.trim() || ''])
       ),
@@ -130,6 +137,7 @@ export function toApifyIntegrationView(store: CompanyApiTokenStore): ApifyIntegr
     masked: secret ? maskSecret(secret) : '',
     placeholder: 'apify_api_…',
     competitorApifyActor: store.competitorApifyActor,
+    adsLibraryApifyActor: store.adsLibraryApifyActor,
   };
 }
 
@@ -173,6 +181,7 @@ export async function upsertCompanyApiTokenSecrets(
     dataforseoLogin?: string;
     dataforseoPassword?: string;
     competitorApifyActor?: string;
+    adsLibraryApifyActor?: string;
   }
 ): Promise<{ tokens: ApiTokenSecretView[]; apify: ApifyIntegrationView }> {
   const existing = await getCompanyApiTokenSecrets(companyId);
@@ -188,6 +197,9 @@ export async function upsertCompanyApiTokenSecrets(
 
   if (input.competitorApifyActor !== undefined) {
     merged.competitorApifyActor = resolveApifyActorId(input.competitorApifyActor);
+  }
+  if (input.adsLibraryApifyActor !== undefined) {
+    merged.adsLibraryApifyActor = resolveApifyActorId(input.adsLibraryApifyActor);
   }
 
   const combinedDataForSeo = buildDataForSeoCredential(

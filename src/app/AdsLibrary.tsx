@@ -5,6 +5,12 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { X, Play } from "lucide-react";
 import { Badge, EditorialPage, EditorialPageHeader, Spinner } from "./components";
 import { ActorPayloadDetails } from "./ads-library-actor-details";
+import {
+  AdsLibraryFilterBar,
+  EMPTY_ADS_LIBRARY_FILTERS,
+  type AdsLibraryFilterState,
+  buildAdsLibrarySearchParams,
+} from "./ads-library-filters";
 
 type LibraryAd = {
   id: string;
@@ -36,20 +42,10 @@ type LibraryAd = {
 
 type Facets = {
   adTypes: Array<{ value: string; count: number }>;
-  keywords: string[];
+  countries: string[];
+  languages: string[];
   angles: string[];
 };
-
-const AD_TYPES = ["all", "image", "video", "carousel", "text"] as const;
-
-const IMPRESSIONS_OPTIONS: Array<{ id: string; label: string }> = [
-  { id: "", label: "Any impressions" },
-  { id: "under_1k", label: "Under 1K" },
-  { id: "1k_10k", label: "1K – 10K" },
-  { id: "10k_100k", label: "10K – 100K" },
-  { id: "over_100k", label: "100K+" },
-  { id: "unknown", label: "Unknown" },
-];
 
 function formatAngle(angle: string) {
   return angle.replace(/\//g, " / ").replace(/-/g, " ");
@@ -185,46 +181,45 @@ type AdsLibraryProps = {
 };
 
 export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
-  const [adType, setAdType] = useState<string>("all");
-  const [keyword, setKeyword] = useState("");
-  const [angle, setAngle] = useState("");
-  const [impressions, setImpressions] = useState("");
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
+  const [filters, setFilters] = useState<AdsLibraryFilterState>(EMPTY_ADS_LIBRARY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<AdsLibraryFilterState | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [ads, setAds] = useState<LibraryAd[]>([]);
   const [total, setTotal] = useState(0);
   const [pageSize, setPageSize] = useState(24);
-  const [facets, setFacets] = useState<Facets>({ adTypes: [], keywords: [], angles: [] });
+  const [facets, setFacets] = useState<Facets>({
+    adTypes: [],
+    countries: [],
+    languages: [],
+    angles: [],
+  });
   const [selected, setSelected] = useState<LibraryAd | null>(null);
   const [actorPayload, setActorPayload] = useState<unknown>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [scrapeActorLabel, setScrapeActorLabel] = useState("");
   const [previewImageUrl, setPreviewImageUrl] = useState("");
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQ(q.trim()), 350);
-    return () => clearTimeout(t);
-  }, [q]);
+  const canSearch = filters.q.trim().length > 0;
 
-  useEffect(() => {
+  const runSearch = useCallback(() => {
+    const q = filters.q.trim();
+    if (!q) return;
+    setAppliedFilters({ ...filters, q });
+    setHasSearched(true);
     setPage(1);
-  }, [adType, keyword, angle, impressions, debouncedQ]);
+    setError("");
+  }, [filters]);
 
   const fetchLibrary = useCallback(async () => {
+    if (!appliedFilters) return;
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams();
-      if (adType !== "all") params.set("adType", adType);
-      if (keyword) params.set("keyword", keyword);
-      if (angle) params.set("angle", angle);
-      if (impressions) params.set("impressions", impressions);
-      if (debouncedQ) params.set("q", debouncedQ);
-      params.set("page", String(page));
-      params.set("pageSize", "24");
+      const params = buildAdsLibrarySearchParams(appliedFilters, appliedFilters.q.trim(), page);
 
       const res = await fetch(`/api/ads-library?${params.toString()}`);
       const data = await res.json();
@@ -233,27 +228,35 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
       setAds(data.ads || []);
       setTotal(data.total ?? 0);
       setPageSize(data.pageSize ?? 24);
-      setFacets(data.facets || { adTypes: [], keywords: [], angles: [] });
+      setFacets(
+        data.facets || { adTypes: [], countries: [], languages: [], angles: [] }
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load ads");
       setAds([]);
     } finally {
       setLoading(false);
     }
-  }, [adType, keyword, angle, impressions, debouncedQ, page]);
+  }, [appliedFilters, page]);
 
   useEffect(() => {
-    fetchLibrary();
-  }, [fetchLibrary]);
+    if (appliedFilters) fetchLibrary();
+  }, [appliedFilters, page, fetchLibrary]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const resetFilters = () => {
-    setAdType("all");
-    setKeyword("");
-    setAngle("");
-    setImpressions("");
-    setQ("");
+    setFilters(EMPTY_ADS_LIBRARY_FILTERS);
+    setAppliedFilters(null);
+    setHasSearched(false);
+    setPage(1);
+    setAds([]);
+    setTotal(0);
+    setError("");
+  };
+
+  const patchFilters = (patch: Partial<AdsLibraryFilterState>) => {
+    setFilters((prev) => ({ ...prev, ...patch }));
   };
 
   const openAdDetails = useCallback(async (ad: LibraryAd) => {
@@ -262,20 +265,24 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
     setSelected(ad);
     setActorPayload(null);
     setDetailError("");
+    setScrapeActorLabel("");
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/ads-library/${ad.id}`);
+      const res = await fetch(`/api/ads-library/${ad.id}/scrape`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load ad details");
+      if (!res.ok) throw new Error(data.error || "Failed to scrape ad details");
+
       setActorPayload(data.raw ?? null);
-      if (!initialPreview) {
-        const fromDetail =
-          (typeof data.imageUrl === "string" ? data.imageUrl.trim() : "") ||
-          extractPreviewFromRaw(data.raw);
-        if (fromDetail) setPreviewImageUrl(fromDetail);
+      if (typeof data.actorLabel === "string") setScrapeActorLabel(data.actorLabel);
+      const fromScrape =
+        (typeof data.imageUrl === "string" ? data.imageUrl.trim() : "") ||
+        extractPreviewFromRaw(data.raw);
+      if (fromScrape) setPreviewImageUrl(fromScrape);
+      else if (!initialPreview) {
+        setPreviewImageUrl("");
       }
     } catch (e) {
-      setDetailError(e instanceof Error ? e.message : "Failed to load ad details");
+      setDetailError(e instanceof Error ? e.message : "Failed to scrape ad details");
     } finally {
       setDetailLoading(false);
     }
@@ -287,17 +294,7 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
     setActorPayload(null);
     setDetailError("");
     setDetailLoading(false);
-  };
-
-  const selectStyle: React.CSSProperties = {
-    fontFamily: "inherit",
-    fontSize: 13,
-    padding: "8px 12px",
-    borderRadius: 10,
-    border: "1px solid #E8DCC2",
-    background: "#fff",
-    color: "#23394A",
-    minWidth: 140,
+    setScrapeActorLabel("");
   };
 
   const detailRow = (label: string, value: React.ReactNode) =>
@@ -310,7 +307,8 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
       </div>
     ) : null;
 
-  const empty = !loading && ads.length === 0;
+  const empty = hasSearched && !loading && ads.length === 0;
+  const idle = !hasSearched && !loading;
 
   return (
     <EditorialPage wide>
@@ -320,97 +318,39 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
         subtitle="Competitor ads collected from your Competitor Ad Analysis runs."
       />
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 12,
-          alignItems: "center",
-          marginBottom: 24,
-          padding: "16px 18px",
-          background: "#fff",
-          border: "1px solid #E8DCC2",
-          borderRadius: 16,
-        }}
-      >
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {AD_TYPES.map((t) => {
-            const active = adType === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setAdType(t)}
-                style={{
-                  fontFamily: "inherit",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: "7px 14px",
-                  borderRadius: 999,
-                  border: active ? "none" : "1px solid #E8DCC2",
-                  background: active ? "#003049" : "#FDF6E3",
-                  color: active ? "#fff" : "#23394A",
-                  cursor: "pointer",
-                  textTransform: "capitalize",
-                }}
-              >
-                {t === "all" ? "All types" : t}
-              </button>
-            );
-          })}
-        </div>
+      <AdsLibraryFilterBar
+        filters={filters}
+        onChange={patchFilters}
+        onReset={resetFilters}
+        onSearch={runSearch}
+        canSearch={canSearch}
+        showActiveFilters={hasSearched}
+        activeFilterSource={appliedFilters ?? filters}
+        facetCountries={facets.countries}
+        facetLanguages={facets.languages}
+        facetAngles={facets.angles}
+        facetAdTypes={facets.adTypes}
+      />
 
-        <select value={keyword} onChange={(e) => setKeyword(e.target.value)} style={selectStyle}>
-          <option value="">All keywords</option>
-          {facets.keywords.map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
-
-        <select value={angle} onChange={(e) => setAngle(e.target.value)} style={selectStyle}>
-          <option value="">All angles</option>
-          {facets.angles.map((a) => (
-            <option key={a} value={a}>
-              {formatAngle(a)}
-            </option>
-          ))}
-        </select>
-
-        <select value={impressions} onChange={(e) => setImpressions(e.target.value)} style={selectStyle}>
-          {IMPRESSIONS_OPTIONS.map((o) => (
-            <option key={o.id || "any"} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="search"
-          placeholder="Search copy…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ ...selectStyle, flex: 1, minWidth: 160 }}
-        />
-
-        <button
-          type="button"
-          onClick={resetFilters}
+      {idle && !error && (
+        <div
           style={{
-            fontFamily: "inherit",
-            fontSize: 12,
-            fontWeight: 600,
-            background: "none",
-            border: "none",
-            color: "#669BBC",
-            cursor: "pointer",
-            textDecoration: "underline",
+            textAlign: "center",
+            padding: "48px 24px",
+            background: "#fff",
+            border: "1px solid #E8DCC2",
+            borderRadius: 20,
           }}
         >
-          Reset
-        </button>
-      </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#23394A", marginBottom: 8 }}>
+            Search your ads library
+          </div>
+          <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 480, margin: "0 auto" }}>
+            Ads are hidden until you search. Enter one or more keywords (comma-separated), optionally set filters,
+            then press Enter or click the search icon.
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 24, color: "#8C8474" }}>
@@ -440,29 +380,11 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
             borderRadius: 20,
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#23394A", marginBottom: 8 }}>No ads in your library yet</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#23394A", marginBottom: 8 }}>No matching ads</div>
           <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 420, margin: "0 auto 20px" }}>
-            Run Competitor Ad Analysis to scrape Meta Ads Library creatives. Each run adds matching ads here (deduped by ad ID).
+            Nothing in your library matched those keywords and filters. Try different search terms or clear some filters,
+            then search again.
           </div>
-          {onOpenCompetitors && (
-            <button
-              type="button"
-              onClick={onOpenCompetitors}
-              style={{
-                fontFamily: "inherit",
-                fontSize: 13,
-                fontWeight: 600,
-                padding: "10px 20px",
-                borderRadius: 10,
-                border: "none",
-                background: "#003049",
-                color: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              Open Competitors →
-            </button>
-          )}
         </div>
       )}
 
@@ -672,13 +594,13 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
                       marginBottom: 12,
                     }}
                   >
-                    Full Apify actor response
+                    Live Apify scrape{scrapeActorLabel ? ` · ${scrapeActorLabel}` : ""}
                   </div>
 
                   {detailLoading && (
                     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", color: "#8C8474" }}>
                       <Spinner size={18} />
-                      Loading full scrape…
+                      Scraping this ad from Meta Ads Library…
                     </div>
                   )}
 

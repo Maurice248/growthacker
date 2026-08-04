@@ -38,10 +38,13 @@ export function buildAdsLibrarySearchUrls(input: CompetitorAnalysisInput): strin
   return urls;
 }
 
+/** Allowed by apify/facebook-ads-scraper: "", "total_impressions", "relevancy_monthly_grouped" */
 function mapOfficialSorting(sort: string | undefined): string {
-  if (sort === 'Newest First') return 'most_recent';
-  if (sort === 'Impressions Low → High') return 'impressions_low_to_high';
-  return 'impressions_high_to_low';
+  if (sort === 'Newest First') return 'relevancy_monthly_grouped';
+  if (sort === 'Impressions Low → High' || sort === 'Impressions High → Low') {
+    return 'total_impressions';
+  }
+  return 'total_impressions';
 }
 
 function mapWhoareyouanasSort(sort: string | undefined): {
@@ -54,11 +57,21 @@ function mapWhoareyouanasSort(sort: string | undefined): {
   return { sortMode: 'total_impressions', sortDirection: 'desc' };
 }
 
+function mapActiveStatusForApifyInput(
+  actor: ApifyMetaAdsActorId,
+  onlyActive: boolean
+): string {
+  if (onlyActive) return 'active';
+  // Official Meta scraper: "" = no status filter (not "all")
+  if (actor === 'apify_official') return '';
+  return 'all';
+}
+
 export function buildApifyRequest(input: CompetitorAnalysisInput, actorId?: ApifyMetaAdsActorId) {
   const actor = resolveApifyActorId(actorId ?? input.apify_actor);
   const urls = buildAdsLibrarySearchUrls(input);
   const mediaType = resolveAdsLibraryMediaType(input.scrape_image, input.scrape_video);
-  const activeStatus = input.only_active ? 'active' : 'all';
+  const activeStatus = mapActiveStatusForApifyInput(actor, Boolean(input.only_active));
   const maxAds = input.max_ads || 100;
 
   if (actor === 'apify_official') {
@@ -157,6 +170,99 @@ export function normalizeScrapedAdsForProcessing(
 
   const flat = flattenDatasetItems(raw);
   return flat.map((ad) => normalizeWhoareyouanasAd(ad));
+}
+
+export function metaAdsLibraryAdUrl(adArchiveId: string): string {
+  const id = adArchiveId.trim();
+  // Broad library params so the scrape is not limited by status / media / country filters.
+  const params = new URLSearchParams({
+    id,
+    active_status: 'all',
+    ad_type: 'all',
+    country: 'ALL',
+    media_type: 'all',
+  });
+  return `https://www.facebook.com/ads/library/?${params.toString()}`;
+}
+
+/** Apify input for one ad — always requests maximum detail, independent of Ads Library UI filters. */
+export function buildSingleAdLibraryApifyRequest(
+  actorId: ApifyMetaAdsActorId,
+  adArchiveId: string
+): unknown {
+  const actor = resolveApifyActorId(actorId);
+  const url = metaAdsLibraryAdUrl(adArchiveId);
+
+  if (actor === 'apify_official') {
+    return {
+      startUrls: [{ url }],
+      resultsLimit: 1,
+      activeStatus: mapActiveStatusForApifyInput('apify_official', false),
+      sorting: '',
+      isDetailsPerAd: true,
+    };
+  }
+
+  if (actor === 'whoareyouanas') {
+    return {
+      targetUrl: url,
+      activeStatus: mapActiveStatusForApifyInput('whoareyouanas', false),
+      mediaType: 'all',
+      sortMode: 'start_date',
+      sortDirection: 'desc',
+    };
+  }
+
+  return {
+    count: 1,
+    scrapeAdDetails: true,
+    'scrapePageAds.activeStatus': mapActiveStatusForApifyInput('curious_coder', false),
+    'scrapePageAds.mediaType': 'all',
+    urls: [{ url }],
+  };
+}
+
+function adArchiveIdFromRecord(ad: Record<string, unknown>): string {
+  return String(ad.ad_archive_id ?? ad.libraryID ?? ad.id ?? '').trim();
+}
+
+function richestAdRecord(ads: Record<string, unknown>[]): Record<string, unknown> | null {
+  if (!ads.length) return null;
+  return ads.reduce((best, ad) => {
+    const score = JSON.stringify(ad).length;
+    const bestScore = JSON.stringify(best).length;
+    return score > bestScore ? ad : best;
+  });
+}
+
+function pickAdFromScrape(raw: unknown, adArchiveId: string): unknown {
+  const flat = flattenDatasetItems(raw);
+  const id = adArchiveId.trim();
+  const match = flat.find((ad) => adArchiveIdFromRecord(ad) === id);
+  if (match) return match;
+  if (flat.length === 1) return flat[0];
+  const richest = richestAdRecord(flat);
+  if (richest) return richest;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  return raw;
+}
+
+export async function scrapeSingleAdLibraryAd(
+  apifyToken: string,
+  actorId: ApifyMetaAdsActorId,
+  adArchiveId: string
+): Promise<unknown> {
+  const actor = resolveApifyActorId(actorId);
+  const actorSlug = getApifyActorSlug(actor);
+  const requestBody = buildSingleAdLibraryApifyRequest(actor, adArchiveId);
+
+  if (actor === 'whoareyouanas') {
+    const chunk = await runSyncActor(apifyToken, actorSlug, requestBody);
+    return pickAdFromScrape(chunk, adArchiveId);
+  }
+
+  const scraped = await runSyncActor(apifyToken, actorSlug, requestBody);
+  return pickAdFromScrape(scraped, adArchiveId);
 }
 
 async function runSyncActor(apifyToken: string, actorSlug: string, body: unknown) {

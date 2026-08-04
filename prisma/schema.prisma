@@ -669,6 +669,11 @@ model CompetitorAd {
   impressionsText String?  @map("impressions_text")
   impressionsMin  Int?     @map("impressions_min")
   impressionsMax  Int?     @map("impressions_max")
+  reachCountries  String[] @default([]) @map("reach_countries")
+  adActive        Boolean? @map("ad_active")
+  languageCode    String   @default("") @map("language_code")
+  videoDurationSec Int?    @map("video_duration_sec")
+  copyCharCount   Int      @default(0) @map("copy_char_count")
   raw             Json?
   firstSeenAt     DateTime @default(now()) @map("first_seen_at")
   lastSeenAt      DateTime @updatedAt @map("last_seen_at")

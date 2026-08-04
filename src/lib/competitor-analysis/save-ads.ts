@@ -1,10 +1,17 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { extractAdMetaFromRaw } from '@/lib/ads-library/extract-meta';
 import type { CompetitorAnalysisInput, ProcessedAdsResult, ProcessedAd } from './types';
 
 function baseFields(ad: ProcessedAd) {
   const copy = ad.copy;
   const script = ad.script;
+  const meta = extractAdMetaFromRaw(ad.raw, [
+    copy.hook,
+    copy.headline,
+    copy.body,
+    copy.caption,
+  ]);
   return {
     pageName: ad.page_name,
     pageUrl: ad.page_url,
@@ -26,6 +33,11 @@ function baseFields(ad: ProcessedAd) {
     impressionsText: ad.impressions_text ?? null,
     impressionsMin: ad.impressions_min ?? null,
     impressionsMax: ad.impressions_max ?? null,
+    reachCountries: meta.reachCountries,
+    adActive: meta.adActive,
+    languageCode: meta.languageCode,
+    videoDurationSec: meta.videoDurationSec,
+    copyCharCount: meta.copyCharCount,
     raw: ad.raw ? (ad.raw as Prisma.InputJsonValue) : Prisma.JsonNull,
   };
 }
