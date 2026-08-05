@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { resolveDatePresetRange, type DatePresetId } from './date-presets';
 
 export type CopyLengthBucket = 'short' | 'medium' | 'long';
 export type VideoLengthBucket = 'none' | 'short' | 'medium' | 'long';
@@ -122,6 +123,22 @@ export function videoLengthWhere(bucket: VideoLengthBucket): Prisma.CompetitorAd
   }
 }
 
+/** Days running ≈ days since `startDate`. Range [minDays, maxDays] inclusive. */
+export function daysRunningRangeWhere(minDays?: number, maxDays?: number): Prisma.CompetitorAdWhereInput {
+  const hasMin = minDays != null && Number.isFinite(minDays);
+  const hasMax = maxDays != null && Number.isFinite(maxDays);
+  if (!hasMin && !hasMax) return {};
+
+  const parts: Prisma.CompetitorAdWhereInput[] = [{ startDate: { not: 'unknown' } }];
+  if (hasMax) {
+    parts.push({ startDate: { gte: isoDateDaysAgo(maxDays!) } });
+  }
+  if (hasMin) {
+    parts.push({ startDate: { lte: isoDateDaysAgo(minDays!) } });
+  }
+  return { AND: parts };
+}
+
 export function daysRunningWhere(bucket: DaysRunningBucket): Prisma.CompetitorAdWhereInput {
   const today = isoDateDaysAgo(0);
   switch (bucket) {
@@ -183,24 +200,14 @@ export function languageWhere(code: string): Prisma.CompetitorAdWhereInput {
   return { languageCode: lang };
 }
 
-type DatePreset = 'last_7' | 'last_14' | 'last_30' | 'last_90' | 'last_180';
-
-function presetDays(preset: DatePreset): number {
-  if (preset === 'last_7') return 7;
-  if (preset === 'last_14') return 14;
-  if (preset === 'last_30') return 30;
-  if (preset === 'last_90') return 90;
-  return 180;
-}
+type DatePreset = DatePresetId;
 
 export function createdPresetWhere(preset: DatePreset): Prisma.CompetitorAdWhereInput {
-  const from = isoDateDaysAgo(presetDays(preset));
-  return { startDate: { gte: from, not: 'unknown' } };
+  const { from, to } = resolveDatePresetRange(preset);
+  return adCreationDateWhere(from, to);
 }
 
 export function lastSeenPresetWhere(preset: DatePreset): Prisma.CompetitorAdWhereInput {
-  const days = presetDays(preset);
-  const from = new Date();
-  from.setUTCDate(from.getUTCDate() - days);
-  return { lastSeenAt: { gte: from } };
+  const { from, to } = resolveDatePresetRange(preset);
+  return lastSeenDateWhere(from, to);
 }

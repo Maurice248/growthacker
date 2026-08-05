@@ -13,6 +13,7 @@ import {
   countryWhere,
   createdPresetWhere,
   daysRunningWhere,
+  daysRunningRangeWhere,
   languageWhere,
   languagesExcludeWhere,
   languagesIncludeWhere,
@@ -27,6 +28,7 @@ import {
   type DaysRunningBucket,
   type VideoLengthBucket,
 } from '@/lib/ads-library/query-filters';
+import { isDatePresetId } from '@/lib/ads-library/date-presets';
 import { prisma } from '@/lib/prisma';
 
 const DEFAULT_PAGE_SIZE = 24;
@@ -35,7 +37,6 @@ const MAX_PAGE_SIZE = 100;
 const COPY_LENGTH = new Set<CopyLengthBucket>(['short', 'medium', 'long']);
 const VIDEO_LENGTH = new Set<VideoLengthBucket>(['none', 'short', 'medium', 'long']);
 const DAYS_RUNNING = new Set<DaysRunningBucket>(['under_7', '7_30', '30_90', 'over_90']);
-const DATE_PRESETS = new Set(['last_7', 'last_14', 'last_30', 'last_90', 'last_180']);
 const STATUS = new Set<AdStatusFilter>(['active', 'inactive']);
 
 const AD_LIBRARY_LIST_SELECT = {
@@ -126,6 +127,8 @@ export async function GET(request: Request) {
     const copyLength = searchParams.get('copyLength')?.trim() || '';
     const videoLength = searchParams.get('videoLength')?.trim() || '';
     const daysRunning = searchParams.get('daysRunning')?.trim() || '';
+    const daysRunningMin = searchParams.get('daysRunningMin')?.trim() || '';
+    const daysRunningMax = searchParams.get('daysRunningMax')?.trim() || '';
     const createdPreset = searchParams.get('createdPreset')?.trim() || '';
     const lastSeenPreset = searchParams.get('lastSeenPreset')?.trim() || '';
     const createdFrom = searchParams.get('createdFrom')?.trim() || '';
@@ -228,22 +231,26 @@ export async function GET(request: Request) {
     } else if (videoLength && VIDEO_LENGTH.has(videoLength as VideoLengthBucket)) {
       mergeWhere(where, videoLengthWhere(videoLength as VideoLengthBucket));
     }
-    if (daysRunning && DAYS_RUNNING.has(daysRunning as DaysRunningBucket)) {
-      mergeWhere(where, daysRunningWhere(daysRunning as DaysRunningBucket));
-    }
-    if (createdPreset && DATE_PRESETS.has(createdPreset)) {
+    const daysMinN = daysRunningMin ? parseInt(daysRunningMin, 10) : NaN;
+    const daysMaxN = daysRunningMax ? parseInt(daysRunningMax, 10) : NaN;
+    if (Number.isFinite(daysMinN) || Number.isFinite(daysMaxN)) {
       mergeWhere(
         where,
-        createdPresetWhere(createdPreset as 'last_7' | 'last_14' | 'last_30' | 'last_90' | 'last_180')
+        daysRunningRangeWhere(
+          Number.isFinite(daysMinN) ? daysMinN : undefined,
+          Number.isFinite(daysMaxN) ? daysMaxN : undefined
+        )
       );
+    } else if (daysRunning && DAYS_RUNNING.has(daysRunning as DaysRunningBucket)) {
+      mergeWhere(where, daysRunningWhere(daysRunning as DaysRunningBucket));
+    }
+    if (createdPreset && isDatePresetId(createdPreset)) {
+      mergeWhere(where, createdPresetWhere(createdPreset));
     } else if (createdFrom || createdTo) {
       mergeWhere(where, adCreationDateWhere(createdFrom, createdTo));
     }
-    if (lastSeenPreset && DATE_PRESETS.has(lastSeenPreset)) {
-      mergeWhere(
-        where,
-        lastSeenPresetWhere(lastSeenPreset as 'last_7' | 'last_14' | 'last_30' | 'last_90' | 'last_180')
-      );
+    if (lastSeenPreset && isDatePresetId(lastSeenPreset)) {
+      mergeWhere(where, lastSeenPresetWhere(lastSeenPreset));
     } else if (lastSeenFrom || lastSeenTo) {
       mergeWhere(where, lastSeenDateWhere(lastSeenFrom, lastSeenTo));
     }

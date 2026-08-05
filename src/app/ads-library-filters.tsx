@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlignLeft,
   Calendar,
@@ -14,15 +14,20 @@ import {
   Minus,
   MonitorPlay,
   Plus,
-  Search,
   X,
 } from "lucide-react";
 import { META_AD_LIBRARY_COUNTRIES } from "@/lib/competitor-analysis/countries";
+import { type DatePreset, type DatePresetId, formatDatePresetLabel } from "@/lib/ads-library/date-presets";
+import { AdsLibraryDatePicker } from "./ads-library-date-picker";
 
-export type DatePreset = "" | "last_7" | "last_14" | "last_30" | "last_90" | "last_180";
-export type DaysRunningBucket = "" | "under_7" | "7_30" | "30_90" | "over_90";
+export type { DatePreset };
+
+const DAYS_RUNNING_SLIDER_MAX = 365;
 
 export type AdsLibraryFilterState = {
+  /** Committed search terms (shown as tags in the search bar). */
+  searchTerms: string[];
+  /** Draft text in the search input (not applied until comma / Enter). */
   q: string;
   includeCountries: string[];
   excludeCountries: string[];
@@ -35,7 +40,8 @@ export type AdsLibraryFilterState = {
   videoMin: string;
   videoMax: string;
   mediaTypes: string[];
-  daysRunning: DaysRunningBucket;
+  daysRunningMin: string;
+  daysRunningMax: string;
   createdFrom: string;
   createdTo: string;
   createdPreset: DatePreset;
@@ -46,6 +52,7 @@ export type AdsLibraryFilterState = {
 };
 
 export const EMPTY_ADS_LIBRARY_FILTERS: AdsLibraryFilterState = {
+  searchTerms: [],
   q: "",
   includeCountries: [],
   excludeCountries: [],
@@ -58,7 +65,8 @@ export const EMPTY_ADS_LIBRARY_FILTERS: AdsLibraryFilterState = {
   videoMin: "",
   videoMax: "",
   mediaTypes: [],
-  daysRunning: "",
+  daysRunningMin: "",
+  daysRunningMax: "",
   createdFrom: "",
   createdTo: "",
   createdPreset: "",
@@ -68,11 +76,11 @@ export const EMPTY_ADS_LIBRARY_FILTERS: AdsLibraryFilterState = {
   angle: "",
 };
 
-export function buildAdsLibrarySearchParams(
-  filters: AdsLibraryFilterState,
-  debouncedQ: string,
-  page: number
-): URLSearchParams {
+export function adsLibrarySearchQuery(filters: AdsLibraryFilterState): string {
+  return filters.searchTerms.join(",");
+}
+
+export function buildAdsLibrarySearchParams(filters: AdsLibraryFilterState, page: number): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.includeCountries.length) {
     params.set("countriesInclude", filters.includeCountries.join(","));
@@ -93,7 +101,8 @@ export function buildAdsLibrarySearchParams(
   if (filters.videoMin) params.set("videoMin", filters.videoMin);
   if (filters.videoMax) params.set("videoMax", filters.videoMax);
   if (filters.mediaTypes.length) params.set("mediaTypes", filters.mediaTypes.join(","));
-  if (filters.daysRunning) params.set("daysRunning", filters.daysRunning);
+  if (filters.daysRunningMin) params.set("daysRunningMin", filters.daysRunningMin);
+  if (filters.daysRunningMax) params.set("daysRunningMax", filters.daysRunningMax);
   if (filters.createdPreset) params.set("createdPreset", filters.createdPreset);
   else {
     if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
@@ -105,7 +114,8 @@ export function buildAdsLibrarySearchParams(
     if (filters.lastSeenTo) params.set("lastSeenTo", filters.lastSeenTo);
   }
   if (filters.angle) params.set("angle", filters.angle);
-  if (debouncedQ) params.set("q", debouncedQ);
+  const query = adsLibrarySearchQuery(filters);
+  if (query) params.set("q", query);
   params.set("page", String(page));
   params.set("pageSize", "24");
   return params;
@@ -124,14 +134,16 @@ export function adsLibraryFiltersActive(filters: AdsLibraryFilterState): boolean
     !!filters.videoMin ||
     !!filters.videoMax ||
     filters.mediaTypes.length > 0 ||
-    !!filters.daysRunning ||
+    !!filters.daysRunningMin ||
+    !!filters.daysRunningMax ||
     !!filters.createdFrom ||
     !!filters.createdTo ||
     !!filters.createdPreset ||
     !!filters.lastSeenFrom ||
     !!filters.lastSeenTo ||
     !!filters.lastSeenPreset ||
-    !!filters.angle
+    !!filters.angle ||
+    filters.searchTerms.length > 0
   );
 }
 
@@ -141,12 +153,16 @@ type ActiveFilterTag = {
   clear: Partial<AdsLibraryFilterState>;
 };
 
-function formatDatePresetLabel(preset: DatePreset): string {
-  return DATE_PRESETS.find((d) => d.id === preset)?.label ?? preset;
-}
-
 function buildActiveFilterTags(filters: AdsLibraryFilterState): ActiveFilterTag[] {
   const tags: ActiveFilterTag[] = [];
+
+  if (filters.searchTerms.length) {
+    tags.push({
+      id: "search",
+      text: `Search: ${filters.searchTerms.join(",")}`,
+      clear: { searchTerms: [], q: "" },
+    });
+  }
 
   if (filters.statusActive || filters.statusInactive) {
     const parts = [filters.statusActive && "Active", filters.statusInactive && "Inactive"].filter(Boolean);
@@ -221,9 +237,14 @@ function buildActiveFilterTags(filters: AdsLibraryFilterState): ActiveFilterTag[
     });
   }
 
-  if (filters.daysRunning) {
-    const label = DAYS_RUNNING.find((d) => d.id === filters.daysRunning)?.label ?? filters.daysRunning;
-    tags.push({ id: "days-running", text: `Days running: ${label}`, clear: { daysRunning: "" } });
+  if (filters.daysRunningMin || filters.daysRunningMax) {
+    const lo = filters.daysRunningMin || "0";
+    const hi = filters.daysRunningMax || String(DAYS_RUNNING_SLIDER_MAX);
+    tags.push({
+      id: "days-running",
+      text: `Days running: ${lo}–${hi}`,
+      clear: { daysRunningMin: "", daysRunningMax: "" },
+    });
   }
 
   if (filters.createdPreset) {
@@ -263,6 +284,23 @@ function buildActiveFilterTags(filters: AdsLibraryFilterState): ActiveFilterTag[
   }
 
   return tags;
+}
+
+/** One count per filter chip category (include + exclude countries = 1). */
+function countActiveFilterGroups(filters: AdsLibraryFilterState): number {
+  let n = 0;
+  if (filters.searchTerms.length) n += 1;
+  if (filters.statusActive || filters.statusInactive) n += 1;
+  if (filters.includeCountries.length || filters.excludeCountries.length) n += 1;
+  if (filters.includeLanguages.length || filters.excludeLanguages.length) n += 1;
+  if (filters.copyMin || filters.copyMax) n += 1;
+  if (filters.videoMin || filters.videoMax) n += 1;
+  if (filters.mediaTypes.length) n += 1;
+  if (filters.daysRunningMin || filters.daysRunningMax) n += 1;
+  if (filters.createdPreset || filters.createdFrom || filters.createdTo) n += 1;
+  if (filters.lastSeenPreset || filters.lastSeenFrom || filters.lastSeenTo) n += 1;
+  if (filters.angle) n += 1;
+  return n;
 }
 
 function flagEmoji(code: string) {
@@ -319,20 +357,278 @@ const COUNTRY_GROUPS: Array<{ title: string; codes: string[] }> = [
   { title: "South America", codes: ["BR", "MX", "AR", "CO", "CL"] },
 ];
 
-const DATE_PRESETS: Array<{ id: DatePreset; label: string }> = [
-  { id: "last_7", label: "Last 7 days" },
-  { id: "last_14", label: "Last 14 days" },
-  { id: "last_30", label: "Last 30 days" },
-  { id: "last_90", label: "Last 90 days" },
-  { id: "last_180", label: "Last 180 days" },
+const DAYS_RUNNING_PRESETS: { min: number; max: number; label: string }[] = [
+  { min: 0, max: 7, label: "Just started (0–7)" },
+  { min: 7, max: 30, label: "Validated (7–30)" },
+  { min: 30, max: DAYS_RUNNING_SLIDER_MAX, label: "Evergreen (30+)" },
 ];
 
-const DAYS_RUNNING: Array<{ id: DaysRunningBucket; label: string }> = [
-  { id: "under_7", label: "Under 7 days" },
-  { id: "7_30", label: "7 – 30 days" },
-  { id: "30_90", label: "30 – 90 days" },
-  { id: "over_90", label: "90+ days" },
-];
+function clampDays(n: number): number {
+  return Math.min(DAYS_RUNNING_SLIDER_MAX, Math.max(0, Math.round(n)));
+}
+
+function parseDaysField(value: string, fallback: number): number {
+  if (value.trim() === "") return fallback;
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return clampDays(n);
+}
+
+function daysRunningBounds(min: string, max: string): { lo: number; hi: number; active: boolean } {
+  const active = min.trim() !== "" || max.trim() !== "";
+  const lo = parseDaysField(min, 0);
+  const hi = parseDaysField(max, DAYS_RUNNING_SLIDER_MAX);
+  return { lo: Math.min(lo, hi), hi: Math.max(lo, hi), active };
+}
+
+function thumbPositionStyle(value: number): React.CSSProperties {
+  const pct = (value / DAYS_RUNNING_SLIDER_MAX) * 100;
+  if (value <= 0) return { left: "0%", transform: "translate(0, -50%)" };
+  if (value >= DAYS_RUNNING_SLIDER_MAX) return { left: "100%", transform: "translate(-100%, -50%)" };
+  return { left: `${pct}%`, transform: "translate(-50%, -50%)" };
+}
+
+function DaysRunningDualSlider({
+  lo,
+  hi,
+  onRangeChange,
+}: {
+  lo: number;
+  hi: number;
+  onRangeChange: (newLo: number, newHi: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef<"min" | "max" | null>(null);
+  /** Which thumb paints above the other when they overlap (last pointer down wins). */
+  const [topThumb, setTopThumb] = useState<"min" | "max">("max");
+  const [draggingThumb, setDraggingThumb] = useState<"min" | "max" | null>(null);
+
+  const valueFromPointer = useCallback((clientX: number) => {
+    const el = trackRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0) return 0;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    return clampDays(Math.round(ratio * DAYS_RUNNING_SLIDER_MAX));
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!dragging.current) return;
+      const v = valueFromPointer(e.clientX);
+      if (dragging.current === "min") {
+        onRangeChange(Math.min(v, hi), hi);
+      } else {
+        onRangeChange(lo, Math.max(v, lo));
+      }
+    };
+    const onUp = () => {
+      dragging.current = null;
+      setDraggingThumb(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [hi, lo, onRangeChange, valueFromPointer]);
+
+  const loPct = (lo / DAYS_RUNNING_SLIDER_MAX) * 100;
+  const hiPct = (hi / DAYS_RUNNING_SLIDER_MAX) * 100;
+
+  const onThumbDown = (which: "min" | "max") => (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    dragging.current = which;
+    setTopThumb(which);
+    setDraggingThumb(which);
+  };
+
+  const thumbClass = (which: "min" | "max") => {
+    const parts = ["ads-library-days-slider-thumb"];
+    if (topThumb === which) parts.push("is-on-top");
+    if (draggingThumb === which) parts.push("is-dragging");
+    return parts.join(" ");
+  };
+
+  const minThumb = (
+    <button
+      type="button"
+      role="slider"
+      tabIndex={0}
+      className={thumbClass("min")}
+      style={thumbPositionStyle(lo)}
+      aria-label={`Minimum days running: ${lo}`}
+      onPointerDown={onThumbDown("min")}
+    />
+  );
+
+  const maxThumb = (
+    <button
+      type="button"
+      role="slider"
+      tabIndex={0}
+      className={thumbClass("max")}
+      style={thumbPositionStyle(hi)}
+      aria-label={`Maximum days running: ${hi}`}
+      onPointerDown={onThumbDown("max")}
+    />
+  );
+
+  return (
+    <div className="ads-library-days-slider-track" ref={trackRef}>
+      <div className="ads-library-days-slider-rail" aria-hidden />
+      <div
+        className="ads-library-days-slider-fill"
+        style={{ left: `${loPct}%`, width: `${Math.max(0, hiPct - loPct)}%` }}
+      />
+      {topThumb === "min" ? (
+        <>
+          {maxThumb}
+          {minThumb}
+        </>
+      ) : (
+        <>
+          {minThumb}
+          {maxThumb}
+        </>
+      )}
+    </div>
+  );
+}
+
+function DaysRunningFilterPanel({
+  min,
+  max,
+  onChange,
+}: {
+  min: string;
+  max: string;
+  onChange: (patch: { daysRunningMin: string; daysRunningMax: string }) => void;
+}) {
+  const { lo, hi, active } = daysRunningBounds(min, max);
+
+  const applyRange = (newLo: number, newHi: number) => {
+    const a = clampDays(Math.min(newLo, newHi));
+    const b = clampDays(Math.max(newLo, newHi));
+    onChange({ daysRunningMin: String(a), daysRunningMax: String(b) });
+  };
+
+  const onMinInput = (raw: string) => {
+    if (raw.trim() === "") {
+      onChange({ daysRunningMin: "", daysRunningMax: max });
+      return;
+    }
+    const n = clampDays(parseInt(raw, 10));
+    if (!Number.isFinite(n)) return;
+    applyRange(n, active ? hi : DAYS_RUNNING_SLIDER_MAX);
+  };
+
+  const onMaxInput = (raw: string) => {
+    if (raw.trim() === "") {
+      onChange({ daysRunningMin: min, daysRunningMax: "" });
+      return;
+    }
+    const n = clampDays(parseInt(raw, 10));
+    if (!Number.isFinite(n)) return;
+    applyRange(active ? lo : 0, n);
+  };
+
+  const loPct = (lo / DAYS_RUNNING_SLIDER_MAX) * 100;
+  const hiPct = (hi / DAYS_RUNNING_SLIDER_MAX) * 100;
+  const bubblesOverlap = hi - lo < 24;
+
+  const bubbleStyle = (value: number, stackHigh: boolean): React.CSSProperties => {
+    const pct = (value / DAYS_RUNNING_SLIDER_MAX) * 100;
+    const base: React.CSSProperties = stackHigh ? { top: 14 } : { top: 0 };
+    if (value <= 0) return { ...base, left: "0%", transform: "translateX(0)" };
+    if (value >= DAYS_RUNNING_SLIDER_MAX) return { ...base, left: "100%", transform: "translateX(-100%)" };
+    return { ...base, left: `${pct}%`, transform: "translateX(-50%)" };
+  };
+
+  return (
+    <div className="ads-library-days-running-panel">
+      <div className="ads-library-filter-panel-title">Days Running</div>
+
+      <div className="ads-library-days-slider-wrap">
+        <div className="ads-library-days-slider-bubbles" aria-hidden>
+          <span className="ads-library-days-slider-bubble" style={bubbleStyle(lo, false)}>
+            {lo}
+          </span>
+          <span
+            className="ads-library-days-slider-bubble ads-library-days-slider-bubble--max"
+            style={bubbleStyle(hi, bubblesOverlap)}
+          >
+            {hi}
+          </span>
+        </div>
+        <DaysRunningDualSlider lo={lo} hi={hi} onRangeChange={applyRange} />
+      </div>
+
+      <div className="ads-library-days-inputs">
+        <input
+          type="number"
+          className="ads-library-filter-field"
+          placeholder="Min"
+          min={0}
+          max={DAYS_RUNNING_SLIDER_MAX}
+          value={
+            active
+              ? min !== ""
+                ? min
+                : String(lo)
+              : ""
+          }
+          onChange={(e) => onMinInput(e.target.value)}
+        />
+        <input
+          type="number"
+          className="ads-library-filter-field"
+          placeholder="Max"
+          min={0}
+          max={DAYS_RUNNING_SLIDER_MAX}
+          value={
+            active
+              ? max !== ""
+                ? max
+                : String(hi)
+              : ""
+          }
+          onChange={(e) => onMaxInput(e.target.value)}
+        />
+      </div>
+
+      <div className="ads-library-filter-range-pills ads-library-days-presets">
+        {DAYS_RUNNING_PRESETS.map((p) => {
+          const selected = active && lo === p.min && hi === p.max;
+          return (
+            <button
+              key={p.label}
+              type="button"
+              className="ads-library-filter-pill"
+              data-selected={selected ? "true" : "false"}
+              onClick={() => applyRange(p.min, p.max)}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {active && (
+        <button
+          type="button"
+          className="ads-library-filter-toolbar-btn ads-library-days-clear"
+          onClick={() => onChange({ daysRunningMin: "", daysRunningMax: "" })}
+        >
+          Clear range
+        </button>
+      )}
+    </div>
+  );
+}
 
 const MEDIA_TYPES = [
   { id: "video", label: "Videos" },
@@ -472,24 +768,115 @@ type AdsLibraryFilterBarProps = {
   filters: AdsLibraryFilterState;
   onChange: (patch: Partial<AdsLibraryFilterState>) => void;
   onReset: () => void;
-  onSearch: () => void;
-  canSearch: boolean;
-  showActiveFilters: boolean;
-  activeFilterSource: AdsLibraryFilterState;
   facetCountries: string[];
   facetLanguages: string[];
   facetAngles: string[];
   facetAdTypes: Array<{ value: string; count: number }>;
 };
 
+function pushSearchTerms(existing: string[], raw: string): string[] {
+  const next = [...existing];
+  for (const part of raw.split(",")) {
+    const term = part.trim();
+    if (term && !next.some((t) => t.toLowerCase() === term.toLowerCase())) {
+      next.push(term);
+    }
+  }
+  return next;
+}
+
+function SearchTermsField({
+  filters,
+  onChange,
+}: {
+  filters: AdsLibraryFilterState;
+  onChange: (patch: Partial<AdsLibraryFilterState>) => void;
+}) {
+  const commitDraft = () => {
+    const draft = filters.q.trim();
+    if (!draft) return;
+    onChange({
+      searchTerms: pushSearchTerms(filters.searchTerms, draft),
+      q: "",
+    });
+  };
+
+  const removeTerm = (term: string) => {
+    onChange({ searchTerms: filters.searchTerms.filter((t) => t !== term) });
+  };
+
+  const clearAll = () => {
+    onChange({ searchTerms: [], q: "" });
+  };
+
+  const showClear = filters.searchTerms.length > 0 || filters.q.trim().length > 0;
+
+  return (
+    <div className="ads-library-search-row">
+      <div className="ads-library-search-combobox">
+        {filters.searchTerms.map((term) => (
+          <span key={term} className="ads-library-search-term">
+            <span>{term}</span>
+            <button
+              type="button"
+              className="ads-library-search-term-remove"
+              aria-label={`Remove ${term}`}
+              onClick={() => removeTerm(term)}
+            >
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          className="ads-library-search-input-inline"
+          placeholder={
+            filters.searchTerms.length ? "Search… (comma to add a term)" : "Search… (comma to add a term)"
+          }
+          value={filters.q}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v.includes(",")) {
+              const parts = v.split(",");
+              const last = parts.pop() ?? "";
+              onChange({
+                searchTerms: pushSearchTerms(filters.searchTerms, parts.join(",")),
+                q: last,
+              });
+            } else {
+              onChange({ q: v });
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              commitDraft();
+            }
+            if (e.key === "Backspace" && !filters.q && filters.searchTerms.length > 0) {
+              onChange({ searchTerms: filters.searchTerms.slice(0, -1) });
+            }
+          }}
+          onBlur={commitDraft}
+        />
+      </div>
+      {showClear && (
+        <button
+          type="button"
+          className="ads-library-search-clear"
+          aria-label="Clear search terms"
+          onClick={clearAll}
+        >
+          <X size={18} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function AdsLibraryFilterBar({
   filters,
   onChange,
   onReset,
-  onSearch,
-  canSearch,
-  showActiveFilters,
-  activeFilterSource,
   facetCountries,
   facetLanguages,
   facetAngles,
@@ -567,11 +954,9 @@ export function AdsLibraryFilterBar({
     });
   };
 
-  const hasActive = showActiveFilters && adsLibraryFiltersActive(activeFilterSource);
-  const activeTags = useMemo(
-    () => buildActiveFilterTags(activeFilterSource),
-    [activeFilterSource, showActiveFilters]
-  );
+  const hasActive = adsLibraryFiltersActive(filters);
+  const activeTags = useMemo(() => buildActiveFilterTags(filters), [filters]);
+  const activeFilterGroupCount = useMemo(() => countActiveFilterGroups(filters), [filters]);
 
   const statusSummary =
     filters.statusActive || filters.statusInactive
@@ -585,31 +970,10 @@ export function AdsLibraryFilterBar({
 
   return (
     <div className="ads-library-filters">
-      <form
-        className="ads-library-search-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (canSearch) onSearch();
-        }}
-      >
-        <input
-          type="search"
-          className="ads-library-search-input"
-          placeholder="Search… (comma to add a term)"
-          value={filters.q}
-          onChange={(e) => onChange({ q: e.target.value })}
-        />
-        <button
-          type="submit"
-          className="ads-library-search-submit"
-          disabled={!canSearch}
-          aria-label="Search ads"
-        >
-          <Search size={18} aria-hidden />
-        </button>
-      </form>
+      <SearchTermsField filters={filters} onChange={onChange} />
 
-      <div className="ads-library-filter-grid">
+      <div className="ads-library-filter-grid-row">
+        <div className="ads-library-filter-grid">
         <FilterChipShell
           chipId="status"
           openId={openId}
@@ -839,33 +1203,36 @@ export function AdsLibraryFilterBar({
             </label>
           ))}
         </FilterChipShell>
+        </div>
+        {activeFilterGroupCount > 0 && (
+          <span className="ads-library-filter-active-count" aria-live="polite">
+            {activeFilterGroupCount === 1
+              ? "1 filter active"
+              : `${activeFilterGroupCount} filters active`}
+          </span>
+        )}
+      </div>
 
+      <div className="ads-library-filter-grid-row ads-library-filter-grid-row--secondary">
+        <div className="ads-library-filter-grid">
         <FilterChipShell
           chipId="days"
           openId={openId}
           setOpenId={setOpenId}
           icon={<Clock size={15} />}
           label={
-            filters.daysRunning
-              ? DAYS_RUNNING.find((d) => d.id === filters.daysRunning)?.label ?? "Days running"
+            filters.daysRunningMin || filters.daysRunningMax
+              ? `Days running (${filters.daysRunningMin || "0"}–${filters.daysRunningMax || DAYS_RUNNING_SLIDER_MAX})`
               : "Days running"
           }
-          active={!!filters.daysRunning}
+          active={!!(filters.daysRunningMin || filters.daysRunningMax)}
+          panelClass="ads-library-filter-panel--days-running"
         >
-          {DAYS_RUNNING.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className="ads-library-filter-menu-item"
-              data-selected={filters.daysRunning === d.id ? "true" : "false"}
-              onClick={() => {
-                onChange({ daysRunning: filters.daysRunning === d.id ? "" : d.id });
-                setOpenId(null);
-              }}
-            >
-              {d.label}
-            </button>
-          ))}
+          <DaysRunningFilterPanel
+            min={filters.daysRunningMin}
+            max={filters.daysRunningMax}
+            onChange={onChange}
+          />
         </FilterChipShell>
 
         <FilterChipShell
@@ -882,7 +1249,6 @@ export function AdsLibraryFilterBar({
           panelClass="ads-library-filter-panel--date"
         >
           <DateFilterPanel
-            presets={DATE_PRESETS}
             preset={filters.createdPreset}
             from={filters.createdFrom}
             to={filters.createdTo}
@@ -892,7 +1258,6 @@ export function AdsLibraryFilterBar({
             onRange={(createdFrom, createdTo) =>
               onChange({ createdFrom, createdTo, createdPreset: "" })
             }
-            onClear={() => onChange({ createdPreset: "", createdFrom: "", createdTo: "" })}
           />
         </FilterChipShell>
 
@@ -910,17 +1275,16 @@ export function AdsLibraryFilterBar({
           panelClass="ads-library-filter-panel--date"
         >
           <DateFilterPanel
-            presets={DATE_PRESETS}
             preset={filters.lastSeenPreset}
             from={filters.lastSeenFrom}
             to={filters.lastSeenTo}
+            excludePresets={["today"]}
             onPreset={(lastSeenPreset) =>
               onChange({ lastSeenPreset, lastSeenFrom: "", lastSeenTo: "" })
             }
             onRange={(lastSeenFrom, lastSeenTo) =>
               onChange({ lastSeenFrom, lastSeenTo, lastSeenPreset: "" })
             }
-            onClear={() => onChange({ lastSeenPreset: "", lastSeenFrom: "", lastSeenTo: "" })}
           />
         </FilterChipShell>
 
@@ -962,6 +1326,7 @@ export function AdsLibraryFilterBar({
             </button>
           ))}
         </FilterChipShell>
+        </div>
       </div>
 
       {hasActive && (
@@ -992,61 +1357,29 @@ export function AdsLibraryFilterBar({
 }
 
 function DateFilterPanel({
-  presets,
   preset,
   from,
   to,
   onPreset,
   onRange,
-  onClear,
+  excludePresets,
 }: {
-  presets: Array<{ id: DatePreset; label: string }>;
   preset: DatePreset;
   from: string;
   to: string;
-  onPreset: (id: DatePreset) => void;
+  onPreset: (id: DatePresetId) => void;
   onRange: (from: string, to: string) => void;
-  onClear: () => void;
+  excludePresets?: DatePresetId[];
 }) {
   return (
-    <div className="ads-library-filter-date-layout">
-      <div className="ads-library-filter-date-presets">
-        <button type="button" className="ads-library-filter-toolbar-btn ads-library-filter-date-clear" onClick={onClear}>
-          Clear
-        </button>
-        {presets.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className="ads-library-filter-date-preset"
-            data-selected={preset === p.id ? "true" : "false"}
-            onClick={() => onPreset(p.id)}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-      <div className="ads-library-filter-date-custom">
-        <div className="ads-library-filter-panel-title">Custom range</div>
-        <label className="ads-library-filter-date-label">
-          From
-          <input
-            type="date"
-            className="ads-library-filter-field"
-            value={from}
-            onChange={(e) => onRange(e.target.value, to)}
-          />
-        </label>
-        <label className="ads-library-filter-date-label">
-          To
-          <input
-            type="date"
-            className="ads-library-filter-field"
-            value={to}
-            onChange={(e) => onRange(from, e.target.value)}
-          />
-        </label>
-      </div>
-    </div>
+    <AdsLibraryDatePicker
+      key={preset || "custom-range"}
+      preset={preset}
+      from={from}
+      to={to}
+      onPreset={onPreset}
+      onRange={onRange}
+      excludePresets={excludePresets}
+    />
   );
 }

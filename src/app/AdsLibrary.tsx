@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Play } from "lucide-react";
-import { Badge, EditorialPage, EditorialPageHeader, Spinner } from "./components";
+import { EditorialPage, EditorialPageHeader, Spinner } from "./components";
 import { ActorPayloadDetails } from "./ads-library-actor-details";
+import { AdsLibraryCard } from "./ads-library-card";
+import { AdsLibraryToolbar, useAdsLibraryViewSettings } from "./ads-library-toolbar";
+import { applyAdsLibraryViewPipeline } from "@/lib/ads-library/view-settings";
 import {
   AdsLibraryFilterBar,
   EMPTY_ADS_LIBRARY_FILTERS,
+  adsLibraryFiltersActive,
   type AdsLibraryFilterState,
   buildAdsLibrarySearchParams,
 } from "./ads-library-filters";
@@ -182,8 +186,7 @@ type AdsLibraryProps = {
 
 export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
   const [filters, setFilters] = useState<AdsLibraryFilterState>(EMPTY_ADS_LIBRARY_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState<AdsLibraryFilterState | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
+  const { settings: viewSettings, update: setViewSettings } = useAdsLibraryViewSettings();
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -203,23 +206,21 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
   const [scrapeActorLabel, setScrapeActorLabel] = useState("");
   const [previewImageUrl, setPreviewImageUrl] = useState("");
 
-  const canSearch = filters.q.trim().length > 0;
+  const filtersActive = adsLibraryFiltersActive(filters);
 
-  const runSearch = useCallback(() => {
-    const q = filters.q.trim();
-    if (!q) return;
-    setAppliedFilters({ ...filters, q });
-    setHasSearched(true);
-    setPage(1);
-    setError("");
-  }, [filters]);
+  const fetchKey = JSON.stringify({ filters, page });
 
   const fetchLibrary = useCallback(async () => {
-    if (!appliedFilters) return;
+    if (!adsLibraryFiltersActive(filters)) {
+      setAds([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const params = buildAdsLibrarySearchParams(appliedFilters, appliedFilters.q.trim(), page);
+      const params = buildAdsLibrarySearchParams(filters, page);
 
       const res = await fetch(`/api/ads-library?${params.toString()}`);
       const data = await res.json();
@@ -237,26 +238,30 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
     } finally {
       setLoading(false);
     }
-  }, [appliedFilters, page]);
+  }, [filters, page]);
 
   useEffect(() => {
-    if (appliedFilters) fetchLibrary();
-  }, [appliedFilters, page, fetchLibrary]);
+    const t = window.setTimeout(() => {
+      fetchLibrary();
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [fetchKey, fetchLibrary]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const resetFilters = () => {
     setFilters(EMPTY_ADS_LIBRARY_FILTERS);
-    setAppliedFilters(null);
-    setHasSearched(false);
-    setPage(1);
     setAds([]);
     setTotal(0);
     setError("");
+    setPage(1);
   };
 
   const patchFilters = (patch: Partial<AdsLibraryFilterState>) => {
     setFilters((prev) => ({ ...prev, ...patch }));
+    const keys = Object.keys(patch);
+    const draftOnly = keys.length === 1 && keys[0] === "q";
+    if (!draftOnly) setPage(1);
   };
 
   const openAdDetails = useCallback(async (ad: LibraryAd) => {
@@ -307,8 +312,14 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
       </div>
     ) : null;
 
-  const empty = hasSearched && !loading && ads.length === 0;
-  const idle = !hasSearched && !loading;
+  const displayAds = useMemo(
+    () => applyAdsLibraryViewPipeline(ads, viewSettings),
+    [ads, viewSettings]
+  );
+
+  const empty = filtersActive && !loading && displayAds.length === 0;
+  const showInitialPrompt = !filtersActive && !loading;
+  const showToolbar = !loading && filtersActive;
 
   return (
     <EditorialPage wide>
@@ -322,32 +333,29 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
         filters={filters}
         onChange={patchFilters}
         onReset={resetFilters}
-        onSearch={runSearch}
-        canSearch={canSearch}
-        showActiveFilters={hasSearched}
-        activeFilterSource={appliedFilters ?? filters}
         facetCountries={facets.countries}
         facetLanguages={facets.languages}
         facetAngles={facets.angles}
         facetAdTypes={facets.adTypes}
       />
 
-      {idle && !error && (
+      {showInitialPrompt && !error && (
         <div
           style={{
             textAlign: "center",
-            padding: "48px 24px",
+            padding: "40px 24px",
             background: "#fff",
             border: "1px solid #E8DCC2",
             borderRadius: 20,
+            marginBottom: 16,
           }}
         >
           <div style={{ fontSize: 15, fontWeight: 700, color: "#23394A", marginBottom: 8 }}>
-            Search your ads library
+            Filter your ads library
           </div>
           <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 480, margin: "0 auto" }}>
-            Ads are hidden until you search. Enter one or more keywords (comma-separated), optionally set filters,
-            then press Enter or click the search icon.
+            Add search terms (comma to create tags) or choose at least one filter below. Results update
+            automatically.
           </div>
         </div>
       )}
@@ -380,123 +388,53 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
             borderRadius: 20,
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#23394A", marginBottom: 8 }}>No matching ads</div>
-          <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 420, margin: "0 auto 20px" }}>
-            Nothing in your library matched those keywords and filters. Try different search terms or clear some filters,
-            then search again.
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#23394A", marginBottom: 8 }}>
+            No ads match this search
           </div>
+          <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 420, margin: "0 auto 20px" }}>
+            Try different keywords or filters. Ads are added when you run Competitor Ad Analysis.
+          </div>
+          {onOpenCompetitors && (
+            <button
+              type="button"
+              onClick={onOpenCompetitors}
+              style={{
+                fontFamily: "inherit",
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "10px 20px",
+                borderRadius: 10,
+                border: "none",
+                background: "#003049",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              Open Competitors →
+            </button>
+          )}
         </div>
       )}
 
-      {!loading && ads.length > 0 && (
+      {!loading && filtersActive && displayAds.length > 0 && (
         <>
           <div style={{ fontSize: 12, color: "#9FA8A3", marginBottom: 12 }}>
-            {total} ad{total === 1 ? "" : "s"}
+            {displayAds.length} ad{displayAds.length === 1 ? "" : "s"}
+            {displayAds.length !== ads.length && (
+              <span style={{ color: "#C4B89A" }}> (of {total} matching filters)</span>
+            )}
           </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: 16,
-            }}
-          >
-            {ads.map((ad) => (
-              <article
+          <div className="ads-library-card-grid">
+            {displayAds.map((ad) => (
+              <AdsLibraryCard
                 key={ad.id}
-                style={{
-                  background: "#fff",
-                  border: "1px solid #E8DCC2",
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                }}
-              >
-                <div
-                  style={{
-                    position: "relative",
-                    aspectRatio: "16 / 10",
-                    background: "#FDF0D5",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {ad.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={ad.imageUrl}
-                      alt=""
-                      referrerPolicy="no-referrer"
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  ) : (
-                    <span style={{ fontSize: 12, color: "#9FA8A3" }}>No preview</span>
-                  )}
-                  {ad.hasVideo && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        bottom: 8,
-                        right: 8,
-                        background: "rgba(0,48,73,0.85)",
-                        color: "#fff",
-                        borderRadius: 8,
-                        padding: "4px 8px",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      <Play size={12} fill="#fff" />
-                      Video
-                    </span>
-                  )}
-                </div>
-                <div style={{ padding: "14px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#23394A", lineHeight: 1.3 }}>{ad.pageName}</div>
-                    <Badge text={ad.adType} color="#003049" bg="#E7F0F6" />
-                  </div>
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: "#5C5346",
-                      margin: 0,
-                      flex: 1,
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: "vertical" as const,
-                    }}
-                  >
-                    {ad.hook || ad.headline || ad.body}
-                  </p>
-                  <div style={{ fontSize: 11, color: "#9FA8A3" }}>Impressions: {formatImpressions(ad)}</div>
-                  <button
-                    type="button"
-                    onClick={() => openAdDetails(ad)}
-                    style={{
-                      marginTop: 4,
-                      width: "100%",
-                      fontFamily: "inherit",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: "9px 0",
-                      borderRadius: 10,
-                      border: "1px solid #E8DCC2",
-                      background: "#FDF6E3",
-                      color: "#003049",
-                      cursor: "pointer",
-                    }}
-                  >
-                    See details
-                  </button>
-                </div>
-              </article>
+                ad={ad}
+                sections={viewSettings.card}
+                hoverPlay={viewSettings.hoverPlay}
+                sound={viewSettings.sound}
+                formatImpressions={formatImpressions}
+                onSeeDetails={() => openAdDetails(ad)}
+              />
             ))}
           </div>
 
@@ -651,6 +589,8 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <AdsLibraryToolbar visible={showToolbar} settings={viewSettings} onChange={(next) => setViewSettings(next)} />
     </EditorialPage>
   );
 }
