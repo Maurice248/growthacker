@@ -28,6 +28,8 @@ import { AdsLibraryDatePicker } from "./ads-library-date-picker";
 export type { DatePreset };
 
 const DAYS_RUNNING_SLIDER_MAX = 365;
+const COPY_LENGTH_SLIDER_MAX = 5000;
+const VIDEO_LENGTH_SLIDER_MAX = 600;
 
 export type AdsLibraryFilterState = {
   /** Committed search terms (shown as tags in the search bar). */
@@ -218,7 +220,7 @@ function buildActiveFilterTags(filters: AdsLibraryFilterState): ActiveFilterTag[
 
   if (filters.copyMin || filters.copyMax) {
     const min = filters.copyMin || "0";
-    const max = filters.copyMax || "∞";
+    const max = filters.copyMax || String(COPY_LENGTH_SLIDER_MAX);
     tags.push({
       id: "copy-length",
       text: `Ad copy length: ${min}–${max} chars`,
@@ -228,7 +230,7 @@ function buildActiveFilterTags(filters: AdsLibraryFilterState): ActiveFilterTag[
 
   if (filters.videoMin || filters.videoMax) {
     const min = filters.videoMin || "0";
-    const max = filters.videoMax || "∞";
+    const max = filters.videoMax || String(VIDEO_LENGTH_SLIDER_MAX);
     tags.push({
       id: "video-length",
       text: `Video length: ${min}–${max}s`,
@@ -366,44 +368,76 @@ const COUNTRY_GROUPS: Array<{ title: string; codes: string[] }> = [
   { title: "South America", codes: ["BR", "MX", "AR", "CO", "CL"] },
 ];
 
-const DAYS_RUNNING_PRESETS: { min: number; max: number; label: string }[] = [
+type DualRangePreset = { min: number; max: number; label: string };
+
+const DAYS_RUNNING_PRESETS: DualRangePreset[] = [
   { min: 0, max: 7, label: "Just started (0–7)" },
   { min: 7, max: 30, label: "Validated (7–30)" },
   { min: 30, max: DAYS_RUNNING_SLIDER_MAX, label: "Evergreen (30+)" },
 ];
 
-function clampDays(n: number): number {
-  return Math.min(DAYS_RUNNING_SLIDER_MAX, Math.max(0, Math.round(n)));
+const COPY_LENGTH_PRESETS: DualRangePreset[] = [
+  { min: 0, max: 99, label: "<100 chars" },
+  { min: 100, max: 300, label: "100–300" },
+  { min: 300, max: 700, label: "300–700" },
+  { min: 700, max: COPY_LENGTH_SLIDER_MAX, label: "700+" },
+];
+
+const VIDEO_LENGTH_PRESETS: DualRangePreset[] = [
+  { min: 0, max: 59, label: "<1 min" },
+  { min: 60, max: 180, label: "1–3 min" },
+  { min: 180, max: 300, label: "3–5 min" },
+  { min: 300, max: VIDEO_LENGTH_SLIDER_MAX, label: "5+ min" },
+];
+
+function clampRangeValue(n: number, sliderMax: number): number {
+  return Math.min(sliderMax, Math.max(0, Math.round(n)));
 }
 
-function parseDaysField(value: string, fallback: number): number {
+function parseRangeField(value: string, fallback: number, sliderMax: number): number {
   if (value.trim() === "") return fallback;
   const n = parseInt(value, 10);
   if (!Number.isFinite(n)) return fallback;
-  return clampDays(n);
+  return clampRangeValue(n, sliderMax);
 }
 
-function daysRunningBounds(min: string, max: string): { lo: number; hi: number; active: boolean } {
+function dualRangeBounds(
+  min: string,
+  max: string,
+  sliderMax: number
+): { lo: number; hi: number; active: boolean } {
   const active = min.trim() !== "" || max.trim() !== "";
-  const lo = parseDaysField(min, 0);
-  const hi = parseDaysField(max, DAYS_RUNNING_SLIDER_MAX);
+  const lo = parseRangeField(min, 0, sliderMax);
+  const hi = parseRangeField(max, sliderMax, sliderMax);
   return { lo: Math.min(lo, hi), hi: Math.max(lo, hi), active };
 }
 
-function thumbPositionStyle(value: number): React.CSSProperties {
-  const pct = (value / DAYS_RUNNING_SLIDER_MAX) * 100;
+function formatCompactRange(n: number): string {
+  if (n >= 1000) {
+    const k = n / 1000;
+    return Number.isInteger(k) ? `${k}K` : `${parseFloat(k.toFixed(1))}K`;
+  }
+  return String(n);
+}
+
+function thumbPositionStyle(value: number, sliderMax: number): React.CSSProperties {
+  const pct = (value / sliderMax) * 100;
   if (value <= 0) return { left: "0%", transform: "translate(0, -50%)" };
-  if (value >= DAYS_RUNNING_SLIDER_MAX) return { left: "100%", transform: "translate(-100%, -50%)" };
+  if (value >= sliderMax) return { left: "100%", transform: "translate(-100%, -50%)" };
   return { left: `${pct}%`, transform: "translate(-50%, -50%)" };
 }
 
-function DaysRunningDualSlider({
+function DualRangeSlider({
   lo,
   hi,
+  sliderMax,
+  ariaName,
   onRangeChange,
 }: {
   lo: number;
   hi: number;
+  sliderMax: number;
+  ariaName: string;
   onRangeChange: (newLo: number, newHi: number) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -412,14 +446,17 @@ function DaysRunningDualSlider({
   const [topThumb, setTopThumb] = useState<"min" | "max">("max");
   const [draggingThumb, setDraggingThumb] = useState<"min" | "max" | null>(null);
 
-  const valueFromPointer = useCallback((clientX: number) => {
-    const el = trackRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    if (rect.width <= 0) return 0;
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    return clampDays(Math.round(ratio * DAYS_RUNNING_SLIDER_MAX));
-  }, []);
+  const valueFromPointer = useCallback(
+    (clientX: number) => {
+      const el = trackRef.current;
+      if (!el) return 0;
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0) return 0;
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      return clampRangeValue(Math.round(ratio * sliderMax), sliderMax);
+    },
+    [sliderMax]
+  );
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
@@ -445,8 +482,8 @@ function DaysRunningDualSlider({
     };
   }, [hi, lo, onRangeChange, valueFromPointer]);
 
-  const loPct = (lo / DAYS_RUNNING_SLIDER_MAX) * 100;
-  const hiPct = (hi / DAYS_RUNNING_SLIDER_MAX) * 100;
+  const loPct = (lo / sliderMax) * 100;
+  const hiPct = (hi / sliderMax) * 100;
 
   const onThumbDown = (which: "min" | "max") => (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -468,8 +505,8 @@ function DaysRunningDualSlider({
       role="slider"
       tabIndex={0}
       className={thumbClass("min")}
-      style={thumbPositionStyle(lo)}
-      aria-label={`Minimum days running: ${lo}`}
+      style={thumbPositionStyle(lo, sliderMax)}
+      aria-label={`Minimum ${ariaName}: ${lo}`}
       onPointerDown={onThumbDown("min")}
     />
   );
@@ -480,8 +517,8 @@ function DaysRunningDualSlider({
       role="slider"
       tabIndex={0}
       className={thumbClass("max")}
-      style={thumbPositionStyle(hi)}
-      aria-label={`Maximum days running: ${hi}`}
+      style={thumbPositionStyle(hi, sliderMax)}
+      aria-label={`Maximum ${ariaName}: ${hi}`}
       onPointerDown={onThumbDown("max")}
     />
   );
@@ -508,72 +545,89 @@ function DaysRunningDualSlider({
   );
 }
 
-function DaysRunningFilterPanel({
+function DualRangeFilterPanel({
+  title,
+  sliderMax,
   min,
   max,
+  presets,
+  ariaName,
+  formatBubble = String,
+  presetsStacked = true,
   onChange,
 }: {
+  title: string;
+  sliderMax: number;
   min: string;
   max: string;
-  onChange: (patch: { daysRunningMin: string; daysRunningMax: string }) => void;
+  presets: DualRangePreset[];
+  ariaName: string;
+  formatBubble?: (n: number) => string;
+  /** Vertical full-width presets (days running) vs wrap pills (copy/video). */
+  presetsStacked?: boolean;
+  onChange: (min: string, max: string) => void;
 }) {
-  const { lo, hi, active } = daysRunningBounds(min, max);
+  const { lo, hi, active } = dualRangeBounds(min, max, sliderMax);
 
   const applyRange = (newLo: number, newHi: number) => {
-    const a = clampDays(Math.min(newLo, newHi));
-    const b = clampDays(Math.max(newLo, newHi));
-    onChange({ daysRunningMin: String(a), daysRunningMax: String(b) });
+    const a = clampRangeValue(Math.min(newLo, newHi), sliderMax);
+    const b = clampRangeValue(Math.max(newLo, newHi), sliderMax);
+    onChange(String(a), String(b));
   };
 
   const onMinInput = (raw: string) => {
     if (raw.trim() === "") {
-      onChange({ daysRunningMin: "", daysRunningMax: max });
+      onChange("", max);
       return;
     }
-    const n = clampDays(parseInt(raw, 10));
+    const n = clampRangeValue(parseInt(raw, 10), sliderMax);
     if (!Number.isFinite(n)) return;
-    applyRange(n, active ? hi : DAYS_RUNNING_SLIDER_MAX);
+    applyRange(n, active ? hi : sliderMax);
   };
 
   const onMaxInput = (raw: string) => {
     if (raw.trim() === "") {
-      onChange({ daysRunningMin: min, daysRunningMax: "" });
+      onChange(min, "");
       return;
     }
-    const n = clampDays(parseInt(raw, 10));
+    const n = clampRangeValue(parseInt(raw, 10), sliderMax);
     if (!Number.isFinite(n)) return;
     applyRange(active ? lo : 0, n);
   };
 
-  const loPct = (lo / DAYS_RUNNING_SLIDER_MAX) * 100;
-  const hiPct = (hi / DAYS_RUNNING_SLIDER_MAX) * 100;
-  const bubblesOverlap = hi - lo < 24;
+  const bubblesOverlap = (hi - lo) / sliderMax < 0.08;
 
   const bubbleStyle = (value: number, stackHigh: boolean): React.CSSProperties => {
-    const pct = (value / DAYS_RUNNING_SLIDER_MAX) * 100;
+    const pct = (value / sliderMax) * 100;
     const base: React.CSSProperties = stackHigh ? { top: 14 } : { top: 0 };
     if (value <= 0) return { ...base, left: "0%", transform: "translateX(0)" };
-    if (value >= DAYS_RUNNING_SLIDER_MAX) return { ...base, left: "100%", transform: "translateX(-100%)" };
+    if (value >= sliderMax) return { ...base, left: "100%", transform: "translateX(-100%)" };
     return { ...base, left: `${pct}%`, transform: "translateX(-50%)" };
   };
 
   return (
     <div className="ads-library-days-running-panel">
-      <div className="ads-library-filter-panel-title">Days Running</div>
+      <div className="ads-library-filter-panel-title">{title}</div>
 
       <div className="ads-library-days-slider-wrap">
         <div className="ads-library-days-slider-bubbles" aria-hidden>
           <span className="ads-library-days-slider-bubble" style={bubbleStyle(lo, false)}>
-            {lo}
+            {formatBubble(lo)}
           </span>
           <span
             className="ads-library-days-slider-bubble ads-library-days-slider-bubble--max"
             style={bubbleStyle(hi, bubblesOverlap)}
           >
-            {hi}
+            {formatBubble(hi)}
           </span>
         </div>
-        <DaysRunningDualSlider lo={lo} hi={hi} onRangeChange={applyRange} />
+        <DualRangeSlider
+          lo={lo}
+          hi={hi}
+          sliderMax={sliderMax}
+          ariaName={ariaName}
+          onRangeChange={applyRange}
+        />
       </div>
 
       <div className="ads-library-days-inputs">
@@ -582,14 +636,8 @@ function DaysRunningFilterPanel({
           className="ads-library-filter-field"
           placeholder="Min"
           min={0}
-          max={DAYS_RUNNING_SLIDER_MAX}
-          value={
-            active
-              ? min !== ""
-                ? min
-                : String(lo)
-              : ""
-          }
+          max={sliderMax}
+          value={active ? (min !== "" ? min : String(lo)) : ""}
           onChange={(e) => onMinInput(e.target.value)}
         />
         <input
@@ -597,20 +645,20 @@ function DaysRunningFilterPanel({
           className="ads-library-filter-field"
           placeholder="Max"
           min={0}
-          max={DAYS_RUNNING_SLIDER_MAX}
-          value={
-            active
-              ? max !== ""
-                ? max
-                : String(hi)
-              : ""
-          }
+          max={sliderMax}
+          value={active ? (max !== "" ? max : String(hi)) : ""}
           onChange={(e) => onMaxInput(e.target.value)}
         />
       </div>
 
-      <div className="ads-library-filter-range-pills ads-library-days-presets">
-        {DAYS_RUNNING_PRESETS.map((p) => {
+      <div
+        className={
+          presetsStacked
+            ? "ads-library-filter-range-pills ads-library-days-presets"
+            : "ads-library-filter-range-pills"
+        }
+      >
+        {presets.map((p) => {
           const selected = active && lo === p.min && hi === p.max;
           return (
             <button
@@ -630,7 +678,7 @@ function DaysRunningFilterPanel({
         <button
           type="button"
           className="ads-library-filter-toolbar-btn ads-library-days-clear"
-          onClick={() => onChange({ daysRunningMin: "", daysRunningMax: "" })}
+          onClick={() => onChange("", "")}
         >
           Clear range
         </button>
@@ -1140,45 +1188,25 @@ export function AdsLibraryFilterBar({
           openId={openId}
           setOpenId={setOpenId}
           icon={<AlignLeft size={15} />}
-          label={filters.copyMin || filters.copyMax ? "Ad copy length •" : "Ad copy length"}
-          active={!!filters.copyMin || !!filters.copyMax}
+          label={
+            filters.copyMin || filters.copyMax
+              ? `Ad copy length (${filters.copyMin || "0"}–${filters.copyMax || COPY_LENGTH_SLIDER_MAX})`
+              : "Ad copy length"
+          }
+          active={!!(filters.copyMin || filters.copyMax)}
+          panelClass="ads-library-filter-panel--days-running"
         >
-          <div className="ads-library-filter-panel-title">Ad copy length (characters)</div>
-          <div className="ads-library-filter-range-inputs">
-            <input
-              type="number"
-              className="ads-library-filter-field"
-              placeholder="Min"
-              min={0}
-              value={filters.copyMin}
-              onChange={(e) => onChange({ copyMin: e.target.value, copyMax: filters.copyMax })}
-            />
-            <input
-              type="number"
-              className="ads-library-filter-field"
-              placeholder="Max"
-              min={0}
-              value={filters.copyMax}
-              onChange={(e) => onChange({ copyMax: e.target.value, copyMin: filters.copyMin })}
-            />
-          </div>
-          <div className="ads-library-filter-range-pills">
-            {[
-              { label: "<100 chars", min: "", max: "99" },
-              { label: "100–300", min: "100", max: "300" },
-              { label: "300–700", min: "300", max: "700" },
-              { label: "700+", min: "700", max: "" },
-            ].map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                className="ads-library-filter-pill"
-                onClick={() => onChange({ copyMin: p.min, copyMax: p.max })}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <DualRangeFilterPanel
+            title="Ad Copy Length (Characters)"
+            sliderMax={COPY_LENGTH_SLIDER_MAX}
+            min={filters.copyMin}
+            max={filters.copyMax}
+            presets={COPY_LENGTH_PRESETS}
+            ariaName="ad copy length"
+            formatBubble={formatCompactRange}
+            presetsStacked={false}
+            onChange={(copyMin, copyMax) => onChange({ copyMin, copyMax })}
+          />
         </FilterChipShell>
 
         <FilterChipShell
@@ -1186,47 +1214,30 @@ export function AdsLibraryFilterBar({
           openId={openId}
           setOpenId={setOpenId}
           icon={<MonitorPlay size={15} />}
-          label={filters.videoMin || filters.videoMax ? "Video length •" : "Video length"}
-          active={!!filters.videoMin || !!filters.videoMax}
+          label={
+            filters.videoMin || filters.videoMax
+              ? `Video length (${filters.videoMin || "0"}–${filters.videoMax || VIDEO_LENGTH_SLIDER_MAX}s)`
+              : "Video length"
+          }
+          active={!!(filters.videoMin || filters.videoMax)}
+          panelClass="ads-library-filter-panel--days-running"
         >
-          <div className="ads-library-filter-panel-title">Video length (seconds)</div>
-          <div className="ads-library-filter-range-inputs">
-            <input
-              type="number"
-              className="ads-library-filter-field"
-              placeholder="Min"
-              min={0}
-              value={filters.videoMin}
-              onChange={(e) => onChange({ videoMin: e.target.value })}
-            />
-            <input
-              type="number"
-              className="ads-library-filter-field"
-              placeholder="Max"
-              min={0}
-              value={filters.videoMax}
-              onChange={(e) => onChange({ videoMax: e.target.value })}
-            />
-          </div>
-          <div className="ads-library-filter-range-pills">
-            {[
-              { label: "<1 min", min: "", max: "59" },
-              { label: "1–3 min", min: "60", max: "180" },
-              { label: "3–5 min", min: "181", max: "300" },
-              { label: "5+ min", min: "301", max: "" },
-            ].map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                className="ads-library-filter-pill"
-                onClick={() => onChange({ videoMin: p.min, videoMax: p.max })}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          <DualRangeFilterPanel
+            title="Video Length (Seconds)"
+            sliderMax={VIDEO_LENGTH_SLIDER_MAX}
+            min={filters.videoMin}
+            max={filters.videoMax}
+            presets={VIDEO_LENGTH_PRESETS}
+            ariaName="video length"
+            presetsStacked={false}
+            onChange={(videoMin, videoMax) => onChange({ videoMin, videoMax })}
+          />
         </FilterChipShell>
+        </div>
+      </div>
 
+      <div className="ads-library-filter-grid-row ads-library-filter-grid-row--secondary">
+        <div className="ads-library-filter-grid">
         <FilterChipShell
           chipId="media"
           openId={openId}
@@ -1251,11 +1262,7 @@ export function AdsLibraryFilterBar({
             </label>
           ))}
         </FilterChipShell>
-        </div>
-      </div>
 
-      <div className="ads-library-filter-grid-row ads-library-filter-grid-row--secondary">
-        <div className="ads-library-filter-grid">
         <FilterChipShell
           chipId="days"
           openId={openId}
@@ -1269,10 +1276,16 @@ export function AdsLibraryFilterBar({
           active={!!(filters.daysRunningMin || filters.daysRunningMax)}
           panelClass="ads-library-filter-panel--days-running"
         >
-          <DaysRunningFilterPanel
+          <DualRangeFilterPanel
+            title="Days Running"
+            sliderMax={DAYS_RUNNING_SLIDER_MAX}
             min={filters.daysRunningMin}
             max={filters.daysRunningMax}
-            onChange={onChange}
+            presets={DAYS_RUNNING_PRESETS}
+            ariaName="days running"
+            onChange={(daysRunningMin, daysRunningMax) =>
+              onChange({ daysRunningMin, daysRunningMax })
+            }
           />
         </FilterChipShell>
 

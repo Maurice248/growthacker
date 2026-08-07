@@ -2067,6 +2067,12 @@ pre {
   background: var(--primary-light);
 }
 
+.ads-library-filter-pill[data-selected="true"] {
+  border-color: var(--secondary);
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
 .ads-library-filter-date-layout {
   display: flex;
   flex-direction: row;
