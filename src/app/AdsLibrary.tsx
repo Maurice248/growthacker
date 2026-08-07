@@ -15,6 +15,7 @@ import {
   type AdsLibraryFilterState,
   buildAdsLibrarySearchParams,
 } from "./ads-library-filters";
+import { extractPreviewImageFromRaw } from "@/lib/ads-library/view-ads";
 
 type LibraryAd = {
   id: string;
@@ -63,34 +64,6 @@ function formatImpressions(ad: LibraryAd) {
   if (ad.impressionsMax != null) return ad.impressionsMax.toLocaleString();
   if (ad.impressionsMin != null) return ad.impressionsMin.toLocaleString();
   return "Unknown";
-}
-
-function extractPreviewFromRaw(raw: unknown): string {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
-  const ad = raw as Record<string, unknown>;
-  const snapshot = (ad.snapshot || {}) as Record<string, unknown>;
-
-  const fromImages = (images: Record<string, unknown>[]) => {
-    for (const img of images) {
-      const url = img.original_image_url || img.resized_image_url || img.url;
-      if (typeof url === "string" && url.trim()) return url.trim();
-    }
-    return "";
-  };
-
-  const fromVideos = (videos: Record<string, unknown>[]) => {
-    for (const vid of videos) {
-      const url = vid.video_preview_image_url || vid.thumbnail || vid.url;
-      if (typeof url === "string" && url.trim()) return url.trim();
-    }
-    return "";
-  };
-
-  return (
-    fromImages((snapshot.images || []) as Record<string, unknown>[]) ||
-    fromVideos((snapshot.videos || []) as Record<string, unknown>[]) ||
-    fromImages((snapshot.cards || []) as Record<string, unknown>[])
-  );
 }
 
 function AdDetailPreview({
@@ -308,7 +281,7 @@ export default function AdsLibrary() {
       if (typeof data.actorLabel === "string") setScrapeActorLabel(data.actorLabel);
       const fromScrape =
         (typeof data.imageUrl === "string" ? data.imageUrl.trim() : "") ||
-        extractPreviewFromRaw(data.raw);
+        extractPreviewImageFromRaw(data.raw);
       if (fromScrape) setPreviewImageUrl(fromScrape);
       else if (!initialPreview) {
         setPreviewImageUrl("");

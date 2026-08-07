@@ -153,13 +153,27 @@ export function processScrapedAds(
 
   function getMedia(ad: Record<string, unknown>) {
     const s = (ad.snapshot || {}) as Record<string, unknown>;
+    const pickStill = (item: Record<string, unknown>) =>
+      (item.original_image_url ||
+        item.resized_image_url ||
+        item.video_preview_image_url ||
+        item.thumbnail ||
+        item.url ||
+        '') as string;
     const imgs = ((s.images || []) as Record<string, unknown>[])
-      .map((i) => i.original_image_url || i.resized_image_url || i.url)
-      .filter(Boolean) as string[];
+      .map(pickStill)
+      .filter(Boolean);
     const thumbs = ((s.videos || []) as Record<string, unknown>[])
-      .map((v) => v.video_preview_image_url || v.thumbnail)
-      .filter(Boolean) as string[];
-    return { image_url: imgs[0] || thumbs[0] || '', has_video: ((s.videos || []) as unknown[]).length > 0 };
+      .map(pickStill)
+      .filter(Boolean);
+    // Carousel creatives store slides on snapshot.cards (not images/videos).
+    const cardStills = ((s.cards || []) as Record<string, unknown>[])
+      .map(pickStill)
+      .filter(Boolean);
+    return {
+      image_url: imgs[0] || thumbs[0] || cardStills[0] || '',
+      has_video: ((s.videos || []) as unknown[]).length > 0,
+    };
   }
 
   function parseImpressionToken(token: string): number | null {

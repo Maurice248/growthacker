@@ -40,6 +40,7 @@ import {
   startAdsLibraryApifyRuns,
   getApifyRunStatus,
 } from '@/lib/ads-library/apify-search';
+import { extractPreviewImageFromRaw } from '@/lib/ads-library/view-ads';
 import { resolveApifyActorId, DEFAULT_APIFY_META_ADS_ACTOR } from '@/lib/competitor-analysis/apify-actors';
 import { prisma } from '@/lib/prisma';
 
@@ -273,8 +274,40 @@ async function serveSearchResults(
     for (const a of r.angles) angleSet.add(a);
   }
 
+  // Backfill missing thumbnails (e.g. carousels stored before cards were read).
+  const missingPreviewIds = rows.filter((r) => !r.imageUrl?.trim()).map((r) => r.id);
+  const previewById = new Map<string, string>();
+  if (missingPreviewIds.length > 0) {
+    const rawRows = await prisma.adLibraryAd.findMany({
+      where: { id: { in: missingPreviewIds } },
+      select: { id: true, raw: true },
+    });
+    const updates: Array<{ id: string; imageUrl: string }> = [];
+    for (const r of rawRows) {
+      const imageUrl = extractPreviewImageFromRaw(r.raw);
+      if (!imageUrl) continue;
+      previewById.set(r.id, imageUrl);
+      updates.push({ id: r.id, imageUrl });
+    }
+    if (updates.length > 0) {
+      await Promise.all(
+        updates.map((u) =>
+          prisma.adLibraryAd.update({
+            where: { id: u.id },
+            data: { imageUrl: u.imageUrl },
+          })
+        )
+      );
+    }
+  }
+
   return {
-    ads: rows.map(serializeAdList),
+    ads: rows.map((row) =>
+      serializeAdList({
+        ...row,
+        imageUrl: row.imageUrl?.trim() || previewById.get(row.id) || row.imageUrl,
+      })
+    ),
     total,
     page,
     pageSize,

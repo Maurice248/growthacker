@@ -9,35 +9,8 @@ import {
   resolveApifyActorId,
 } from '@/lib/competitor-analysis/apify-actors';
 import { scrapeSingleAdLibraryAd } from '@/lib/competitor-analysis/apify';
+import { extractPreviewImageFromRaw } from '@/lib/ads-library/view-ads';
 import { prisma } from '@/lib/prisma';
-
-function previewImageFromRaw(raw: unknown): string {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
-  const ad = raw as Record<string, unknown>;
-  const snapshot = (ad.snapshot || {}) as Record<string, unknown>;
-
-  const fromImages = (images: Record<string, unknown>[]) => {
-    for (const img of images) {
-      const url = img.original_image_url || img.resized_image_url || img.url;
-      if (typeof url === 'string' && url.trim()) return url.trim();
-    }
-    return '';
-  };
-
-  const fromVideos = (videos: Record<string, unknown>[]) => {
-    for (const vid of videos) {
-      const url = vid.video_preview_image_url || vid.thumbnail || vid.url;
-      if (typeof url === 'string' && url.trim()) return url.trim();
-    }
-    return '';
-  };
-
-  return (
-    fromImages((snapshot.images || []) as Record<string, unknown>[]) ||
-    fromVideos((snapshot.videos || []) as Record<string, unknown>[]) ||
-    fromImages((snapshot.cards || []) as Record<string, unknown>[])
-  );
-}
 
 export async function POST(
   _request: Request,
@@ -80,7 +53,7 @@ export async function POST(
       );
     }
 
-    const imageUrl = previewImageFromRaw(raw) || row.imageUrl;
+    const imageUrl = extractPreviewImageFromRaw(raw) || row.imageUrl;
 
     // Persist full actor payload only — not tied to Ads Library filter facets.
     await prisma.adLibraryAd.update({

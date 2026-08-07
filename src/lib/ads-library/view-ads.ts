@@ -31,6 +31,42 @@ export function extractVideoUrlFromRaw(raw: unknown): string {
   return "";
 }
 
+/** First usable still from Meta snapshot images, video thumbs, or carousel cards. */
+export function extractPreviewImageFromRaw(raw: unknown): string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  const snapshot = ((raw as Record<string, unknown>).snapshot || {}) as Record<string, unknown>;
+
+  const pickUrl = (item: Record<string, unknown>): string => {
+    const candidates = [
+      item.original_image_url,
+      item.resized_image_url,
+      item.video_preview_image_url,
+      item.thumbnail,
+      item.url,
+    ];
+    for (const c of candidates) {
+      if (typeof c === "string" && c.trim()) return c.trim();
+    }
+    return "";
+  };
+
+  const fromList = (list: unknown): string => {
+    if (!Array.isArray(list)) return "";
+    for (const entry of list) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+      const url = pickUrl(entry as Record<string, unknown>);
+      if (url) return url;
+    }
+    return "";
+  };
+
+  return (
+    fromList(snapshot.images) ||
+    fromList(snapshot.videos) ||
+    fromList(snapshot.cards)
+  );
+}
+
 /** Decode + humanize Meta CTA enums / encoded labels (e.g. use%20app, USE_APP → Use App). */
 export function formatCtaLabel(cta: string): string {
   if (!cta) return "";

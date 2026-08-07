@@ -182,6 +182,15 @@ function normalizeWhoareyouanasAd(ad: Record<string, unknown>): Record<string, u
   const videos = ((ad.videos || []) as Record<string, unknown>[]).map((vid) => ({
     video_preview_image_url: vid.url || vid.thumbnail,
   }));
+  const cards = ((ad.cards || ad.carousel || []) as Record<string, unknown>[]).map((card) => ({
+    original_image_url: card.url || card.original_image_url || card.image,
+    resized_image_url: card.resized_image_url,
+    video_preview_image_url: card.video_preview_image_url || card.thumbnail,
+    title: card.title || card.linkTitle,
+    body: card.body,
+    cta_text: card.ctaText || card.cta_text,
+    url: card.url || card.original_image_url || card.image,
+  }));
 
   return {
     ad_archive_id: ad.libraryID || ad.ad_archive_id || ad.id,
@@ -197,6 +206,7 @@ function normalizeWhoareyouanasAd(ad: Record<string, unknown>): Record<string, u
       caption: ad.linkDescription || ad.link_description || '',
       images,
       videos,
+      cards,
     },
     actor_payload: ad,
   };
