@@ -31,7 +31,7 @@ function endOfDay(dateStr: string): Date | null {
   return new Date(`${t}T23:59:59.999Z`);
 }
 
-export function copyCharRangeWhere(min?: number, max?: number): Prisma.CompetitorAdWhereInput {
+export function copyCharRangeWhere(min?: number, max?: number): Prisma.AdLibraryAdWhereInput {
   const range: Prisma.IntFilter = {};
   if (min != null && Number.isFinite(min)) range.gte = min;
   if (max != null && Number.isFinite(max)) range.lte = max;
@@ -39,7 +39,7 @@ export function copyCharRangeWhere(min?: number, max?: number): Prisma.Competito
   return { copyCharCount: range };
 }
 
-export function videoDurationRangeWhere(min?: number, max?: number): Prisma.CompetitorAdWhereInput {
+export function videoDurationRangeWhere(min?: number, max?: number): Prisma.AdLibraryAdWhereInput {
   const range: Prisma.IntNullableFilter = {};
   if (min != null && Number.isFinite(min)) range.gte = min;
   if (max != null && Number.isFinite(max)) range.lte = max;
@@ -47,14 +47,14 @@ export function videoDurationRangeWhere(min?: number, max?: number): Prisma.Comp
   return { videoDurationSec: range };
 }
 
-export function countriesIncludeWhere(codes: string[]): Prisma.CompetitorAdWhereInput {
+export function countriesIncludeWhere(codes: string[]): Prisma.AdLibraryAdWhereInput {
   const list = codes.map((c) => c.trim().toUpperCase()).filter(Boolean);
   if (!list.length) return {};
   if (list.length === 1) return { reachCountries: { has: list[0] } };
   return { OR: list.map((code) => ({ reachCountries: { has: code } })) };
 }
 
-export function countriesExcludeWhere(codes: string[]): Prisma.CompetitorAdWhereInput {
+export function countriesExcludeWhere(codes: string[]): Prisma.AdLibraryAdWhereInput {
   const list = codes.map((c) => c.trim().toUpperCase()).filter(Boolean);
   if (!list.length) return {};
   return {
@@ -64,14 +64,14 @@ export function countriesExcludeWhere(codes: string[]): Prisma.CompetitorAdWhere
   };
 }
 
-export function languagesIncludeWhere(codes: string[]): Prisma.CompetitorAdWhereInput {
+export function languagesIncludeWhere(codes: string[]): Prisma.AdLibraryAdWhereInput {
   const list = codes.map((c) => c.trim().toLowerCase()).filter(Boolean);
   if (!list.length) return {};
   if (list.length === 1) return { languageCode: list[0] };
   return { OR: list.map((code) => ({ languageCode: code })) };
 }
 
-export function languagesExcludeWhere(codes: string[]): Prisma.CompetitorAdWhereInput {
+export function languagesExcludeWhere(codes: string[]): Prisma.AdLibraryAdWhereInput {
   const list = codes.map((c) => c.trim().toLowerCase()).filter(Boolean);
   if (!list.length) return {};
   return {
@@ -81,21 +81,21 @@ export function languagesExcludeWhere(codes: string[]): Prisma.CompetitorAdWhere
   };
 }
 
-export function statusCheckboxesWhere(active: boolean, inactive: boolean): Prisma.CompetitorAdWhereInput {
+export function statusCheckboxesWhere(active: boolean, inactive: boolean): Prisma.AdLibraryAdWhereInput {
   if (active && inactive) return {};
   if (active) return { adActive: true };
   if (inactive) return { adActive: false };
   return {};
 }
 
-export function mediaTypesWhere(types: string[]): Prisma.CompetitorAdWhereInput {
+export function mediaTypesWhere(types: string[]): Prisma.AdLibraryAdWhereInput {
   const list = types.map((t) => t.trim().toLowerCase()).filter(Boolean);
   if (!list.length) return {};
   if (list.length === 1) return { adType: list[0] };
   return { OR: list.map((adType) => ({ adType })) };
 }
 
-export function copyLengthWhere(bucket: CopyLengthBucket): Prisma.CompetitorAdWhereInput {
+export function copyLengthWhere(bucket: CopyLengthBucket): Prisma.AdLibraryAdWhereInput {
   switch (bucket) {
     case 'short':
       return { copyCharCount: { lte: COPY_SHORT_MAX } };
@@ -108,7 +108,7 @@ export function copyLengthWhere(bucket: CopyLengthBucket): Prisma.CompetitorAdWh
   }
 }
 
-export function videoLengthWhere(bucket: VideoLengthBucket): Prisma.CompetitorAdWhereInput {
+export function videoLengthWhere(bucket: VideoLengthBucket): Prisma.AdLibraryAdWhereInput {
   switch (bucket) {
     case 'none':
       return { OR: [{ hasVideo: false }, { videoDurationSec: null }] };
@@ -124,12 +124,12 @@ export function videoLengthWhere(bucket: VideoLengthBucket): Prisma.CompetitorAd
 }
 
 /** Days running ≈ days since `startDate`. Range [minDays, maxDays] inclusive. */
-export function daysRunningRangeWhere(minDays?: number, maxDays?: number): Prisma.CompetitorAdWhereInput {
+export function daysRunningRangeWhere(minDays?: number, maxDays?: number): Prisma.AdLibraryAdWhereInput {
   const hasMin = minDays != null && Number.isFinite(minDays);
   const hasMax = maxDays != null && Number.isFinite(maxDays);
   if (!hasMin && !hasMax) return {};
 
-  const parts: Prisma.CompetitorAdWhereInput[] = [{ startDate: { not: 'unknown' } }];
+  const parts: Prisma.AdLibraryAdWhereInput[] = [{ startDate: { not: 'unknown' } }];
   if (hasMax) {
     parts.push({ startDate: { gte: isoDateDaysAgo(maxDays!) } });
   }
@@ -139,7 +139,7 @@ export function daysRunningRangeWhere(minDays?: number, maxDays?: number): Prism
   return { AND: parts };
 }
 
-export function daysRunningWhere(bucket: DaysRunningBucket): Prisma.CompetitorAdWhereInput {
+export function daysRunningWhere(bucket: DaysRunningBucket): Prisma.AdLibraryAdWhereInput {
   const today = isoDateDaysAgo(0);
   switch (bucket) {
     case 'under_7': {
@@ -167,14 +167,14 @@ export function daysRunningWhere(bucket: DaysRunningBucket): Prisma.CompetitorAd
   }
 }
 
-export function adCreationDateWhere(from: string, to: string): Prisma.CompetitorAdWhereInput {
-  const parts: Prisma.CompetitorAdWhereInput[] = [{ startDate: { not: 'unknown' } }];
+export function adCreationDateWhere(from: string, to: string): Prisma.AdLibraryAdWhereInput {
+  const parts: Prisma.AdLibraryAdWhereInput[] = [{ startDate: { not: 'unknown' } }];
   if (from) parts.push({ startDate: { gte: from } });
   if (to) parts.push({ startDate: { lte: to } });
   return { AND: parts };
 }
 
-export function lastSeenDateWhere(from: string, to: string): Prisma.CompetitorAdWhereInput {
+export function lastSeenDateWhere(from: string, to: string): Prisma.AdLibraryAdWhereInput {
   const range: Prisma.DateTimeFilter = {};
   const fromDt = from ? startOfDay(from) : null;
   const toDt = to ? endOfDay(to) : null;
@@ -184,17 +184,17 @@ export function lastSeenDateWhere(from: string, to: string): Prisma.CompetitorAd
   return { lastSeenAt: range };
 }
 
-export function adStatusWhere(status: AdStatusFilter): Prisma.CompetitorAdWhereInput {
+export function adStatusWhere(status: AdStatusFilter): Prisma.AdLibraryAdWhereInput {
   return { adActive: status === 'active' };
 }
 
-export function countryWhere(code: string): Prisma.CompetitorAdWhereInput {
+export function countryWhere(code: string): Prisma.AdLibraryAdWhereInput {
   const c = code.trim().toUpperCase();
   if (!c) return {};
   return { reachCountries: { has: c } };
 }
 
-export function languageWhere(code: string): Prisma.CompetitorAdWhereInput {
+export function languageWhere(code: string): Prisma.AdLibraryAdWhereInput {
   const lang = code.trim().toLowerCase();
   if (!lang) return {};
   return { languageCode: lang };
@@ -202,12 +202,12 @@ export function languageWhere(code: string): Prisma.CompetitorAdWhereInput {
 
 type DatePreset = DatePresetId;
 
-export function createdPresetWhere(preset: DatePreset): Prisma.CompetitorAdWhereInput {
+export function createdPresetWhere(preset: DatePreset): Prisma.AdLibraryAdWhereInput {
   const { from, to } = resolveDatePresetRange(preset);
   return adCreationDateWhere(from, to);
 }
 
-export function lastSeenPresetWhere(preset: DatePreset): Prisma.CompetitorAdWhereInput {
+export function lastSeenPresetWhere(preset: DatePreset): Prisma.AdLibraryAdWhereInput {
   const { from, to } = resolveDatePresetRange(preset);
   return lastSeenDateWhere(from, to);
 }

@@ -1,3 +1,6 @@
+import {
+  buildAdsLibraryUrlsForCountries,
+} from '@/lib/ads-library/facebook-url';
 import type { CompetitorAnalysisInput } from './types';
 import {
   getApifyActorSlug,
@@ -25,17 +28,50 @@ export function resolveAdsLibraryMediaType(
 export function buildAdsLibrarySearchUrls(input: CompetitorAnalysisInput): string[] {
   const urls: string[] = [];
   const mediaType = resolveAdsLibraryMediaType(input.scrape_image, input.scrape_video);
+  const activeStatus = resolveLibraryActiveStatus(input);
+  const countries = input.countries?.length ? input.countries : ['ALL'];
 
-  for (const country of input.countries) {
-    for (const keyword of input.keywords) {
+  if (input.view_all_page_id?.trim()) {
+    return buildAdsLibraryUrlsForCountries(
+      {
+        query: '',
+        viewAllPageId: input.view_all_page_id.trim(),
+        activeStatus: activeStatus === 'inactive' ? 'inactive' : activeStatus === 'active' ? 'active' : 'all',
+        mediaType,
+      },
+      countries
+    );
+  }
+
+  const keywords = (input.keywords || []).map((k) => k.trim()).filter(Boolean);
+
+  for (const country of countries) {
+    if (!keywords.length) {
+      const params = new URLSearchParams({
+        active_status: activeStatus,
+        ad_type: 'all',
+        country,
+        search_type: 'keyword_unordered',
+        media_type: mediaType,
+      });
+      urls.push(`https://www.facebook.com/ads/library/?${params.toString()}`);
+      continue;
+    }
+    for (const keyword of keywords) {
       const encodedKeyword = encodeURIComponent(keyword);
       urls.push(
-        `https://www.facebook.com/ads/library/?active_status=${input.only_active ? 'active' : 'all'}&ad_type=all&country=${country}&q=${encodedKeyword}&search_type=keyword_unordered&media_type=${mediaType}`
+        `https://www.facebook.com/ads/library/?active_status=${activeStatus}&ad_type=all&country=${country}&q=${encodedKeyword}&search_type=keyword_unordered&media_type=${mediaType}`
       );
     }
   }
 
   return urls;
+}
+
+function resolveLibraryActiveStatus(input: CompetitorAnalysisInput): 'all' | 'active' | 'inactive' {
+  if (input.only_active && !input.only_inactive) return 'active';
+  if (input.only_inactive && !input.only_active) return 'inactive';
+  return 'all';
 }
 
 /** Allowed by apify/facebook-ads-scraper: "", "total_impressions", "relevancy_monthly_grouped" */
@@ -59,11 +95,16 @@ function mapWhoareyouanasSort(sort: string | undefined): {
 
 function mapActiveStatusForApifyInput(
   actor: ApifyMetaAdsActorId,
-  onlyActive: boolean
+  input: CompetitorAnalysisInput
 ): string {
-  if (onlyActive) return 'active';
-  // Official Meta scraper: "" = no status filter (not "all")
-  if (actor === 'apify_official') return '';
+  const status = resolveLibraryActiveStatus(input);
+  // Official actor: leave empty when the Ads Library URL already carries active_status
+  // (URL wins; sending a conflicting value can yield empty datasets).
+  if (actor === 'apify_official') {
+    return '';
+  }
+  if (status === 'active') return 'active';
+  if (status === 'inactive') return 'inactive';
   return 'all';
 }
 
@@ -71,16 +112,16 @@ export function buildApifyRequest(input: CompetitorAnalysisInput, actorId?: Apif
   const actor = resolveApifyActorId(actorId ?? input.apify_actor);
   const urls = buildAdsLibrarySearchUrls(input);
   const mediaType = resolveAdsLibraryMediaType(input.scrape_image, input.scrape_video);
-  const activeStatus = mapActiveStatusForApifyInput(actor, Boolean(input.only_active));
+  const activeStatus = mapActiveStatusForApifyInput(actor, input);
   const maxAds = input.max_ads || 100;
 
   if (actor === 'apify_official') {
+    // Match Apify's documented input — do not send unsupported fields like isDetailsPerAd.
     return {
       startUrls: urls.map((url) => ({ url })),
       resultsLimit: maxAds,
-      activeStatus,
+      activeStatus: '',
       sorting: mapOfficialSorting(input.sort),
-      isDetailsPerAd: true,
     };
   }
 
@@ -98,8 +139,8 @@ export function buildApifyRequest(input: CompetitorAnalysisInput, actorId?: Apif
   return {
     count: maxAds,
     scrapeAdDetails: true,
-    'scrapePageAds.activeStatus': activeStatus,
-    'scrapePageAds.countryCode': input.countries[0],
+    'scrapePageAds.activeStatus': activeStatus || 'all',
+    'scrapePageAds.countryCode': input.countries[0] === 'ALL' ? 'US' : input.countries[0],
     'scrapePageAds.sortBy': SORT_MAP[input.sort || ''] || 'impressions_desc',
     urls: urls.map((url) => ({ url })),
   };
@@ -185,6 +226,8 @@ export function metaAdsLibraryAdUrl(adArchiveId: string): string {
   return `https://www.facebook.com/ads/library/?${params.toString()}`;
 }
 
+const ALL_ADS_STATUS_INPUT: CompetitorAnalysisInput = { keywords: [], countries: ['ALL'] };
+
 /** Apify input for one ad — always requests maximum detail, independent of Ads Library UI filters. */
 export function buildSingleAdLibraryApifyRequest(
   actorId: ApifyMetaAdsActorId,
@@ -197,16 +240,15 @@ export function buildSingleAdLibraryApifyRequest(
     return {
       startUrls: [{ url }],
       resultsLimit: 1,
-      activeStatus: mapActiveStatusForApifyInput('apify_official', false),
+      activeStatus: mapActiveStatusForApifyInput('apify_official', ALL_ADS_STATUS_INPUT),
       sorting: '',
-      isDetailsPerAd: true,
     };
   }
 
   if (actor === 'whoareyouanas') {
     return {
       targetUrl: url,
-      activeStatus: mapActiveStatusForApifyInput('whoareyouanas', false),
+      activeStatus: mapActiveStatusForApifyInput('whoareyouanas', ALL_ADS_STATUS_INPUT),
       mediaType: 'all',
       sortMode: 'start_date',
       sortDirection: 'desc',
@@ -216,7 +258,7 @@ export function buildSingleAdLibraryApifyRequest(
   return {
     count: 1,
     scrapeAdDetails: true,
-    'scrapePageAds.activeStatus': mapActiveStatusForApifyInput('curious_coder', false),
+    'scrapePageAds.activeStatus': mapActiveStatusForApifyInput('curious_coder', ALL_ADS_STATUS_INPUT),
     'scrapePageAds.mediaType': 'all',
     urls: [{ url }],
   };

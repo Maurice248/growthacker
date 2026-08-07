@@ -14,8 +14,13 @@ import {
   Minus,
   MonitorPlay,
   Plus,
+  Hash,
   X,
 } from "lucide-react";
+import {
+  AD_LIBRARY_MAX_ADS_PRESETS,
+  resolveAdLibraryMaxAds,
+} from "@/lib/ads-library/max-ads";
 import { META_AD_LIBRARY_COUNTRIES } from "@/lib/competitor-analysis/countries";
 import { type DatePreset, type DatePresetId, formatDatePresetLabel } from "@/lib/ads-library/date-presets";
 import { AdsLibraryDatePicker } from "./ads-library-date-picker";
@@ -49,6 +54,8 @@ export type AdsLibraryFilterState = {
   lastSeenTo: string;
   lastSeenPreset: DatePreset;
   angle: string;
+  /** How many ads to fetch from Meta Ads Library (default 10). */
+  maxAds: string;
 };
 
 export const EMPTY_ADS_LIBRARY_FILTERS: AdsLibraryFilterState = {
@@ -74,6 +81,7 @@ export const EMPTY_ADS_LIBRARY_FILTERS: AdsLibraryFilterState = {
   lastSeenTo: "",
   lastSeenPreset: "",
   angle: "",
+  maxAds: "10",
 };
 
 export function adsLibrarySearchQuery(filters: AdsLibraryFilterState): string {
@@ -114,10 +122,11 @@ export function buildAdsLibrarySearchParams(filters: AdsLibraryFilterState, page
     if (filters.lastSeenTo) params.set("lastSeenTo", filters.lastSeenTo);
   }
   if (filters.angle) params.set("angle", filters.angle);
+  params.set("maxAds", resolveAdLibraryMaxAds(filters.maxAds).toString());
   const query = adsLibrarySearchQuery(filters);
   if (query) params.set("q", query);
   params.set("page", String(page));
-  params.set("pageSize", "24");
+  params.set("pageSize", String(resolveAdLibraryMaxAds(filters.maxAds)));
   return params;
 }
 
@@ -644,6 +653,7 @@ type FilterChipShellProps = {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
+  chipClassName?: string;
   panelClass?: string;
   children: React.ReactNode;
 };
@@ -655,6 +665,7 @@ function FilterChipShell({
   icon,
   label,
   active,
+  chipClassName,
   panelClass,
   children,
 }: FilterChipShellProps) {
@@ -675,7 +686,7 @@ function FilterChipShell({
       <button
         type="button"
         onClick={() => setOpenId(open ? null : chipId)}
-        className="ads-library-filter-chip"
+        className={["ads-library-filter-chip", chipClassName].filter(Boolean).join(" ")}
         data-active={active ? "true" : "false"}
         data-open={open ? "true" : "false"}
         aria-expanded={open}
@@ -975,6 +986,43 @@ export function AdsLibraryFilterBar({
       <div className="ads-library-filter-grid-row">
         <div className="ads-library-filter-grid">
         <FilterChipShell
+          chipId="maxAds"
+          openId={openId}
+          setOpenId={setOpenId}
+          icon={<Hash size={15} />}
+          label="Number of ads"
+          active={false}
+          chipClassName="ads-library-filter-chip--max-ads"
+        >
+          <div className="ads-library-filter-panel-title">Number of ads</div>
+          <div className="ads-library-filter-range-inputs ads-library-filter-range-inputs--single">
+            <input
+              type="number"
+              className="ads-library-filter-field"
+              placeholder="Count"
+              min={1}
+              max={500}
+              value={filters.maxAds}
+              onChange={(e) => onChange({ maxAds: e.target.value })}
+              onBlur={() =>
+                onChange({ maxAds: String(resolveAdLibraryMaxAds(filters.maxAds)) })
+              }
+            />
+          </div>
+          <div className="ads-library-filter-range-pills">
+            {AD_LIBRARY_MAX_ADS_PRESETS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                className="ads-library-filter-pill"
+                onClick={() => onChange({ maxAds: String(n) })}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </FilterChipShell>
+        <FilterChipShell
           chipId="status"
           openId={openId}
           setOpenId={setOpenId}
@@ -1204,13 +1252,6 @@ export function AdsLibraryFilterBar({
           ))}
         </FilterChipShell>
         </div>
-        {activeFilterGroupCount > 0 && (
-          <span className="ads-library-filter-active-count" aria-live="polite">
-            {activeFilterGroupCount === 1
-              ? "1 filter active"
-              : `${activeFilterGroupCount} filters active`}
-          </span>
-        )}
       </div>
 
       <div className="ads-library-filter-grid-row ads-library-filter-grid-row--secondary">
@@ -1327,6 +1368,13 @@ export function AdsLibraryFilterBar({
           ))}
         </FilterChipShell>
         </div>
+        {activeFilterGroupCount > 0 && (
+          <span className="ads-library-filter-active-count" aria-live="polite">
+            {activeFilterGroupCount === 1
+              ? "1 filter active"
+              : `${activeFilterGroupCount} filters active`}
+          </span>
+        )}
       </div>
 
       {hasActive && (

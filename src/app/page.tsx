@@ -6679,7 +6679,7 @@ export default function Dashboard() {
           ADS LIBRARY
       ═══════════════════════════════════════════════════════ */}
       {tab === "ads_library" && (
-        <AdsLibrary onOpenCompetitors={() => setTab("analysis")} />
+        <AdsLibrary />
       )}
 
       {/* ═══════════════════════════════════════════════════════

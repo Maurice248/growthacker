@@ -28,7 +28,7 @@ const CARD_SECTION_META: {
   label: string;
   description: string;
 }[] = [
-  { key: "ukEuMetrics", label: "UK / EU metrics", description: "Reach, spend, and engagement." },
+  { key: "ukEuMetrics", label: "UK / EU metrics", description: "Reach, spend range, and engagement." },
   { key: "adMetrics", label: "Ad metrics", description: "Score, rank, active ads, and days running." },
   { key: "cardMenu", label: "Card menu (···)", description: "Actions." },
   {

@@ -4,6 +4,7 @@ import React from "react";
 import { ExternalLink } from "lucide-react";
 
 function formatFieldLabel(key: string) {
+  if (key === "spend" || key === "Spend") return "Spend Range";
   return key
     .replace(/_/g, " ")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -18,6 +19,34 @@ function isHttpUrl(value: string) {
   return /^https?:\/\//i.test(value);
 }
 
+/** ISO timestamps → put a space after the date (2026-03-30T07:00:00.000Z → 2026-03-30 07:00:00.000Z). */
+function formatIsoTimestampDisplay(value: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return null;
+  return value.replace("T", " ");
+}
+
+function isDateFieldKey(key?: string) {
+  if (!key) return false;
+  return /(^|_)(date|time|at|timestamp|start|end|seen|created|updated|delivery)(_|$)/i.test(
+    key.replace(/([a-z])([A-Z])/g, "$1_$2")
+  );
+}
+
+/** Meta often sends start_date as unix seconds (e.g. 1774854000). */
+function formatUnixTimestampDisplay(value: number): string | null {
+  if (!Number.isFinite(value) || !Number.isInteger(value)) return null;
+  // Seconds (~2001–2603) or milliseconds
+  const ms =
+    value >= 1_000_000_000 && value <= 20_000_000_000
+      ? value * 1000
+      : value >= 1_000_000_000_000 && value <= 20_000_000_000_000
+        ? value
+        : null;
+  if (ms == null) return null;
+  const iso = new Date(ms).toISOString();
+  return formatIsoTimestampDisplay(iso) ?? iso.replace("T", " ");
+}
+
 function stripHtml(html: string) {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
@@ -28,7 +57,15 @@ function stripHtml(html: string) {
     .trim();
 }
 
-function ActorValue({ value, depth }: { value: unknown; depth: number }) {
+function ActorValue({
+  value,
+  depth,
+  fieldKey,
+}: {
+  value: unknown;
+  depth: number;
+  fieldKey?: string;
+}) {
   if (value === null || value === undefined) {
     return <span style={{ color: "#9FA8A3" }}>—</span>;
   }
@@ -38,10 +75,26 @@ function ActorValue({ value, depth }: { value: unknown; depth: number }) {
   }
 
   if (typeof value === "number") {
+    if (isDateFieldKey(fieldKey)) {
+      const unixDisplay = formatUnixTimestampDisplay(value);
+      if (unixDisplay) {
+        return <span style={{ fontSize: 13, lineHeight: 1.5 }}>{unixDisplay}</span>;
+      }
+    }
     return <span>{Number.isFinite(value) ? value.toLocaleString() : String(value)}</span>;
   }
 
   if (typeof value === "string") {
+    const isoDisplay = formatIsoTimestampDisplay(value.trim());
+    if (isoDisplay) {
+      return <span style={{ fontSize: 13, lineHeight: 1.5 }}>{isoDisplay}</span>;
+    }
+    if (isDateFieldKey(fieldKey) && /^\d{9,13}$/.test(value.trim())) {
+      const unixDisplay = formatUnixTimestampDisplay(Number(value.trim()));
+      if (unixDisplay) {
+        return <span style={{ fontSize: 13, lineHeight: 1.5 }}>{unixDisplay}</span>;
+      }
+    }
     const text = value.includes("<") && value.includes(">") ? stripHtml(value) : value;
     if (isImageUrl(text)) {
       return (
@@ -85,7 +138,7 @@ function ActorValue({ value, depth }: { value: unknown; depth: number }) {
             <div style={{ fontSize: 10, fontWeight: 700, color: "#9FA8A3", marginBottom: 4, letterSpacing: "0.06em" }}>
               [{index + 1}]
             </div>
-            <ActorValue value={item} depth={depth + 1} />
+            <ActorValue value={item} depth={depth + 1} fieldKey={fieldKey} />
           </div>
         ))}
       </div>
@@ -99,8 +152,15 @@ function ActorValue({ value, depth }: { value: unknown; depth: number }) {
   return <span>{String(value)}</span>;
 }
 
+const HIDDEN_PAYLOAD_KEYS = new Set([
+  "start_date_formatted",
+  "startDateFormatted",
+]);
+
 function ActorObject({ obj, depth }: { obj: Record<string, unknown>; depth: number }) {
-  const keys = Object.keys(obj).sort((a, b) => a.localeCompare(b));
+  const keys = Object.keys(obj)
+    .filter((key) => !HIDDEN_PAYLOAD_KEYS.has(key))
+    .sort((a, b) => a.localeCompare(b));
   if (keys.length === 0) {
     return <span style={{ color: "#9FA8A3" }}>Empty object</span>;
   }
@@ -122,7 +182,7 @@ function ActorObject({ obj, depth }: { obj: Record<string, unknown>; depth: numb
             {formatFieldLabel(key)}
           </div>
           <div style={{ paddingLeft: depth > 2 ? 8 : 0 }}>
-            <ActorValue value={obj[key]} depth={depth} />
+            <ActorValue value={obj[key]} depth={depth} fieldKey={key} />
           </div>
         </div>
       ))}

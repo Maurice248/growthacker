@@ -180,11 +180,7 @@ function AdDetailPreview({
   );
 }
 
-type AdsLibraryProps = {
-  onOpenCompetitors?: () => void;
-};
-
-export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
+export default function AdsLibrary() {
   const [filters, setFilters] = useState<AdsLibraryFilterState>(EMPTY_ADS_LIBRARY_FILTERS);
   const { settings: viewSettings, update: setViewSettings } = useAdsLibraryViewSettings();
   const [page, setPage] = useState(1);
@@ -208,43 +204,74 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
 
   const filtersActive = adsLibraryFiltersActive(filters);
 
-  const fetchKey = JSON.stringify({ filters, page });
+  const fetchKey = buildAdsLibrarySearchParams(filters, page).toString();
 
-  const fetchLibrary = useCallback(async () => {
-    if (!adsLibraryFiltersActive(filters)) {
-      setAds([]);
-      setTotal(0);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const params = buildAdsLibrarySearchParams(filters, page);
+  const fetchLibrary = useCallback(async (signal?: AbortSignal): Promise<"running" | "done" | "error"> => {
+      if (!adsLibraryFiltersActive(filters)) {
+        setAds([]);
+        setTotal(0);
+        setLoading(false);
+        return "done";
+      }
+      setLoading(true);
+      setError("");
+      try {
+        const params = buildAdsLibrarySearchParams(filters, page);
 
-      const res = await fetch(`/api/ads-library?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load ads");
+        const res = await fetch(`/api/ads-library?${params.toString()}`, { signal });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load ads");
 
-      setAds(data.ads || []);
-      setTotal(data.total ?? 0);
-      setPageSize(data.pageSize ?? 24);
-      setFacets(
-        data.facets || { adTypes: [], countries: [], languages: [], angles: [] }
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load ads");
-      setAds([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, page]);
+        if (data.status === "running") {
+          setAds([]);
+          setTotal(0);
+          setFacets(data.facets || { adTypes: [], countries: [], languages: [], angles: [] });
+          return "running";
+        }
+
+        setAds(data.ads || []);
+        setTotal(data.total ?? 0);
+        setPageSize(data.pageSize ?? 24);
+        setFacets(
+          data.facets || { adTypes: [], countries: [], languages: [], angles: [] }
+        );
+        setLoading(false);
+        return "done";
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return "error";
+        setError(e instanceof Error ? e.message : "Failed to load ads");
+        setAds([]);
+        setLoading(false);
+        return "error";
+      }
+    },
+    [filters, page]
+  );
 
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      fetchLibrary();
-    }, 200);
-    return () => window.clearTimeout(t);
+    const controller = new AbortController();
+    let pollTimer: number | undefined;
+    let cancelled = false;
+
+    const run = async () => {
+      const outcome = await fetchLibrary(controller.signal);
+      if (cancelled || controller.signal.aborted) return;
+      if (outcome === "running") {
+        setLoading(true);
+        pollTimer = window.setTimeout(run, 3000);
+      }
+    };
+
+    const debounce = window.setTimeout(() => {
+      void run();
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(debounce);
+      if (pollTimer != null) window.clearTimeout(pollTimer);
+    };
   }, [fetchKey, fetchLibrary]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -326,7 +353,7 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
       <EditorialPageHeader
         eyebrow="Meta Ads"
         title="Ads Library"
-        subtitle="Competitor ads collected from your Competitor Ad Analysis runs."
+        subtitle="Search the Meta Ads Library live — results are fetched from facebook.com/ads/library."
       />
 
       <AdsLibraryFilterBar
@@ -354,8 +381,8 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
             Filter your ads library
           </div>
           <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 480, margin: "0 auto" }}>
-            Add search terms (comma to create tags) or choose at least one filter below. Results update
-            automatically.
+            Add search terms (comma to create tags) or choose at least one filter below. We search Meta’s
+            Ads Library and show matches here when the scrape finishes.
           </div>
         </div>
       )}
@@ -363,16 +390,17 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
       {loading && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 24, color: "#8C8474" }}>
           <Spinner size={20} />
-          Loading ads…
+          Fetching ads from Meta Ads Library…
         </div>
       )}
 
       {error && !loading && (
         <div style={{ padding: 16, borderRadius: 12, background: "#FEE2E2", color: "#991B1B", marginBottom: 16 }}>
           {error}
-          {error.includes("competitor_ads") && (
+          {error.includes("ad_library") && (
             <div style={{ marginTop: 8, fontSize: 13 }}>
-              Apply the SQL migration in <code>prisma/migrations/add_competitor_ads.sql</code> if the table is missing.
+              Apply the SQL migration in <code>prisma/migrations/add_ad_library_tables.sql</code> if tables are
+              missing.
             </div>
           )}
         </div>
@@ -391,28 +419,10 @@ export default function AdsLibrary({ onOpenCompetitors }: AdsLibraryProps) {
           <div style={{ fontSize: 15, fontWeight: 700, color: "#23394A", marginBottom: 8 }}>
             No ads match this search
           </div>
-          <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 420, margin: "0 auto 20px" }}>
-            Try different keywords or filters. Ads are added when you run Competitor Ad Analysis.
+          <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 420, margin: "0 auto" }}>
+            Try changing filters or add a search term for narrower results. A single filter (e.g. Active) loads
+            up to your &quot;Number of ads&quot; limit from Meta&apos;s library.
           </div>
-          {onOpenCompetitors && (
-            <button
-              type="button"
-              onClick={onOpenCompetitors}
-              style={{
-                fontFamily: "inherit",
-                fontSize: 13,
-                fontWeight: 600,
-                padding: "10px 20px",
-                borderRadius: 10,
-                border: "none",
-                background: "#003049",
-                color: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              Open Competitors →
-            </button>
-          )}
         </div>
       )}
 

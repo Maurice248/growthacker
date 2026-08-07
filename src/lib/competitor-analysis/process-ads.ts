@@ -1,7 +1,17 @@
+import { formatCtaLabel } from '@/lib/ads-library/view-ads';
 import type { ProcessedAdsResult } from './types';
 
+export type ProcessScrapedAdsOptions = {
+  /** Ads Library ingest: keep more rows; relax hook template filtering. */
+  libraryMode?: boolean;
+};
+
 // Ported from legacy ad processor workflow — Ad Processor node
-export function processScrapedAds(raw: unknown, relevanceTerms: string[] = []): ProcessedAdsResult {
+export function processScrapedAds(
+  raw: unknown,
+  relevanceTerms: string[] = [],
+  options?: ProcessScrapedAdsOptions
+): ProcessedAdsResult {
   const ads: Record<string, unknown>[] = [];
 
   const items = Array.isArray(raw) ? raw : [raw];
@@ -73,7 +83,9 @@ export function processScrapedAds(raw: unknown, relevanceTerms: string[] = []): 
     const cards = (s.cards || []) as Record<string, unknown>[];
     const body = clean(s.body || s.message || s.description || '');
     const headline = clean(s.title || s.headline || cards[0]?.title || cards[0]?.body || '');
-    const cta = safe(s.cta_text || s.cta_type || cards[0]?.cta_text || '');
+    const cta = formatCtaLabel(
+      safe(s.cta_text || s.cta_type || cards[0]?.cta_text || cards[0]?.cta_type || '')
+    );
     const caption = clean(s.caption || s.link_description || '');
     const source = headline || body || caption;
     const hook = source.split(/[.!?\n]/)[0].substring(0, 150).trim();
@@ -229,6 +241,12 @@ export function processScrapedAds(raw: unknown, relevanceTerms: string[] = []): 
     }
 
     const copy = getCopy(ad);
+    if (options?.libraryMode) {
+      if (SKIP_HOOK.test(copy.hook) || copy.hook.length < 3) {
+        const fallback = copy.headline || copy.body.slice(0, 150).trim() || pageName;
+        if (fallback.length >= 3) copy.hook = fallback;
+      }
+    }
     if (SKIP_HOOK.test(copy.hook) || copy.hook.length < 3) {
       skipped.template++;
       continue;

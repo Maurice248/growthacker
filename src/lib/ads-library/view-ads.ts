@@ -31,8 +31,42 @@ export function extractVideoUrlFromRaw(raw: unknown): string {
   return "";
 }
 
+/** Decode + humanize Meta CTA enums / encoded labels (e.g. use%20app, USE_APP → Use App). */
+export function formatCtaLabel(cta: string): string {
+  if (!cta) return "";
+  let text = cta.trim();
+  try {
+    text = decodeURIComponent(text);
+  } catch {
+    /* keep original when not valid URI encoding */
+  }
+  text = text.replace(/[_+]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  // Already readable sentence / title — keep casing aside from cleanup
+  if (/[a-z]/.test(text) && text.includes(" ") && text !== text.toUpperCase()) {
+    return text.replace(/\b\w/g, (ch) => ch.toUpperCase());
+  }
+  return text
+    .toLowerCase()
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+function looksLikeHostname(value: string): boolean {
+  const v = value.trim();
+  if (!v || /\s/.test(v) || v.includes("%")) return false;
+  // Require a dot so CTA enums like USE_APP / learn_more are not treated as hosts
+  if (!v.includes(".")) return false;
+  try {
+    const host = new URL(v.startsWith("http") ? v : `https://${v}`).hostname.replace(/^www\./i, "");
+    return Boolean(host && host.includes("."));
+  } catch {
+    return false;
+  }
+}
+
 export function domainFromAd(pageUrl: string, cta: string): string {
   const tryUrl = (u: string) => {
+    if (!u || !looksLikeHostname(u)) return "";
     try {
       return new URL(u.startsWith("http") ? u : `https://${u}`).hostname.replace(/^www\./i, "");
     } catch {

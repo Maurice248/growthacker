@@ -1182,7 +1182,7 @@ pre {
   box-sizing: border-box;
   font-family: inherit;
   font-size: 14px;
-  padding: 8px 12px;
+  padding: 8px 14px 8px 22px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--bg-light);
@@ -1233,7 +1233,7 @@ pre {
   font-family: inherit;
   font-size: 14px;
   color: var(--text-body);
-  padding: 4px 0;
+  padding: 4px 0 4px 4px;
 }
 
 .ads-library-search-input-inline::placeholder {
@@ -1343,6 +1343,10 @@ pre {
   padding: 4px 0;
 }
 
+.ads-library-filter-range-inputs--single {
+  grid-template-columns: 1fr;
+}
+
 .ads-library-filter-grid {
   display: flex;
   flex-direction: row;
@@ -1386,6 +1390,27 @@ pre {
 .ads-library-filters button.ads-library-filter-chip:hover {
   background: var(--surface-hover);
   border-color: var(--border-mid);
+}
+
+.ads-library-filters button.ads-library-filter-chip--max-ads {
+  background: var(--card-bg);
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 1px rgba(102, 155, 188, 0.18);
+}
+
+.ads-library-filters button.ads-library-filter-chip--max-ads:hover {
+  background: var(--card-bg);
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 2px rgba(102, 155, 188, 0.22);
+}
+
+.ads-library-filters button.ads-library-filter-chip--max-ads .ads-library-filter-chip-icon {
+  color: var(--secondary);
+}
+
+.ads-library-filters button.ads-library-filter-chip--max-ads .ads-library-filter-chip-chevron {
+  color: var(--secondary);
+  opacity: 0.8;
 }
 
 .ads-library-filters button.ads-library-filter-chip svg {

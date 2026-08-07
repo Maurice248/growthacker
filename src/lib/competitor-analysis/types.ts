@@ -6,7 +6,10 @@ export type CompetitorAnalysisInput = {
   countries: string[];
   max_ads?: number;
   only_active?: boolean;
+  only_inactive?: boolean;
   sort?: string;
+  /** When set, scrape uses view_all_page_id instead of keyword search. */
+  view_all_page_id?: string;
   /** Apify Meta Ads Library actor (see apify-actors.ts). */
   apify_actor?: ApifyMetaAdsActorId;
   /** When both true (default), Ads Library uses media_type=all. */

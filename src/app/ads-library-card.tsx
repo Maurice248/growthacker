@@ -8,6 +8,7 @@ import {
   daysRunningFromDates,
   domainFromAd,
   extractVideoUrlFromRaw,
+  formatCtaLabel,
 } from "@/lib/ads-library/view-ads";
 
 export type AdsLibraryCardAd = {
@@ -121,6 +122,7 @@ export function AdsLibraryCard({
 
   const days = daysRunningFromDates(ad.firstSeenAt, ad.lastSeenAt);
   const domain = domainFromAd(ad.pageUrl, ad.cta);
+  const ctaLabel = formatCtaLabel(ad.cta);
   const copy = ad.hook || ad.headline || ad.body;
 
   return (
@@ -220,10 +222,10 @@ export function AdsLibraryCard({
           <div className="ads-library-card-revenue">Est. revenue: —</div>
         )}
 
-        {sections.ctaRow && (domain || ad.cta) && (
+        {sections.ctaRow && (domain || ctaLabel) && (
           <div className="ads-library-card-cta-row">
             {domain && <span className="ads-library-card-domain">{domain}</span>}
-            {ad.cta && <span className="ads-library-card-cta">{ad.cta}</span>}
+            {ctaLabel && <span className="ads-library-card-cta">{ctaLabel}</span>}
           </div>
         )}
 

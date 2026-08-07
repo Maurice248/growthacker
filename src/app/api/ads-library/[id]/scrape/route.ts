@@ -48,7 +48,7 @@ export async function POST(
     if (companyId instanceof NextResponse) return companyId;
 
     const { id } = await context.params;
-    const row = await prisma.competitorAd.findFirst({
+    const row = await prisma.adLibraryAd.findFirst({
       where: { id, companyId },
     });
 
@@ -83,7 +83,7 @@ export async function POST(
     const imageUrl = previewImageFromRaw(raw) || row.imageUrl;
 
     // Persist full actor payload only — not tied to Ads Library filter facets.
-    await prisma.competitorAd.update({
+    await prisma.adLibraryAd.update({
       where: { id: row.id },
       data: {
         raw: raw as Prisma.InputJsonValue,

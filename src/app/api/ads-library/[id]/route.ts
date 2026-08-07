@@ -71,7 +71,7 @@ export async function GET(
     if (companyId instanceof NextResponse) return companyId;
 
     const { id } = await context.params;
-    const row = await prisma.competitorAd.findFirst({
+    const row = await prisma.adLibraryAd.findFirst({
       where: { id, companyId },
     });
 

@@ -39,6 +39,8 @@ model Company {
   adAutomations        AdAutomation[]
   moduleAccess         CompanyModuleAccess?
   competitorAds        CompetitorAd[]
+  adLibrarySearches    AdLibrarySearch[]
+  adLibraryAds         AdLibraryAd[]
 
   @@map("companies")
 }
@@ -682,6 +684,95 @@ model CompetitorAd {
   @@index([companyId, adType])
   @@index([companyId, lastSeenAt(sort: Desc)])
   @@map("competitor_ads")
+}
+
+model AdLibrarySearch {
+  id              String   @id @default(cuid())
+  companyId       String   @map("company_id")
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  searchKey       String   @map("search_key")
+  query           String   @default("")
+  searchType      String   @default("keyword_unordered") @map("search_type")
+  viewAllPageId   String   @default("") @map("view_all_page_id")
+  countries       String[] @default([])
+  activeStatus    String   @default("all") @map("active_status")
+  adCategory      String   @default("all") @map("ad_category")
+  mediaType       String   @default("all") @map("media_type")
+  platforms       String[] @default([])
+  languages       String[] @default([])
+  startDateMin    String   @default("") @map("start_date_min")
+  startDateMax    String   @default("") @map("start_date_max")
+  actorId         String   @default("curious_coder") @map("actor_id")
+  apifyRunId      String   @default("") @map("apify_run_id")
+  apifyDatasetId  String   @default("") @map("apify_dataset_id")
+  status          String   @default("queued")
+  totalFound      Int      @default(0) @map("total_found")
+  error           String   @default("")
+  createdAt       DateTime @default(now()) @map("created_at")
+  finishedAt      DateTime? @map("finished_at")
+
+  hits AdLibrarySearchHit[]
+
+  @@unique([companyId, searchKey])
+  @@index([companyId, status])
+  @@map("ad_library_searches")
+}
+
+model AdLibraryAd {
+  id              String   @id @default(cuid())
+  companyId       String   @map("company_id")
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  adId            String   @map("ad_id")
+  pageId          String   @default("") @map("page_id")
+  pageName        String   @default("") @map("page_name")
+  pageUrl         String   @default("") @map("page_url")
+  adType          String   @default("text") @map("ad_type")
+  startDate       String   @default("") @map("start_date")
+  platforms       String   @default("")
+  hook            String   @default("")
+  headline        String   @default("")
+  body            String   @default("")
+  cta             String   @default("")
+  caption         String   @default("")
+  framework       String   @default("")
+  angles          String[] @default([])
+  hashtags        String[] @default([])
+  keywords        String[] @default([])
+  strength        String   @default("")
+  score           Int      @default(0)
+  imageUrl        String   @default("") @map("image_url")
+  hasVideo        Boolean  @default(false) @map("has_video")
+  impressionsText String?  @map("impressions_text")
+  impressionsMin  Int?     @map("impressions_min")
+  impressionsMax  Int?     @map("impressions_max")
+  reachCountries  String[] @default([]) @map("reach_countries")
+  adActive        Boolean? @map("ad_active")
+  languageCode    String   @default("") @map("language_code")
+  videoDurationSec Int?    @map("video_duration_sec")
+  copyCharCount   Int      @default(0) @map("copy_char_count")
+  raw             Json?
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime @updatedAt @map("last_seen_at")
+
+  searchHits AdLibrarySearchHit[]
+
+  @@unique([companyId, adId])
+  @@index([companyId, adType])
+  @@index([companyId, lastSeenAt(sort: Desc)])
+  @@map("ad_library_ads")
+}
+
+model AdLibrarySearchHit {
+  id            String         @id @default(cuid())
+  searchId      String         @map("search_id")
+  search        AdLibrarySearch @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  adLibraryAdId String         @map("ad_library_ad_id")
+  ad            AdLibraryAd    @relation(fields: [adLibraryAdId], references: [id], onDelete: Cascade)
+  position      Int            @default(0)
+
+  @@unique([searchId, adLibraryAdId])
+  @@index([searchId, position])
+  @@map("ad_library_search_hits")
 }
 
 model CompanyModuleAccess {
