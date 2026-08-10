@@ -17,6 +17,13 @@ import {
 } from '@/components/cold-email/outreach-ui';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  AI_PROVIDER_LABELS,
+  defaultAiModuleRoute,
+  parseAiModuleRoute,
+  selectedRouteModel,
+  type AiModuleRoute,
+} from '@/lib/ai-module-routing';
 import { buildTimezoneSelectOptions, fromTimezoneSelectValue, toTimezoneSelectValue } from '@/lib/timezones';
 import type { BlogCategoryData, BlogConfigData } from '@/lib/blog/types';
 
@@ -28,6 +35,10 @@ type ConfigResponse = {
 type CategoriesResponse = {
   categories: BlogCategoryData[];
   source: string;
+};
+
+type AiRoutingResponse = {
+  routes?: { blog?: unknown };
 };
 
 const DEFAULT_CONFIG: BlogConfigData = {
@@ -48,6 +59,12 @@ const DEFAULT_CONFIG: BlogConfigData = {
   lastCategoryIndex: 0,
   lastRunAt: null,
 };
+
+function formatBlogAiModelLabel(route: AiModuleRoute): string {
+  const provider = AI_PROVIDER_LABELS[route.selected] ?? route.selected;
+  const model = selectedRouteModel(route);
+  return `${provider} — ${model}`;
+}
 
 const PROMPT_FIELDS = [
   { key: 'titlePrompt' as const, label: 'Title & outline system prompt' },
@@ -148,6 +165,16 @@ export function BlogWorkflowEditor() {
     },
   });
 
+  const aiRoutingQuery = useQuery({
+    queryKey: ['ai-routing'],
+    queryFn: async () => {
+      const res = await fetch('/api/ai-routing', { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Failed to load AI routing');
+      return json as AiRoutingResponse;
+    },
+  });
+
   useEffect(() => {
     if (configQuery.data?.config) {
       setDraftConfig({ ...DEFAULT_CONFIG, ...configQuery.data.config });
@@ -160,12 +187,23 @@ export function BlogWorkflowEditor() {
     }
   }, [categoriesQuery.data]);
 
+  const blogAiRoute = useMemo(
+    () =>
+      aiRoutingQuery.data?.routes?.blog
+        ? parseAiModuleRoute(aiRoutingQuery.data.routes.blog)
+        : defaultAiModuleRoute(),
+    [aiRoutingQuery.data]
+  );
+
   const saveConfigMutation = useMutation({
     mutationFn: async (config: BlogConfigData) => {
+      // AI model is configured in Settings → Blog routing, not here.
+      const publishingConfig = { ...config };
+      delete (publishingConfig as Partial<BlogConfigData>).openAiModel;
       const res = await fetch('/api/blog/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
+        body: JSON.stringify(publishingConfig),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Failed to save config');
@@ -457,10 +495,16 @@ export function BlogWorkflowEditor() {
               }
             />
           </MetricCell>
-          <MetricCell label="OpenAI model" isLast>
+          <MetricCell label="AI model" isLast>
             <EditorialField
-              value={draftConfig.openAiModel}
-              onChange={(value) => setDraftConfig((c) => ({ ...c, openAiModel: value }))}
+              value={
+                aiRoutingQuery.isLoading
+                  ? 'Loading…'
+                  : aiRoutingQuery.isError
+                    ? 'Unavailable — configure in Settings'
+                    : formatBlogAiModelLabel(blogAiRoute)
+              }
+              disabled
             />
           </MetricCell>
         </div>

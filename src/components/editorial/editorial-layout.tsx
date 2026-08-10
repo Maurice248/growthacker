@@ -102,6 +102,52 @@ export function EditorialSectionHeader({
   );
 }
 
+/** Collapsible section header matching competitor-analysis expand/collapse affordance. */
+export function CollapsibleEditorialSection({
+  title,
+  meta,
+  expanded,
+  onToggle,
+  className,
+  contentDisabled = false,
+  children,
+}: {
+  title: React.ReactNode;
+  meta?: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  className?: string;
+  /** Disables form controls inside the body without disabling the toggle. */
+  contentDisabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={className}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex w-full cursor-pointer items-baseline justify-between gap-4 border-b border-[var(--primary)] bg-transparent pb-3.5 text-left font-[family-name:inherit] transition-colors hover:bg-[rgba(0,48,73,0.03)]"
+      >
+        <div className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[var(--red)] font-[family-name:var(--font-display)]">
+          {title}
+        </div>
+        <div className="flex shrink-0 items-baseline gap-3">
+          {meta ? <div className="text-[13px] text-[var(--text-muted)]">{meta}</div> : null}
+          <span className="font-bold text-[var(--red)]" aria-hidden>
+            {expanded ? '↓' : '→'}
+          </span>
+        </div>
+      </button>
+      {expanded ? (
+        <fieldset disabled={contentDisabled} className="m-0 min-w-0 border-0 p-0 disabled:opacity-80">
+          {children}
+        </fieldset>
+      ) : null}
+    </section>
+  );
+}
+
 export function EditorialTabBar({
   tabs,
   activeId,

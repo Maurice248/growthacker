@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma';
+import { getCompanyAiRouting } from '@/lib/ai-routing-store';
+import { selectedRouteModel } from '@/lib/ai-module-routing';
 import { getCompanyBrandConfig } from '@/lib/company-brand-config';
 import type { BlogConfigData, BlogContext } from './types';
 
@@ -122,10 +124,11 @@ export async function upsertBlogConfig(
 }
 
 export async function resolveBlogContext(companyId: string): Promise<BlogContext> {
-  const [company, config, brandResult] = await Promise.all([
+  const [company, config, brandResult, routing] = await Promise.all([
     prisma.company.findUnique({ where: { id: companyId }, select: { name: true, slug: true } }),
     ensureBlogConfig(companyId),
     getCompanyBrandConfig(companyId).catch(() => null),
+    getCompanyAiRouting(companyId),
   ]);
 
   return {
@@ -139,7 +142,9 @@ export async function resolveBlogContext(companyId: string): Promise<BlogContext
     painPoints: brandResult?.painPoints ?? '',
     competitors: brandResult?.competitors ?? '',
     icpBlog: brandResult?.icp_blog ?? '',
-    openAiModel: config.openAiModel,
+    openAiModel: routing.configured
+      ? selectedRouteModel(routing.routes.blog)
+      : config.openAiModel,
     postStatus: config.postStatus,
     imageSize: config.imageSize,
     dataForSeoLocationCode: config.dataForSeoLocationCode,

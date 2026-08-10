@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Play } from "lucide-react";
 import { EditorialPage, EditorialPageHeader, Spinner } from "./components";
@@ -15,7 +15,16 @@ import {
   type AdsLibraryFilterState,
   buildAdsLibrarySearchParams,
 } from "./ads-library-filters";
+import {
+  AdsLibrarySavedFilters,
+  AdsLibrarySavedFiltersDropdown,
+  type AdsLibrarySaveFiltersAction,
+} from "./ads-library-saved-filters";
 import { extractPreviewImageFromRaw } from "@/lib/ads-library/view-ads";
+import { normalizeAdsLibraryFiltersForSave } from "@/lib/ads-library/saved-filters-shared";
+
+/** Bubbled to page.tsx so the client-dashboard shell keeps the main-app iframe alive. */
+export const ADS_LIBRARY_SCRAPE_EVENT = "ads-library-scrape-active";
 
 type LibraryAd = {
   id: string;
@@ -64,6 +73,19 @@ function formatImpressions(ad: LibraryAd) {
   if (ad.impressionsMax != null) return ad.impressionsMax.toLocaleString();
   if (ad.impressionsMin != null) return ad.impressionsMin.toLocaleString();
   return "Unknown";
+}
+
+function commitDraftSearchTerms(filters: AdsLibraryFilterState): AdsLibraryFilterState {
+  const draft = filters.q.trim();
+  if (!draft) return { ...filters, q: "" };
+  const next = [...filters.searchTerms];
+  for (const part of draft.split(",")) {
+    const term = part.trim();
+    if (term && !next.some((t) => t.toLowerCase() === term.toLowerCase())) {
+      next.push(term);
+    }
+  }
+  return { ...filters, searchTerms: next, q: "" };
 }
 
 function AdDetailPreview({
@@ -155,6 +177,8 @@ function AdDetailPreview({
 
 export default function AdsLibrary() {
   const [filters, setFilters] = useState<AdsLibraryFilterState>(EMPTY_ADS_LIBRARY_FILTERS);
+  /** Filters last submitted via the search button (drives scrape / results). */
+  const [committedFilters, setCommittedFilters] = useState<AdsLibraryFilterState | null>(null);
   const { settings: viewSettings, update: setViewSettings } = useAdsLibraryViewSettings();
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -175,24 +199,65 @@ export default function AdsLibrary() {
   const [scrapeActorLabel, setScrapeActorLabel] = useState("");
   const [previewImageUrl, setPreviewImageUrl] = useState("");
 
-  const filtersActive = adsLibraryFiltersActive(filters);
+  const pollTimerRef = useRef<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const saveFiltersActionRef = useRef<AdsLibrarySaveFiltersAction | null>(null);
+  /** Bumps when a new search is started so in-flight polls ignore stale results. */
+  const searchGenRef = useRef(0);
 
-  const fetchKey = buildAdsLibrarySearchParams(filters, page).toString();
+  const stopClientPolling = useCallback(() => {
+    if (pollTimerRef.current != null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+  }, []);
 
-  const fetchLibrary = useCallback(async (signal?: AbortSignal): Promise<"running" | "done" | "error"> => {
-      if (!adsLibraryFiltersActive(filters)) {
+  // Keep Apify scrape alive when leaving the tab — only stop client polling on unmount
+  // of the whole app shell, not when this view is merely hidden.
+  useEffect(() => {
+    return () => {
+      stopClientPolling();
+    };
+  }, [stopClientPolling]);
+
+  // Notify the parent page (same iframe) so Meta Ads pipeline keep-alive includes this scrape.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(ADS_LIBRARY_SCRAPE_EVENT, { detail: { active: loading } })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent(ADS_LIBRARY_SCRAPE_EVENT, { detail: { active: false } })
+      );
+    };
+  }, [loading]);
+
+  const fetchWithFilters = useCallback(
+    async (
+      activeFilters: AdsLibraryFilterState,
+      activePage: number,
+      signal: AbortSignal,
+      gen: number
+    ): Promise<"running" | "done" | "error"> => {
+      if (!adsLibraryFiltersActive(activeFilters)) {
+        if (gen !== searchGenRef.current) return "error";
         setAds([]);
         setTotal(0);
         setLoading(false);
         return "done";
       }
+
       setLoading(true);
       setError("");
       try {
-        const params = buildAdsLibrarySearchParams(filters, page);
-
+        const params = buildAdsLibrarySearchParams(activeFilters, activePage);
         const res = await fetch(`/api/ads-library?${params.toString()}`, { signal });
         const data = await res.json();
+        if (gen !== searchGenRef.current) return "error";
         if (!res.ok) throw new Error(data.error || "Failed to load ads");
 
         if (data.status === "running") {
@@ -205,63 +270,93 @@ export default function AdsLibrary() {
         setAds(data.ads || []);
         setTotal(data.total ?? 0);
         setPageSize(data.pageSize ?? 24);
-        setFacets(
-          data.facets || { adTypes: [], countries: [], languages: [], angles: [] }
-        );
+        setFacets(data.facets || { adTypes: [], countries: [], languages: [], angles: [] });
         setLoading(false);
         return "done";
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return "error";
+        if (gen !== searchGenRef.current) return "error";
         setError(e instanceof Error ? e.message : "Failed to load ads");
         setAds([]);
         setLoading(false);
         return "error";
       }
     },
-    [filters, page]
+    []
   );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let pollTimer: number | undefined;
-    let cancelled = false;
+  const runSearchLoop = useCallback(
+    (activeFilters: AdsLibraryFilterState, activePage: number) => {
+      stopClientPolling();
+      const gen = ++searchGenRef.current;
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    const run = async () => {
-      const outcome = await fetchLibrary(controller.signal);
-      if (cancelled || controller.signal.aborted) return;
-      if (outcome === "running") {
-        setLoading(true);
-        pollTimer = window.setTimeout(run, 3000);
-      }
-    };
+      const run = async () => {
+        const outcome = await fetchWithFilters(activeFilters, activePage, controller.signal, gen);
+        if (gen !== searchGenRef.current || controller.signal.aborted) return;
+        if (outcome === "running") {
+          setLoading(true);
+          pollTimerRef.current = window.setTimeout(run, 3000);
+        }
+      };
 
-    const debounce = window.setTimeout(() => {
       void run();
-    }, 400);
+    },
+    [fetchWithFilters, stopClientPolling]
+  );
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-      window.clearTimeout(debounce);
-      if (pollTimer != null) window.clearTimeout(pollTimer);
-    };
-  }, [fetchKey, fetchLibrary]);
+  const handleSearch = () => {
+    const next = commitDraftSearchTerms(filters);
+    setFilters(next);
+
+    if (!adsLibraryFiltersActive(next)) {
+      setError("Add a search term or at least one filter, then click Search.");
+      setCommittedFilters(null);
+      setAds([]);
+      setTotal(0);
+      setLoading(false);
+      stopClientPolling();
+      return;
+    }
+
+    setCommittedFilters(next);
+    setPage(1);
+    setAds([]);
+    setTotal(0);
+    setError("");
+    setLoading(true);
+    runSearchLoop(next, 1);
+  };
+
+  const handlePageChange = (nextPage: number) => {
+    if (!committedFilters || loading) return;
+    setPage(nextPage);
+    runSearchLoop(committedFilters, nextPage);
+  };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const resetFilters = () => {
+    if (loading) return;
     setFilters(EMPTY_ADS_LIBRARY_FILTERS);
+    setCommittedFilters(null);
     setAds([]);
     setTotal(0);
     setError("");
     setPage(1);
+    stopClientPolling();
+    setLoading(false);
   };
 
   const patchFilters = (patch: Partial<AdsLibraryFilterState>) => {
+    if (loading) return;
     setFilters((prev) => ({ ...prev, ...patch }));
-    const keys = Object.keys(patch);
-    const draftOnly = keys.length === 1 && keys[0] === "q";
-    if (!draftOnly) setPage(1);
+  };
+
+  const applySavedFilters = (next: AdsLibraryFilterState) => {
+    if (loading) return;
+    setFilters(normalizeAdsLibraryFiltersForSave(next));
   };
 
   const openAdDetails = useCallback(async (ad: LibraryAd) => {
@@ -317,9 +412,10 @@ export default function AdsLibrary() {
     [ads, viewSettings]
   );
 
-  const empty = filtersActive && !loading && displayAds.length === 0;
-  const showInitialPrompt = !filtersActive && !loading;
-  const showToolbar = !loading && filtersActive;
+  const hasCommittedSearch = committedFilters != null && adsLibraryFiltersActive(committedFilters);
+  const empty = hasCommittedSearch && !loading && displayAds.length === 0;
+  const showInitialPrompt = !hasCommittedSearch && !loading;
+  const showToolbar = !loading && hasCommittedSearch;
 
   return (
     <EditorialPage wide>
@@ -329,15 +425,26 @@ export default function AdsLibrary() {
         subtitle="Search the Meta Ads Library live — results are fetched from facebook.com/ads/library."
       />
 
-      <AdsLibraryFilterBar
+      <AdsLibrarySavedFilters
         filters={filters}
-        onChange={patchFilters}
-        onReset={resetFilters}
-        facetCountries={facets.countries}
-        facetLanguages={facets.languages}
-        facetAngles={facets.angles}
-        facetAdTypes={facets.adTypes}
-      />
+        disabled={loading}
+        onApply={applySavedFilters}
+        saveActionRef={saveFiltersActionRef}
+      >
+        <AdsLibraryFilterBar
+          filters={filters}
+          onChange={patchFilters}
+          onReset={resetFilters}
+          onSearch={handleSearch}
+          onSaveFilters={() => saveFiltersActionRef.current?.open()}
+          savedFiltersDropdown={<AdsLibrarySavedFiltersDropdown />}
+          disabled={loading}
+          facetCountries={facets.countries}
+          facetLanguages={facets.languages}
+          facetAngles={facets.angles}
+          facetAdTypes={facets.adTypes}
+        />
+      </AdsLibrarySavedFilters>
 
       {showInitialPrompt && !error && (
         <div
@@ -354,8 +461,8 @@ export default function AdsLibrary() {
             Filter your ads library
           </div>
           <div style={{ fontSize: 13, color: "#8C8474", maxWidth: 480, margin: "0 auto" }}>
-            Add search terms (comma to create tags) or choose at least one filter below. We search Meta’s
-            Ads Library and show matches here when the scrape finishes.
+            Add search terms (comma to create tags) and choose filters, then click the red search button.
+            Scraping starts only when you search — not when you add a filter.
           </div>
         </div>
       )}
@@ -399,7 +506,7 @@ export default function AdsLibrary() {
         </div>
       )}
 
-      {!loading && filtersActive && displayAds.length > 0 && (
+      {!loading && hasCommittedSearch && displayAds.length > 0 && (
         <>
           <div style={{ fontSize: 12, color: "#9FA8A3", marginBottom: 12 }}>
             {displayAds.length} ad{displayAds.length === 1 ? "" : "s"}
@@ -426,7 +533,7 @@ export default function AdsLibrary() {
               <button
                 type="button"
                 disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
                 style={{
                   fontFamily: "inherit",
                   padding: "8px 16px",
@@ -444,7 +551,7 @@ export default function AdsLibrary() {
               <button
                 type="button"
                 disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => handlePageChange(page + 1)}
                 style={{
                   fontFamily: "inherit",
                   padding: "8px 16px",

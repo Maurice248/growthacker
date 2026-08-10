@@ -8,8 +8,12 @@ import {
   EditorialDefinitionRow,
   EditorialField,
 } from '@/app/components';
-import { EditorialSectionHeader, editorialPillButtonClass } from '@/components/editorial/editorial-layout';
+import {
+  CollapsibleEditorialSection,
+  editorialPillButtonClass,
+} from '@/components/editorial/editorial-layout';
 import { AiModuleSettings } from '@/components/client-dashboard/ai-module-settings';
+import { useApiKeysSections } from '@/components/client-dashboard/api-keys-sections-context';
 import {
   defaultAiModuleRouting,
   defaultGatewayConnectionSettings,
@@ -98,6 +102,7 @@ const emptyForm = {
 
 export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
   const router = useRouter();
+  const { sectionsExpanded, toggleSection } = useApiKeysSections();
   const [settings, setSettings] = useState<IntegrationSettings | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [apiTokenSecrets, setApiTokenSecrets] = useState<ApiTokenSecretView[]>([]);
@@ -300,25 +305,26 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
         </div>
       )}
 
-      <fieldset disabled={readOnly} className="disabled:opacity-80">
-        {error && (
-          <div className="mb-4 flex items-center gap-2 text-sm text-[var(--red)]">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 flex items-center gap-2 text-sm text-[#38678A]">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {success}
-          </div>
-        )}
+      {error && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-[var(--red)]">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-[#38678A]">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {success}
+        </div>
+      )}
 
-        <section>
-          <EditorialSectionHeader
-            title="Meta Ads"
-            meta="Campaigns, live ads, reports, location search"
-          />
+      <CollapsibleEditorialSection
+          title="Meta Ads"
+          meta="Campaigns, live ads, reports, location search"
+          expanded={sectionsExpanded.meta}
+          onToggle={() => toggleSection('meta')}
+          contentDisabled={readOnly}
+        >
           <EditorialDefinitionList>
             <EditorialDefinitionRow
               label="Access token"
@@ -353,10 +359,16 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
               </div>
             </EditorialDefinitionRow>
           </EditorialDefinitionList>
-        </section>
+        </CollapsibleEditorialSection>
 
-        <section className="mt-12">
-          <EditorialSectionHeader title="WordPress" meta="Blog publishing credentials" />
+        <CollapsibleEditorialSection
+          className="mt-12"
+          title="WordPress"
+          meta="Blog publishing credentials"
+          expanded={sectionsExpanded.wordpress}
+          onToggle={() => toggleSection('wordpress')}
+          contentDisabled={readOnly}
+        >
           <EditorialDefinitionList>
             <EditorialDefinitionRow
               label="Site & login"
@@ -391,10 +403,16 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
               </div>
             </EditorialDefinitionRow>
           </EditorialDefinitionList>
-        </section>
+        </CollapsibleEditorialSection>
 
-        <section className="mt-10">
-          <EditorialSectionHeader title="DataForSEO" meta="Blog keyword research credentials" />
+        <CollapsibleEditorialSection
+          className="mt-10"
+          title="DataForSEO"
+          meta="Blog keyword research credentials"
+          expanded={sectionsExpanded.dataforseo}
+          onToggle={() => toggleSection('dataforseo')}
+          contentDisabled={readOnly}
+        >
           <EditorialDefinitionList>
             <EditorialDefinitionRow label="Login & password" labelSub={dataforseoSavedHint} isLast>
               <div className="flex flex-wrap gap-8">
@@ -415,13 +433,16 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
               </div>
             </EditorialDefinitionRow>
           </EditorialDefinitionList>
-        </section>
+        </CollapsibleEditorialSection>
 
-        <section className="mt-10">
-          <EditorialSectionHeader
-            title="Apify"
-            meta="Competitor Ads Library scraping · Cold Email leads finder"
-          />
+        <CollapsibleEditorialSection
+          className="mt-10"
+          title="Apify"
+          meta="Competitor Ads Library scraping · Cold Email leads finder"
+          expanded={sectionsExpanded.apify}
+          onToggle={() => toggleSection('apify')}
+          contentDisabled={readOnly}
+        >
           <EditorialDefinitionList>
             <EditorialDefinitionRow
               label="API token"
@@ -474,7 +495,7 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
               </select>
             </EditorialDefinitionRow>
           </EditorialDefinitionList>
-        </section>
+        </CollapsibleEditorialSection>
 
         <AiModuleSettings
           readOnly={readOnly}
@@ -489,13 +510,20 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
             ...apiTokenSecrets.map((t) => ({ key: t.key, set: t.set })),
             { key: 'apify', set: apifyView?.set ?? false },
           ]}
+          gatewaysExpanded={sectionsExpanded.aiGateways}
+          onGatewaysToggle={() => toggleSection('aiGateways')}
+          routingExpanded={sectionsExpanded.aiRouting}
+          onRoutingToggle={() => toggleSection('aiRouting')}
         />
 
-        <section className="mt-12">
-          <EditorialSectionHeader
-            title="API Tokens"
-            meta="Third-party services · OpenAI and Google Gemini keys feed the direct providers above"
-          />
+        <CollapsibleEditorialSection
+          className="mt-12"
+          title="API Tokens"
+          meta="Third-party services · OpenAI and Google Gemini keys feed the direct providers above"
+          expanded={sectionsExpanded.apiTokens}
+          onToggle={() => toggleSection('apiTokens')}
+          contentDisabled={readOnly}
+        >
           <div className="grid grid-cols-1 gap-x-12 lg:grid-cols-2">
             {apiTokenSecrets.map((token) => (
               <div key={token.key} className="border-b border-[var(--border)] py-[18px]">
@@ -516,23 +544,22 @@ export function IntegrationsForm({ readOnly = false }: { readOnly?: boolean }) {
               </div>
             ))}
           </div>
+        </CollapsibleEditorialSection>
 
-          {!readOnly && (
-            <footer className="mt-6 flex justify-end">
-              <button type="submit" disabled={saving} className={editorialPillButtonClass}>
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  'Save integrations'
-                )}
-              </button>
-            </footer>
-          )}
-        </section>
-      </fieldset>
+        {!readOnly && (
+          <footer className="mt-8 flex justify-end">
+            <button type="submit" disabled={saving} className={editorialPillButtonClass}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                'Save integrations'
+              )}
+            </button>
+          </footer>
+        )}
     </form>
   );
 }

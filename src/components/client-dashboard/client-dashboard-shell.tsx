@@ -9,6 +9,10 @@ import { signOut, useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import type { ModuleStatus } from '@/lib/company-module-status';
 import { ClientDashboardNav } from '@/components/client-dashboard/client-dashboard-nav';
+import {
+  PersistentMainAppIframe,
+  useMainAppIframeVisible,
+} from '@/components/client-dashboard/persistent-main-app-iframe';
 import { stopImpersonating } from '@/lib/admin-impersonate';
 
 type ClientDashboardShellProps = {
@@ -136,6 +140,7 @@ export function ClientDashboardShell({
   const { update } = useSession();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const showMainAppIframe = useMainAppIframeVisible();
   const profileActive =
     pathname === '/client-dashboard/profile' ||
     pathname === '/client-dashboard/security' ||
@@ -336,13 +341,20 @@ export function ClientDashboardShell({
 
         <main
           className={cn(
-            'editorial-shell-main flex min-h-0 flex-1 flex-col overflow-auto',
-            pathname.startsWith('/client-dashboard/workspace/')
-              ? 'p-0'
-              : 'editorial-shell-gutter'
+            'editorial-shell-main relative flex min-h-0 flex-1 flex-col',
+            showMainAppIframe
+              ? 'overflow-hidden p-0'
+              : pathname.startsWith('/client-dashboard/workspace/')
+                ? 'overflow-auto p-0'
+                : 'editorial-shell-gutter overflow-auto'
           )}
         >
-          {children}
+          <PersistentMainAppIframe visible={showMainAppIframe} />
+          {!showMainAppIframe ? (
+            <div className="relative z-10 flex min-h-0 flex-1 flex-col bg-[var(--bg)]">
+              {children}
+            </div>
+          ) : null}
         </main>
       </div>
     </div>

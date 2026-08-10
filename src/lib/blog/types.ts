@@ -88,7 +88,9 @@ export type BlogImageMeta = {
 export type BlogJobStatus =
   | 'pending'
   | 'keywords'
+  | 'outline'
   | 'writing'
+  | 'image_prompt'
   | 'image'
   | 'publishing'
   | 'done'

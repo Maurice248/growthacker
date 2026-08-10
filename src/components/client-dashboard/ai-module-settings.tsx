@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { EditorialDefinitionList, EditorialDefinitionRow, EditorialField } from '@/app/components';
-import { EditorialSectionHeader } from '@/components/editorial/editorial-layout';
+import { CollapsibleEditorialSection } from '@/components/editorial/editorial-layout';
 import { OutreachSelect } from '@/components/cold-email/outreach-ui';
 import {
   firstModelForVendor,
@@ -47,6 +47,10 @@ type AiModuleSettingsProps = {
   routes: AiModuleRoutingMap;
   onRouteChange: (moduleId: AiModuleId, patch: Partial<AiModuleRoute>) => void;
   apiTokenHints: ApiTokenHint[];
+  gatewaysExpanded: boolean;
+  onGatewaysToggle: () => void;
+  routingExpanded: boolean;
+  onRoutingToggle: () => void;
 };
 
 function tokenSet(hints: ApiTokenHint[], key: string): boolean {
@@ -201,6 +205,10 @@ export function AiModuleSettings({
   routes,
   onRouteChange,
   apiTokenHints,
+  gatewaysExpanded,
+  onGatewaysToggle,
+  routingExpanded,
+  onRoutingToggle,
 }: AiModuleSettingsProps) {
   const [showOpenRouterAdvanced, setShowOpenRouterAdvanced] = useState(false);
   const [showGatewayAdvanced, setShowGatewayAdvanced] = useState(false);
@@ -244,12 +252,15 @@ export function AiModuleSettings({
 
   return (
     <>
-      <section className="mt-12">
-        <EditorialSectionHeader
-          title="AI Gateways"
-          meta="OpenAI-compatible keys for OpenRouter and Vercel AI Gateway"
-        />
-        <p className="mb-6 max-w-3xl text-[13px] leading-relaxed text-[var(--text-muted)]">
+      <CollapsibleEditorialSection
+        className="mt-12"
+        title="AI Gateways"
+        meta="OpenAI-compatible keys for OpenRouter and Vercel AI Gateway"
+        expanded={gatewaysExpanded}
+        onToggle={onGatewaysToggle}
+        contentDisabled={readOnly}
+      >
+        <p className="mb-6 mt-4 max-w-3xl text-[13px] leading-relaxed text-[var(--text-muted)]">
           Keys are encrypted per company and used by the module routing below. Leave a field blank to
           keep the saved key.
         </p>
@@ -333,14 +344,17 @@ export function AiModuleSettings({
             );
           })}
         </div>
-      </section>
+      </CollapsibleEditorialSection>
 
-      <section className="mt-12">
-        <EditorialSectionHeader
-          title="Module AI routing"
-          meta="Tick the provider each module should use, then pick its provider and model"
-        />
-        <p className="mb-8 max-w-3xl text-[13px] leading-relaxed text-[var(--text-muted)]">
+      <CollapsibleEditorialSection
+        className="mt-12"
+        title="Module AI routing"
+        meta="Tick the provider each module should use, then pick its provider and model"
+        expanded={routingExpanded}
+        onToggle={onRoutingToggle}
+        contentDisabled={readOnly}
+      >
+        <p className="mb-8 mt-4 max-w-3xl text-[13px] leading-relaxed text-[var(--text-muted)]">
           One provider per module. Gateways route through a vendor of your choice; direct providers
           call OpenAI or Gemini with the keys saved under API Keys. Provider and model lists for
           OpenRouter and Vercel AI Gateway are loaded from each gateway&apos;s public catalog (refreshed
@@ -412,7 +426,7 @@ export function AiModuleSettings({
             );
           })}
         </div>
-      </section>
+      </CollapsibleEditorialSection>
     </>
   );
 }

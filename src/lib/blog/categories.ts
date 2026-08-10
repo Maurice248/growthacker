@@ -120,24 +120,41 @@ export async function deleteBlogCategory(companyId: string, categoryId: string) 
   return true;
 }
 
-export async function pickRotatedCategory(companyId: string): Promise<BlogCategoryData | null> {
+/** Read the next category without advancing the rotation index. */
+export async function peekRotatedCategory(companyId: string): Promise<BlogCategoryData | null> {
   const categories = await listBlogCategories(companyId, true);
   if (!categories.length) return null;
 
   const config = await prisma.blogConfig.findUnique({ where: { companyId } });
   const index = config?.lastCategoryIndex ?? 0;
-  const category = categories[index % categories.length];
+  return categories[index % categories.length];
+}
+
+/** Advance the rotation index after a successful publish. */
+export async function advanceCategoryRotation(companyId: string): Promise<void> {
+  const categories = await listBlogCategories(companyId, true);
+  if (!categories.length) return;
+
+  const config = await prisma.blogConfig.findUnique({ where: { companyId } });
+  const index = config?.lastCategoryIndex ?? 0;
+  const next = (index + 1) % categories.length;
 
   await prisma.blogConfig.upsert({
     where: { companyId },
     create: {
       companyId,
-      lastCategoryIndex: (index + 1) % categories.length,
+      lastCategoryIndex: next,
     },
     update: {
-      lastCategoryIndex: (index + 1) % categories.length,
+      lastCategoryIndex: next,
     },
   });
+}
 
+/** @deprecated Prefer peekRotatedCategory + advanceCategoryRotation */
+export async function pickRotatedCategory(companyId: string): Promise<BlogCategoryData | null> {
+  const category = await peekRotatedCategory(companyId);
+  if (!category) return null;
+  await advanceCategoryRotation(companyId);
   return category;
 }

@@ -3,6 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { editorialTextLinkClass } from '@/components/editorial/editorial-layout';
+import {
+  ApiKeysSectionsProvider,
+  useApiKeysSectionsOptional,
+} from '@/components/client-dashboard/api-keys-sections-context';
 
 const TAB_META = {
   profile: {
@@ -46,6 +51,69 @@ type AccountSettingsShellProps = {
   children: React.ReactNode;
 };
 
+function AccountSettingsShellInner({
+  activeTab,
+  meta,
+  tabs,
+  children,
+}: {
+  activeTab: TabId;
+  meta: (typeof TAB_META)[TabId];
+  tabs: { id: TabId; label: string; href: string }[];
+  children: React.ReactNode;
+}) {
+  const apiSections = useApiKeysSectionsOptional();
+
+  return (
+    <div className="editorial-page-shell mx-auto w-full">
+      <header className="mb-10">
+        <div className="mb-2.5 text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">
+          Settings
+        </div>
+        <h1 className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-[1.1] tracking-[-0.8px] text-[var(--text)]">
+          {meta.title}
+        </h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-[#6B7A6E]">{meta.subtitle}</p>
+      </header>
+
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--primary)]">
+        <nav className="flex flex-wrap gap-7">
+          {tabs.map((tab) => {
+            const active = tab.id === activeTab;
+            return (
+              <Link
+                key={tab.id}
+                href={tab.href}
+                className={cn(
+                  '-mb-px border-b-2 pb-3 text-sm transition-colors',
+                  active
+                    ? 'border-[var(--red)] font-bold text-[var(--red)]'
+                    : 'border-transparent font-normal text-[#4A5A64] hover:border-[#C2B79A] hover:text-[var(--primary)]'
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
+        {activeTab === 'api' && apiSections ? (
+          <button
+            type="button"
+            onClick={apiSections.toggleAll}
+            className={cn(editorialTextLinkClass, 'shrink-0 pb-3')}
+          >
+            {apiSections.allExpanded ? 'Collapse All' : 'Expand All'}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="min-w-0">{children}</div>
+
+      <div className="mt-14 text-xs text-[#B0A88F]">version 0.3</div>
+    </div>
+  );
+}
+
 export function AccountSettingsShell({ isAdmin = false, children }: AccountSettingsShellProps) {
   const pathname = usePathname();
   const activeTab = tabFromPath(pathname);
@@ -64,41 +132,15 @@ export function AccountSettingsShell({ isAdmin = false, children }: AccountSetti
         { id: 'api', ...TAB_META.api },
       ];
 
-  return (
-    <div className="editorial-page-shell mx-auto w-full">
-      <header className="mb-10">
-        <div className="mb-2.5 text-[11.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">
-          Settings
-        </div>
-        <h1 className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-[1.1] tracking-[-0.8px] text-[var(--text)]">
-          {meta.title}
-        </h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-[#6B7A6E]">{meta.subtitle}</p>
-      </header>
-
-      <nav className="mb-2 flex flex-wrap gap-7 border-b border-[var(--primary)]">
-        {tabs.map((tab) => {
-          const active = tab.id === activeTab;
-          return (
-            <Link
-              key={tab.id}
-              href={tab.href}
-              className={cn(
-                '-mb-px border-b-2 pb-3 text-sm transition-colors',
-                active
-                  ? 'border-[var(--red)] font-bold text-[var(--red)]'
-                  : 'border-transparent font-normal text-[#4A5A64] hover:border-[#C2B79A] hover:text-[var(--primary)]'
-              )}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="min-w-0">{children}</div>
-
-      <div className="mt-14 text-xs text-[#B0A88F]">version 0.3</div>
-    </div>
+  const shell = (
+    <AccountSettingsShellInner activeTab={activeTab} meta={meta} tabs={tabs}>
+      {children}
+    </AccountSettingsShellInner>
   );
+
+  if (activeTab === 'api') {
+    return <ApiKeysSectionsProvider>{shell}</ApiKeysSectionsProvider>;
+  }
+
+  return shell;
 }

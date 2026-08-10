@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiCompanyId } from '@/lib/api-auth';
@@ -17,13 +17,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'categoryId is required' }, { status: 400 });
     }
 
-    const { jobId, taskId } = await startBlogGeneration(companyId, { categoryId });
+    const { jobId } = await startBlogGeneration(companyId, { categoryId });
 
     return NextResponse.json({
       success: true,
       configured: true,
       jobId,
-      taskId,
     });
   } catch (error) {
     console.error('[API blog/generate POST]', error);

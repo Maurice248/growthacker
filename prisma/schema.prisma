@@ -39,8 +39,9 @@ model Company {
   adAutomations        AdAutomation[]
   moduleAccess         CompanyModuleAccess?
   competitorAds        CompetitorAd[]
-  adLibrarySearches    AdLibrarySearch[]
-  adLibraryAds         AdLibraryAd[]
+  adLibrarySearches     AdLibrarySearch[]
+  adLibraryAds          AdLibraryAd[]
+  adLibrarySavedFilters AdLibrarySavedFilter[]
 
   @@map("companies")
 }
@@ -684,6 +685,20 @@ model CompetitorAd {
   @@index([companyId, adType])
   @@index([companyId, lastSeenAt(sort: Desc)])
   @@map("competitor_ads")
+}
+
+model AdLibrarySavedFilter {
+  id          String   @id @default(cuid())
+  companyId   String   @map("company_id")
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  label       String
+  filters     Json
+  contentHash String   @map("content_hash")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@map("ad_library_saved_filters")
 }
 
 model AdLibrarySearch {

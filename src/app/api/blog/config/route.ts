@@ -39,7 +39,7 @@ export async function PUT(request: NextRequest) {
         body.dataForSeoLocationCode !== undefined
           ? Number(body.dataForSeoLocationCode)
           : undefined,
-      openAiModel: body.openAiModel,
+      // Model comes from Settings → AI module routing (blog), not this form.
     });
 
     return NextResponse.json({ config });

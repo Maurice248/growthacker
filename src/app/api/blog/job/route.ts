@@ -3,7 +3,7 @@ export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiCompanyId } from '@/lib/api-auth';
-import { finishBlogGeneration, getBlogJobView } from '@/lib/blog/generate';
+import { advanceBlogJob, getBlogJobView } from '@/lib/blog/generate';
 
 export async function GET(request: NextRequest) {
   const companyId = await requireApiCompanyId();
@@ -35,8 +35,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'jobId is required' }, { status: 400 });
     }
 
-    const job = await finishBlogGeneration(companyId, jobId);
-    return NextResponse.json({ job });
+    const result = await advanceBlogJob(companyId, jobId);
+
+    if (result.busy || (result.job.status !== 'done' && result.job.status !== 'error')) {
+      return NextResponse.json({
+        job: result.job,
+        pending: true,
+        busy: Boolean(result.busy),
+      });
+    }
+
+    if (result.job.status === 'error') {
+      return NextResponse.json(
+        { job: result.job, error: result.job.errorMessage },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ job: result.job });
   } catch (error) {
     console.error('[API blog/job POST]', error);
     const message = error instanceof Error ? error.message : 'Failed to process blog job';
@@ -47,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (jobId) {
       const job = await getBlogJobView(jobId, companyId);
-      if (job && (job.status === 'image' || job.status === 'publishing')) {
+      if (job && job.status !== 'done' && job.status !== 'error') {
         return NextResponse.json({ job, pending: true });
       }
       if (job?.status === 'error') {

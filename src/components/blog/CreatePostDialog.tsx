@@ -31,7 +31,9 @@ type DialogPhase = 'select' | 'generating' | 'success' | 'error';
 const STATUS_LABELS: Record<BlogJobStatus, string> = {
   pending: 'Starting blog generation...',
   keywords: 'Researching SEO keywords via DataForSEO...',
-  writing: 'Generating title, outline, and article...',
+  outline: 'Generating title and outline...',
+  writing: 'Writing the full article...',
+  image_prompt: 'Crafting featured image prompt...',
   image: 'Creating featured image with kie.ai...',
   publishing: 'Publishing post to WordPress...',
   done: 'Post published successfully!',
@@ -40,9 +42,11 @@ const STATUS_LABELS: Record<BlogJobStatus, string> = {
 
 const STATUS_PROGRESS: Record<BlogJobStatus, number> = {
   pending: 5,
-  keywords: 20,
-  writing: 45,
-  image: 70,
+  keywords: 15,
+  outline: 30,
+  writing: 50,
+  image_prompt: 65,
+  image: 80,
   publishing: 90,
   done: 100,
   error: 0,
@@ -66,6 +70,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
   const [postUrl, setPostUrl] = useState<string | null>(null);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollInFlightRef = useRef(false);
 
   const {
     data: categoriesData,
@@ -109,6 +114,7 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
+    pollInFlightRef.current = false;
   }
 
   function resetDialog() {
@@ -166,6 +172,8 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
 
   function startPolling(jobId: string, category: BlogCategoryData) {
     pollRef.current = setInterval(async () => {
+      if (pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
       try {
         const result = await pollJob(jobId);
         if (result.done) {
@@ -184,6 +192,8 @@ export function CreatePostDialog({ open, onOpenChange, onCreated }: CreatePostDi
         clearTimers();
         setErrorMessage(err instanceof Error ? err.message : 'Blog generation failed');
         setPhase('error');
+      } finally {
+        pollInFlightRef.current = false;
       }
     }, 5000);
   }

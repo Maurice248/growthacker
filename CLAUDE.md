@@ -121,12 +121,31 @@ Frontend (dashboard/* / outreach/*)
 
 NextAuth JWT strategy at `/api/auth/[...nextauth]`. Credentials (email + bcrypt password) stored in Prisma `User` table. The dashboard layout has the login wall **commented out** — all routes are currently unprotected. Fallback userId `"cmo8ubhgi0000difwp4jsua3t"` is hardcoded in several API routes for dev.
 
+### Blog — native split-phase pipeline
+
+Blog no longer uses n8n webhooks. It runs natively via `/api/blog/*` with a resumable state machine:
+
+```
+Frontend (blog/* components)
+  → /api/blog/config              (per-company schedule, prompts, publish options)
+  → /api/blog/categories          (per-company category rotation)
+  → /api/blog/generate            (enqueue job as pending)
+  → /api/blog/job                 (advance one phase per poll; used by Create Post dialog)
+  → /api/blog/cron/generate       (daily enqueue for active schedules; sets lastRunAt)
+  → /api/blog/cron/advance        (every 5 min; claim + advance one phase; abandon stale jobs)
+  → Prisma BlogConfig / BlogCategory / BlogJob
+  → OpenAI, DataForSEO, kie.ai, WordPress (per-company API keys)
+```
+
+Phases: `pending → outline → writing → image_prompt → image → publishing → done` (one phase per invocation).
+Internal lease/attempts live in `BlogJob.input` (`_lease`, `_attempts`, `_imageWaitStartedAt`).
+
 ### n8n Integration
 
-Two separate n8n instances are used for **blog automation only** (and legacy Meta ads via Supabase realtime):
-- `n8n.srv881198.hstgr.cloud` — legacy Meta ads data (frontend CORS proxy)
+n8n is used for **legacy Meta ads data only** (frontend CORS proxy via `/api/trigger-n8n`):
+- `n8n.srv881198.hstgr.cloud` — legacy Meta ads data
 
-Social Channels, Create Ad, Newsletter, and Cold Email are **native** (see above).
+Social Channels, Create Ad, Newsletter, Cold Email, and Blog are **native** (see above).
 
 The `/api/trigger-n8n/route.js` acts as a CORS proxy; it intentionally wraps non-ok responses as 200 so the frontend can read the error body.
 

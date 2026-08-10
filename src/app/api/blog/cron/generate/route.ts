@@ -1,11 +1,12 @@
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { pickRotatedCategory } from '@/lib/blog/categories';
+import { peekRotatedCategory } from '@/lib/blog/categories';
 import { upsertBlogConfig } from '@/lib/blog/company-context';
-import { runFullBlogGeneration } from '@/lib/blog/generate';
+import { startBlogGeneration } from '@/lib/blog/generate';
+import { companyHasActiveBlogJob } from '@/lib/blog/jobs';
 import { shouldRunBlogToday } from '@/lib/blog/schedule';
 
 export async function GET(request: NextRequest) {
@@ -27,10 +28,9 @@ export async function GET(request: NextRequest) {
       companyName: string;
       categoryId?: string;
       jobId?: string;
-      postUrl?: string | null;
-      error?: string;
       skipped?: boolean;
       reason?: string;
+      error?: string;
     }> = [];
 
     for (const config of configs) {
@@ -53,7 +53,17 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const category = await pickRotatedCategory(config.companyId);
+        if (await companyHasActiveBlogJob(config.companyId)) {
+          results.push({
+            companyId: config.companyId,
+            companyName: config.company.name,
+            skipped: true,
+            reason: 'Active blog job already in progress',
+          });
+          continue;
+        }
+
+        const category = await peekRotatedCategory(config.companyId);
         if (!category) {
           results.push({
             companyId: config.companyId,
@@ -64,21 +74,25 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        const job = await runFullBlogGeneration(config.companyId, category.id);
+        const { jobId } = await startBlogGeneration(config.companyId, {
+          categoryId: category.id,
+          scheduled: true,
+        });
+
+        // Honor daysInterval even if the worker later fails — enqueue marks the attempt.
         await upsertBlogConfig(config.companyId, { lastRunAt: new Date().toISOString() });
 
         results.push({
           companyId: config.companyId,
           companyName: config.company.name,
           categoryId: category.id,
-          jobId: job.id,
-          postUrl: job.wordpressPostUrl,
+          jobId,
         });
       } catch (error) {
         results.push({
           companyId: config.companyId,
           companyName: config.company.name,
-          error: error instanceof Error ? error.message : 'Blog cron failed',
+          error: error instanceof Error ? error.message : 'Blog cron enqueue failed',
         });
       }
     }

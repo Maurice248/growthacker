@@ -74,7 +74,7 @@ import { useSession, signOut } from "next-auth/react";
 import { tenantStorageKey } from "@/lib/tenant-storage";
 import CampaignSetup from "./CampaignSetup";
 import AdPerformance from "./AdPerformance";
-import AdsLibrary from "./AdsLibrary";
+import AdsLibrary, { ADS_LIBRARY_SCRAPE_EVENT } from "./AdsLibrary";
 import GenerateVariants from "./GenerateVariants";
 import SocialDash from "./SocialDash";
 import SocialOverview from "./SocialOverview";
@@ -3050,8 +3050,21 @@ export default function Dashboard() {
 
   const socialStudioGenerationBusy = !!activeSocialStudioJobId;
 
+  const [adsLibraryScrapeBusy, setAdsLibraryScrapeBusy] = useState(false);
+
+  useEffect(() => {
+    const onScrape = (e: Event) => {
+      const active = Boolean((e as CustomEvent<{ active?: boolean }>).detail?.active);
+      setAdsLibraryScrapeBusy(active);
+    };
+    window.addEventListener(ADS_LIBRARY_SCRAPE_EVENT, onScrape);
+    return () => window.removeEventListener(ADS_LIBRARY_SCRAPE_EVENT, onScrape);
+  }, []);
+
   const metaAdsPipelineBusy =
     createAdGenerationBusy || variantGenerationBusy.active || socialStudioGenerationBusy;
+
+  const shellKeepAliveBusy = metaAdsPipelineBusy || adsLibraryScrapeBusy;
 
   // Keep polling ad previews while Create Ad generation runs (any app tab)
   useEffect(() => {
@@ -3070,16 +3083,17 @@ export default function Dashboard() {
   ]);
 
   // Tell client-dashboard shell to keep the main-app iframe alive while Meta Ads pipelines run
+  // (includes Ads Library scrapes so Dashboard / Configuration / Settings / Profile don't tear it down)
   useEffect(() => {
     if (!embed || typeof window === "undefined" || window.parent === window) return;
-    const busy = metaAdsPipelineBusy;
+    const busy = shellKeepAliveBusy;
     window.parent.postMessage(
       { type: CLIENT_DASHBOARD_CREATE_AD_GEN_EVENT, active: busy },
       window.location.origin
     );
   }, [
     embed,
-    metaAdsPipelineBusy,
+    shellKeepAliveBusy,
   ]);
 
   // Resume in-flight server Create Ad job (reload / return from another module)
@@ -6676,11 +6690,12 @@ export default function Dashboard() {
       )}
 
       {/* ═══════════════════════════════════════════════════════
-          ADS LIBRARY
+          ADS LIBRARY — stay mounted so an in-flight scrape keeps polling
+          when the user switches tabs/modules (hidden, not unmounted).
       ═══════════════════════════════════════════════════════ */}
-      {tab === "ads_library" && (
+      <div style={{ display: tab === "ads_library" ? "block" : "none" }} aria-hidden={tab !== "ads_library"}>
         <AdsLibrary />
-      )}
+      </div>
 
       {/* ═══════════════════════════════════════════════════════
           CREATE AD

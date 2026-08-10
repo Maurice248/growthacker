@@ -15,6 +15,7 @@ import {
   MonitorPlay,
   Plus,
   Hash,
+  Search,
   X,
 } from "lucide-react";
 import {
@@ -23,140 +24,26 @@ import {
 } from "@/lib/ads-library/max-ads";
 import { META_AD_LIBRARY_COUNTRIES } from "@/lib/competitor-analysis/countries";
 import { type DatePreset, type DatePresetId, formatDatePresetLabel } from "@/lib/ads-library/date-presets";
+import {
+  EMPTY_ADS_LIBRARY_FILTERS,
+  adsLibraryFiltersActive,
+  adsLibrarySearchQuery,
+  buildAdsLibrarySearchParams,
+  type AdsLibraryFilterState,
+} from "@/lib/ads-library/filter-state";
 import { AdsLibraryDatePicker } from "./ads-library-date-picker";
 
-export type { DatePreset };
+export type { DatePreset, AdsLibraryFilterState };
+export {
+  EMPTY_ADS_LIBRARY_FILTERS,
+  adsLibraryFiltersActive,
+  adsLibrarySearchQuery,
+  buildAdsLibrarySearchParams,
+};
 
 const DAYS_RUNNING_SLIDER_MAX = 365;
 const COPY_LENGTH_SLIDER_MAX = 5000;
 const VIDEO_LENGTH_SLIDER_MAX = 600;
-
-export type AdsLibraryFilterState = {
-  /** Committed search terms (shown as tags in the search bar). */
-  searchTerms: string[];
-  /** Draft text in the search input (not applied until comma / Enter). */
-  q: string;
-  includeCountries: string[];
-  excludeCountries: string[];
-  statusActive: boolean;
-  statusInactive: boolean;
-  includeLanguages: string[];
-  excludeLanguages: string[];
-  copyMin: string;
-  copyMax: string;
-  videoMin: string;
-  videoMax: string;
-  mediaTypes: string[];
-  daysRunningMin: string;
-  daysRunningMax: string;
-  createdFrom: string;
-  createdTo: string;
-  createdPreset: DatePreset;
-  lastSeenFrom: string;
-  lastSeenTo: string;
-  lastSeenPreset: DatePreset;
-  angle: string;
-  /** How many ads to fetch from Meta Ads Library (default 10). */
-  maxAds: string;
-};
-
-export const EMPTY_ADS_LIBRARY_FILTERS: AdsLibraryFilterState = {
-  searchTerms: [],
-  q: "",
-  includeCountries: [],
-  excludeCountries: [],
-  statusActive: false,
-  statusInactive: false,
-  includeLanguages: [],
-  excludeLanguages: [],
-  copyMin: "",
-  copyMax: "",
-  videoMin: "",
-  videoMax: "",
-  mediaTypes: [],
-  daysRunningMin: "",
-  daysRunningMax: "",
-  createdFrom: "",
-  createdTo: "",
-  createdPreset: "",
-  lastSeenFrom: "",
-  lastSeenTo: "",
-  lastSeenPreset: "",
-  angle: "",
-  maxAds: "10",
-};
-
-export function adsLibrarySearchQuery(filters: AdsLibraryFilterState): string {
-  return filters.searchTerms.join(",");
-}
-
-export function buildAdsLibrarySearchParams(filters: AdsLibraryFilterState, page: number): URLSearchParams {
-  const params = new URLSearchParams();
-  if (filters.includeCountries.length) {
-    params.set("countriesInclude", filters.includeCountries.join(","));
-  }
-  if (filters.excludeCountries.length) {
-    params.set("countriesExclude", filters.excludeCountries.join(","));
-  }
-  if (filters.statusActive) params.set("statusActive", "1");
-  if (filters.statusInactive) params.set("statusInactive", "1");
-  if (filters.includeLanguages.length) {
-    params.set("languagesInclude", filters.includeLanguages.join(","));
-  }
-  if (filters.excludeLanguages.length) {
-    params.set("languagesExclude", filters.excludeLanguages.join(","));
-  }
-  if (filters.copyMin) params.set("copyMin", filters.copyMin);
-  if (filters.copyMax) params.set("copyMax", filters.copyMax);
-  if (filters.videoMin) params.set("videoMin", filters.videoMin);
-  if (filters.videoMax) params.set("videoMax", filters.videoMax);
-  if (filters.mediaTypes.length) params.set("mediaTypes", filters.mediaTypes.join(","));
-  if (filters.daysRunningMin) params.set("daysRunningMin", filters.daysRunningMin);
-  if (filters.daysRunningMax) params.set("daysRunningMax", filters.daysRunningMax);
-  if (filters.createdPreset) params.set("createdPreset", filters.createdPreset);
-  else {
-    if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
-    if (filters.createdTo) params.set("createdTo", filters.createdTo);
-  }
-  if (filters.lastSeenPreset) params.set("lastSeenPreset", filters.lastSeenPreset);
-  else {
-    if (filters.lastSeenFrom) params.set("lastSeenFrom", filters.lastSeenFrom);
-    if (filters.lastSeenTo) params.set("lastSeenTo", filters.lastSeenTo);
-  }
-  if (filters.angle) params.set("angle", filters.angle);
-  params.set("maxAds", resolveAdLibraryMaxAds(filters.maxAds).toString());
-  const query = adsLibrarySearchQuery(filters);
-  if (query) params.set("q", query);
-  params.set("page", String(page));
-  params.set("pageSize", String(resolveAdLibraryMaxAds(filters.maxAds)));
-  return params;
-}
-
-export function adsLibraryFiltersActive(filters: AdsLibraryFilterState): boolean {
-  return (
-    filters.includeCountries.length > 0 ||
-    filters.excludeCountries.length > 0 ||
-    filters.statusActive ||
-    filters.statusInactive ||
-    filters.includeLanguages.length > 0 ||
-    filters.excludeLanguages.length > 0 ||
-    !!filters.copyMin ||
-    !!filters.copyMax ||
-    !!filters.videoMin ||
-    !!filters.videoMax ||
-    filters.mediaTypes.length > 0 ||
-    !!filters.daysRunningMin ||
-    !!filters.daysRunningMax ||
-    !!filters.createdFrom ||
-    !!filters.createdTo ||
-    !!filters.createdPreset ||
-    !!filters.lastSeenFrom ||
-    !!filters.lastSeenTo ||
-    !!filters.lastSeenPreset ||
-    !!filters.angle ||
-    filters.searchTerms.length > 0
-  );
-}
 
 type ActiveFilterTag = {
   id: string;
@@ -827,6 +714,13 @@ type AdsLibraryFilterBarProps = {
   filters: AdsLibraryFilterState;
   onChange: (patch: Partial<AdsLibraryFilterState>) => void;
   onReset: () => void;
+  onSearch: () => void;
+  /** Opens the save-filters modal (button sits under Clear all). */
+  onSaveFilters?: () => void;
+  /** Dropdown control rendered beside the search input. */
+  savedFiltersDropdown?: React.ReactNode;
+  /** When true, filter controls are locked (e.g. scrape in progress). */
+  disabled?: boolean;
   facetCountries: string[];
   facetLanguages: string[];
   facetAngles: string[];
@@ -847,9 +741,15 @@ function pushSearchTerms(existing: string[], raw: string): string[] {
 function SearchTermsField({
   filters,
   onChange,
+  onSearch,
+  disabled,
+  savedFiltersDropdown,
 }: {
   filters: AdsLibraryFilterState;
   onChange: (patch: Partial<AdsLibraryFilterState>) => void;
+  onSearch: () => void;
+  disabled?: boolean;
+  savedFiltersDropdown?: React.ReactNode;
 }) {
   const commitDraft = () => {
     const draft = filters.q.trim();
@@ -864,12 +764,6 @@ function SearchTermsField({
     onChange({ searchTerms: filters.searchTerms.filter((t) => t !== term) });
   };
 
-  const clearAll = () => {
-    onChange({ searchTerms: [], q: "" });
-  };
-
-  const showClear = filters.searchTerms.length > 0 || filters.q.trim().length > 0;
-
   return (
     <div className="ads-library-search-row">
       <div className="ads-library-search-combobox">
@@ -881,6 +775,7 @@ function SearchTermsField({
               className="ads-library-search-term-remove"
               aria-label={`Remove ${term}`}
               onClick={() => removeTerm(term)}
+              disabled={disabled}
             >
               <X size={12} />
             </button>
@@ -889,10 +784,9 @@ function SearchTermsField({
         <input
           type="text"
           className="ads-library-search-input-inline"
-          placeholder={
-            filters.searchTerms.length ? "Search… (comma to add a term)" : "Search… (comma to add a term)"
-          }
+          placeholder="Search… (comma to add a term)"
           value={filters.q}
+          disabled={disabled}
           onChange={(e) => {
             const v = e.target.value;
             if (v.includes(",")) {
@@ -907,7 +801,13 @@ function SearchTermsField({
             }
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              // Enter only commits a draft tag — scrape starts from the search button.
+              commitDraft();
+              return;
+            }
+            if (e.key === ",") {
               e.preventDefault();
               commitDraft();
             }
@@ -918,16 +818,17 @@ function SearchTermsField({
           onBlur={commitDraft}
         />
       </div>
-      {showClear && (
-        <button
-          type="button"
-          className="ads-library-search-clear"
-          aria-label="Clear search terms"
-          onClick={clearAll}
-        >
-          <X size={18} />
-        </button>
-      )}
+      <button
+        type="button"
+        className="ads-library-search-go"
+        aria-label="Search Ads Library"
+        title="Search"
+        onClick={onSearch}
+        disabled={disabled}
+      >
+        <Search size={18} />
+      </button>
+      {savedFiltersDropdown}
     </div>
   );
 }
@@ -936,11 +837,19 @@ export function AdsLibraryFilterBar({
   filters,
   onChange,
   onReset,
+  onSearch,
+  onSaveFilters,
+  savedFiltersDropdown,
+  disabled = false,
   facetCountries,
   facetLanguages,
   facetAngles,
 }: AdsLibraryFilterBarProps) {
   const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (disabled) setOpenId(null);
+  }, [disabled]);
 
   const countryCodes = useMemo(() => {
     const seen = new Set<string>();
@@ -1028,8 +937,14 @@ export function AdsLibraryFilterBar({
       : "Countries";
 
   return (
-    <div className="ads-library-filters">
-      <SearchTermsField filters={filters} onChange={onChange} />
+    <div className="ads-library-filters" data-disabled={disabled ? "true" : "false"}>
+      <SearchTermsField
+        filters={filters}
+        onChange={onChange}
+        onSearch={onSearch}
+        disabled={disabled}
+        savedFiltersDropdown={savedFiltersDropdown}
+      />
 
       <div className="ads-library-filter-grid-row">
         <div className="ads-library-filter-grid">
@@ -1408,9 +1323,21 @@ export function AdsLibraryFilterBar({
               </span>
             ))}
           </div>
-          <button type="button" className="ads-library-active-filters-clear-all" onClick={onReset}>
-            Clear all
-          </button>
+          <div className="ads-library-active-filters-actions">
+            <button type="button" className="ads-library-active-filters-clear-all" onClick={onReset}>
+              Clear all
+            </button>
+            {onSaveFilters && (
+              <button
+                type="button"
+                className="ads-library-active-filters-save"
+                onClick={onSaveFilters}
+                disabled={disabled}
+              >
+                Save filters
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
