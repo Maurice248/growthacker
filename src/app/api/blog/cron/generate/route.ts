@@ -1,13 +1,17 @@
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { runBlogAdvanceWorker } from '@/lib/blog/advance-worker';
 import { peekRotatedCategory } from '@/lib/blog/categories';
 import { upsertBlogConfig } from '@/lib/blog/company-context';
 import { startBlogGeneration } from '@/lib/blog/generate';
 import { companyHasActiveBlogJob } from '@/lib/blog/jobs';
 import { shouldRunBlogToday } from '@/lib/blog/schedule';
+
+const ENQUEUE_BUDGET_MS = 45_000;
+const ADVANCE_BUDGET_MS = 250_000;
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -16,6 +20,8 @@ export async function GET(request: NextRequest) {
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const startedAt = Date.now();
 
   try {
     const configs = await prisma.blogConfig.findMany({
@@ -34,6 +40,16 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     for (const config of configs) {
+      if (Date.now() - startedAt > ENQUEUE_BUDGET_MS) {
+        results.push({
+          companyId: config.companyId,
+          companyName: config.company.name,
+          skipped: true,
+          reason: 'Enqueue budget exhausted; will retry next daily run',
+        });
+        continue;
+      }
+
       const shouldRun = shouldRunBlogToday(
         config.runHour,
         config.runMinute,
@@ -97,7 +113,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, results });
+    // Hobby plan: only one cron run per day, so advance phases (and soft-wait images)
+    // in this same invocation instead of a separate every-5-min cron.
+    const advance = await runBlogAdvanceWorker({
+      workerBudgetMs: ADVANCE_BUDGET_MS,
+      startedAt: Date.now(),
+    });
+
+    return NextResponse.json({ ok: true, results, advance });
   } catch (error) {
     console.error('[API blog/cron/generate]', error);
     return NextResponse.json(

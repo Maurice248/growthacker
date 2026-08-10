@@ -587,7 +587,8 @@ async function phasePublishing(
 }
 
 /**
- * Enqueue a blog job only. Phases are advanced by `/api/blog/job` or `/api/blog/cron/advance`.
+ * Enqueue a blog job only. Phases are advanced by `/api/blog/job` polling
+ * or the daily `/api/blog/cron/generate` advance pass (Hobby-safe).
  */
 export async function startBlogGeneration(
   companyId: string,

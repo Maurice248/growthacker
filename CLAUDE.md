@@ -131,14 +131,15 @@ Frontend (blog/* components)
   → /api/blog/categories          (per-company category rotation)
   → /api/blog/generate            (enqueue job as pending)
   → /api/blog/job                 (advance one phase per poll; used by Create Post dialog)
-  → /api/blog/cron/generate       (daily enqueue for active schedules; sets lastRunAt)
-  → /api/blog/cron/advance        (every 5 min; claim + advance one phase; abandon stale jobs)
+  → /api/blog/cron/generate       (daily: enqueue scheduled jobs, then advance phases in-process)
+  → /api/blog/cron/advance        (optional manual/external trigger; not on Vercel Hobby crons)
   → Prisma BlogConfig / BlogCategory / BlogJob
   → OpenAI, DataForSEO, kie.ai, WordPress (per-company API keys)
 ```
 
 Phases: `pending → outline → writing → image_prompt → image → publishing → done` (one phase per invocation).
 Internal lease/attempts live in `BlogJob.input` (`_lease`, `_attempts`, `_imageWaitStartedAt`).
+Hobby Vercel only allows once-per-day crons, so scheduled jobs are advanced inside the daily generate cron (with soft-wait retries for kie.ai images) instead of an every-5-min worker.
 
 ### n8n Integration
 

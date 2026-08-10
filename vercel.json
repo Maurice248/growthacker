@@ -9,10 +9,6 @@
       "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/blog/cron/advance",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/meta/automation/cron/evaluate",
       "schedule": "0 8 * * *"
     }
