@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiCompanyId } from '@/lib/api-auth';
+import { prisma } from '@/lib/prisma';
 import {
   createWordPressPost,
   formatWordPressError,
@@ -12,7 +14,16 @@ import {
   WORDPRESS_NOT_CONFIGURED_MSG,
 } from '@/lib/wordpress-request';
 
+function categoryFromJobInput(input: unknown): string | null {
+  if (!input || typeof input !== 'object') return null;
+  const category = (input as { category?: unknown }).category;
+  return typeof category === 'string' && category.trim() ? category.trim() : null;
+}
+
 export async function GET(request: NextRequest) {
+  const companyId = await requireApiCompanyId();
+  if (companyId instanceof NextResponse) return companyId;
+
   const wpConfig = await resolveWordPressConfigForRequest();
   if (!wpConfig) {
     return NextResponse.json(
@@ -42,7 +53,35 @@ export async function GET(request: NextRequest) {
       wpConfig
     );
 
-    return NextResponse.json({ configured: true, posts });
+    const postIds = posts.map((post) => post.id);
+    const jobs =
+      postIds.length === 0
+        ? []
+        : await prisma.blogJob.findMany({
+            where: {
+              companyId,
+              wordpressPostId: { in: postIds },
+            },
+            select: {
+              wordpressPostId: true,
+              input: true,
+              category: { select: { category: true } },
+            },
+          });
+
+    const categoryByPostId = new Map<number, string>();
+    for (const job of jobs) {
+      if (job.wordpressPostId == null) continue;
+      const name = job.category?.category?.trim() || categoryFromJobInput(job.input);
+      if (name) categoryByPostId.set(job.wordpressPostId, name);
+    }
+
+    const enrichedPosts = posts.map((post) => ({
+      ...post,
+      category: categoryByPostId.get(post.id) ?? null,
+    }));
+
+    return NextResponse.json({ configured: true, posts: enrichedPosts });
   } catch (error) {
     const status = error instanceof WordPressConfigError ? 503 : 502;
     console.error('[API blog/posts GET]', error);

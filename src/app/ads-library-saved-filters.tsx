@@ -10,7 +10,10 @@ import {
 import type { AdsLibrarySavedFilterRecord } from "@/lib/ads-library/saved-filters-shared";
 
 export type AdsLibrarySaveFiltersAction = {
-  open: () => void;
+  /** Update the active saved filter, or open the name modal if none is active. */
+  save: () => void;
+  /** Always open the name modal to create a new saved filter. */
+  saveAsNew: () => void;
 };
 
 function filterSummaryLines(filters: AdsLibraryFilterState): string[] {
@@ -113,7 +116,7 @@ type AdsLibrarySavedFiltersProps = {
   filters: AdsLibraryFilterState;
   disabled?: boolean;
   onApply: (filters: AdsLibraryFilterState) => void;
-  /** Lets the filter bar open the save modal (Save filters lives under Clear all). */
+  /** Lets the filter bar save / save-as-new (buttons live under Clear all). */
   saveActionRef?: React.MutableRefObject<AdsLibrarySaveFiltersAction | null>;
   children?: React.ReactNode;
 };
@@ -138,6 +141,10 @@ export function AdsLibrarySavedFilters({
 
   const canSave = adsLibraryFiltersActive(filters) && !disabled;
 
+  useEffect(() => {
+    if (!adsLibraryFiltersActive(filters)) setActiveId(null);
+  }, [filters]);
+
   const showToast = useCallback((message: string, tone: "ok" | "err" = "ok") => {
     setToast({ message, tone });
     window.setTimeout(() => setToast(null), 3200);
@@ -161,7 +168,7 @@ export function AdsLibrarySavedFilters({
     void fetchSaved();
   }, [fetchSaved]);
 
-  const openSaveModal = useCallback(() => {
+  const openSaveAsNewModal = useCallback(() => {
     if (!canSave) {
       showToast("Add a search term or filter before saving", "err");
       return;
@@ -170,13 +177,49 @@ export function AdsLibrarySavedFilters({
     setNameOpen(true);
   }, [canSave, showToast]);
 
+  const handleSaveActive = useCallback(async () => {
+    if (!canSave) {
+      showToast("Add a search term or filter before saving", "err");
+      return;
+    }
+    if (!activeId) {
+      openSaveAsNewModal();
+      return;
+    }
+    const active = savedFilters.find((f) => f.id === activeId);
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/ads-library/saved-filters/${activeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filters }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 || data.duplicate) {
+        showToast("These filters are already saved", "err");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || "Failed to save filter");
+      if (data.savedFilter) {
+        setSavedFilters((prev) =>
+          prev.map((f) => (f.id === data.savedFilter.id ? data.savedFilter : f))
+        );
+        showToast(`Updated “${data.savedFilter.label || active?.label || "filter"}”`);
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Failed to save filter", "err");
+    } finally {
+      setSaving(false);
+    }
+  }, [activeId, canSave, filters, openSaveAsNewModal, savedFilters, showToast]);
+
   useEffect(() => {
     if (!saveActionRef) return;
-    saveActionRef.current = { open: openSaveModal };
+    saveActionRef.current = { save: () => void handleSaveActive(), saveAsNew: openSaveAsNewModal };
     return () => {
       saveActionRef.current = null;
     };
-  }, [openSaveModal, saveActionRef]);
+  }, [handleSaveActive, openSaveAsNewModal, saveActionRef]);
 
   const handleConfirmSave = async () => {
     const label = nameInput.trim();
@@ -201,7 +244,7 @@ export function AdsLibrarySavedFilters({
       if (data.savedFilter) {
         setSavedFilters((prev) => [data.savedFilter, ...prev]);
         setActiveId(data.savedFilter.id);
-        showToast(`Saved filters “${label}”`);
+        showToast(`Saved filter “${label}”`);
       }
       setNameOpen(false);
       setNameInput("");
@@ -310,7 +353,7 @@ export function AdsLibrarySavedFilters({
             }}
           >
             <div style={{ padding: "18px 22px", background: "linear-gradient(135deg, #003049, #1A4A66)" }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>Save filters</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>Save as new filter</div>
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 4 }}>
                 Name this filter set — it will appear under Saved filters, like Brand & ICP templates.
               </div>
@@ -473,7 +516,7 @@ export function AdsLibrarySavedFiltersDropdown() {
               <div className="ads-library-saved-filters-empty">
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#4A5A64" }}>No saved filters yet</div>
                 <div style={{ fontSize: 12, color: "#9FA8A3", marginTop: 6, lineHeight: 1.4 }}>
-                  Set filters, then click Save filters under Clear all.
+                  Set filters, then click Save filter or Save as new filter under Clear all.
                 </div>
               </div>
             ) : (

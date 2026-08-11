@@ -82,6 +82,35 @@ export async function renameAdsLibrarySavedFilter(
   return row ? rowToApi(row) : null;
 }
 
+export async function updateAdsLibrarySavedFilter(
+  companyId: string,
+  id: string,
+  filtersInput: Partial<AdsLibraryFilterState>
+) {
+  const existing = await prisma.adLibrarySavedFilter.findFirst({
+    where: { id, companyId },
+    select: { id: true },
+  });
+  if (!existing) return null;
+
+  const filters = normalizeAdsLibraryFiltersForSave(filtersInput);
+  const contentHash = computeAdsLibraryFiltersHash(filters);
+
+  const duplicate = await prisma.adLibrarySavedFilter.findFirst({
+    where: { companyId, contentHash, NOT: { id } },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return { duplicate: true as const };
+  }
+
+  const row = await prisma.adLibrarySavedFilter.update({
+    where: { id },
+    data: { filters, contentHash },
+  });
+  return { savedFilter: rowToApi(row) };
+}
+
 export async function deleteAdsLibrarySavedFilter(companyId: string, id: string) {
   const result = await prisma.adLibrarySavedFilter.deleteMany({
     where: { id, companyId },

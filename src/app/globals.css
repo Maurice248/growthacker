@@ -2457,7 +2457,7 @@ pre {
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
-  padding: 4px 0;
+  padding: 1px 0;
   border: none;
   background: none;
   color: var(--red);
@@ -2469,7 +2469,7 @@ pre {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
@@ -2478,7 +2478,7 @@ pre {
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
-  padding: 4px 0;
+  padding: 1px 0;
   border: none;
   background: none;
   color: var(--secondary);

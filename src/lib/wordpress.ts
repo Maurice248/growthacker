@@ -17,6 +17,7 @@ export interface WordPressPost {
   title: WordPressRenderedField;
   content: WordPressRenderedField;
   excerpt: WordPressRenderedField;
+  categories?: number[];
 }
 
 export interface WordPressPostInput {

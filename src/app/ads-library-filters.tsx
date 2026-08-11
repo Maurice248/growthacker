@@ -717,6 +717,8 @@ type AdsLibraryFilterBarProps = {
   onSearch: () => void;
   /** Opens the save-filters modal (button sits under Clear all). */
   onSaveFilters?: () => void;
+  /** Always create a new named saved filter. */
+  onSaveAsNewFilter?: () => void;
   /** Dropdown control rendered beside the search input. */
   savedFiltersDropdown?: React.ReactNode;
   /** When true, filter controls are locked (e.g. scrape in progress). */
@@ -839,6 +841,7 @@ export function AdsLibraryFilterBar({
   onReset,
   onSearch,
   onSaveFilters,
+  onSaveAsNewFilter,
   savedFiltersDropdown,
   disabled = false,
   facetCountries,
@@ -1334,7 +1337,17 @@ export function AdsLibraryFilterBar({
                 onClick={onSaveFilters}
                 disabled={disabled}
               >
-                Save filters
+                Save filter
+              </button>
+            )}
+            {onSaveAsNewFilter && (
+              <button
+                type="button"
+                className="ads-library-active-filters-save"
+                onClick={onSaveAsNewFilter}
+                disabled={disabled}
+              >
+                Save as new filter
               </button>
             )}
           </div>

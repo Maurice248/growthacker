@@ -436,7 +436,8 @@ export default function AdsLibrary() {
           onChange={patchFilters}
           onReset={resetFilters}
           onSearch={handleSearch}
-          onSaveFilters={() => saveFiltersActionRef.current?.open()}
+          onSaveFilters={() => saveFiltersActionRef.current?.save()}
+          onSaveAsNewFilter={() => saveFiltersActionRef.current?.saveAsNew()}
           savedFiltersDropdown={<AdsLibrarySavedFiltersDropdown />}
           disabled={loading}
           facetCountries={facets.countries}

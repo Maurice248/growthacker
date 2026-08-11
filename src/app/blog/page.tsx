@@ -23,6 +23,7 @@ interface WordPressPost {
   link: string;
   title: { rendered: string };
   excerpt: { rendered: string };
+  category?: string | null;
 }
 
 interface PostsResponse {
@@ -167,6 +168,7 @@ export default function BlogManagementPage() {
                 )}
                 <div className="mt-1.5 text-xs text-[#B0A88F]">
                   {format(new Date(post.date), 'MMM dd, yyyy')} · ID {post.id}
+                  {post.category ? ` · category: ${post.category}` : ''}
                 </div>
               </div>
               <div className="flex items-baseline gap-4">
