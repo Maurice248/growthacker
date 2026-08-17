@@ -730,6 +730,21 @@ function normalizeIdeaForAdType(idea, adType) {
     .replace(/\breel\b/gi, "carousel");
 }
 
+function ideaTextFromGenerated(ideaObj) {
+  if (typeof ideaObj === "string") return ideaObj.trim();
+  if (!ideaObj || typeof ideaObj !== "object") return "";
+  return String(
+    ideaObj.idea ||
+      ideaObj.prompt ||
+      ideaObj.image_prompt ||
+      ideaObj.description ||
+      ideaObj.concept ||
+      ideaObj.text ||
+      ideaObj.story ||
+      ""
+  ).trim();
+}
+
 type AnalysisResultSection =
   | "summary"
   | "competitors"
@@ -1301,7 +1316,7 @@ function CreateAdParametersBlock({
               <div
                 key={`${item.id}-idea-${ideaIndex}`}
                 onClick={() => {
-                  onUpdateIdea(idx, ideaObj.idea);
+                  onUpdateIdea(idx, ideaTextFromGenerated(ideaObj));
                   onClearGeneratedIdeas(item.id);
                 }}
                 style={{
@@ -1325,7 +1340,7 @@ function CreateAdParametersBlock({
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                {ideaObj.idea}
+                {ideaTextFromGenerated(ideaObj)}
               </div>
             ))}
           </div>
@@ -3674,12 +3689,17 @@ export default function Dashboard() {
         let ideasArr = [];
         if (Array.isArray(data)) {
           if (data[0] && Array.isArray(data[0].ideas)) ideasArr = data[0].ideas;
-          else if (data[0] && data[0].idea) ideasArr = data;
+          else if (data[0] && (data[0].idea || data[0].prompt)) ideasArr = data;
           else if (Array.isArray(data[0])) ideasArr = data[0];
         } else if (data && Array.isArray(data.ideas)) {
           ideasArr = data.ideas;
         }
-        if (ideasArr && ideasArr.length > 0) {
+        ideasArr = (ideasArr || [])
+          .map((ideaObj) =>
+            typeof ideaObj === "string" ? { idea: ideaObj } : { ...ideaObj, idea: ideaTextFromGenerated(ideaObj) }
+          )
+          .filter((ideaObj) => ideaObj.idea);
+        if (ideasArr.length > 0) {
           setGeneratedIdeas((prev) => ({ ...prev, [item.id]: ideasArr }));
           addSbToast("Ideas generated — click one to use in the prompt.", "success");
         } else {

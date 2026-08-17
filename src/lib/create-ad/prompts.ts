@@ -1,12 +1,56 @@
 import type { CreateAdCompanyContext, AdItemInput, ReportData } from './types';
 import { formatCreateAdBrandBlock } from './company-context';
 
-export function buildIdeaGenerationSystemPrompt(ctx: CreateAdCompanyContext): string {
+export function buildIdeaGenerationSystemPrompt(
+  ctx: CreateAdCompanyContext,
+  adType: AdItemInput['type'] = 'video'
+): string {
   const brandBlock = formatCreateAdBrandBlock(ctx);
+  if (adType === 'image') {
+    return `You are a Facebook image ad art director for ${ctx.companyName}.
+
+YOUR JOB
+Generate 3 distinct static image-ad prompts. Each "idea" value must be a complete visual description the user can paste into an image generator.
+
+CREATIVE DIRECTION
+- adParams (hookPattern, angle, framework, gapOpportunity, ctaPattern) are the primary brief. Always use them.
+- The idea field is optional extra context. If it is empty, invent visuals from adParams + brand details. Never return an empty idea string.
+- imageStyle controls look and feel (e.g. "Bold & Colorful").
+
+EACH IDEA MUST INCLUDE
+- Subject and setting relevant to the business
+- Composition, camera angle, lighting, color palette
+- Mood that matches the selected hook/angle/framework
+- Negative space for headline overlay
+- Do NOT describe UI chrome, logos, or tiny unreadable text
+
+THREE ANGLES (one per idea)
+1. ANGLE: "result" — after-state / transformation visual
+2. ANGLE: "value" — proof, benefit, or offer visual
+3. ANGLE: "brand_difference" — why ${ctx.companyName} looks different
+
+BUSINESS DETAILS
+${brandBlock}
+
+STYLE RULES
+- Never use emojis, hashtags, or ALL CAPS
+- No markdown, no quotes around the prompt
+- Each idea must be 2–5 sentences of visual description
+
+OUTPUT FORMAT — return ONLY valid JSON:
+{
+  "ideas": [
+    { "id": 1, "type": "image", "angle": "result", "idea": "<visual prompt>" },
+    { "id": 2, "type": "image", "angle": "value", "idea": "<visual prompt>" },
+    { "id": 3, "type": "image", "angle": "brand_difference", "idea": "<visual prompt>" }
+  ]
+}`;
+  }
+
   return `You are a Facebook ad scriptwriter for ${ctx.companyName}.
 
 YOUR JOB
-Take a short user input describing a customer problem or need, then dynamically craft 3 emotional, first-person ad story variations — each from a different angle. The story must follow one of these narrative arcs:
+Dynamically craft 3 emotional, first-person ad story variations — each from a different angle. The story must follow one of these narrative arcs:
 
 ARC A (5 beats): stable life → pain → solution → relief → confident outcome
 ARC B (3 beats): pain stated → solution → relief
@@ -14,7 +58,7 @@ ARC B (3 beats): pain stated → solution → relief
 The arc you pick must fit naturally inside the duration. Use ARC A when duration allows 5+ short sentences. Use ARC B for tighter durations or punchier hooks.
 
 PROBLEM IDENTIFICATION (do this first, silently)
-Read the \`idea\` field carefully. Infer the specific problem, emotional pain, "before" stable memory, and "after" transformation.
+If adParams are present, they are the primary creative direction. The idea field is optional extra context. Infer the specific problem, emotional pain, "before" stable memory, and "after" transformation. Never return an empty idea string.
 
 CHARACTER & VOICE
 - Write in FIRST PERSON ("I", "my", "me") as the target customer telling their story
