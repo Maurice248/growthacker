@@ -1,6 +1,7 @@
 import { DEFAULT_BRAND_NAME, DEFAULT_WEBSITE_URL } from '@/lib/legacy-brand';
 import { getMetaCredentialsForRequest } from '@/lib/meta-credentials';
 import { requireMetaApiAuth } from '@/lib/meta-api-auth';
+import { metaAdSetDestinationType, metaMessagingCta, messagingOptimizationGoal } from '@/lib/meta/destination';
 import { NextResponse } from 'next/server';
 
 export const maxDuration = 60; // Allow Vercel to run up to 60s for video polling
@@ -265,7 +266,7 @@ async function createCampaign(existingCampaignId, adAccountId, accessToken, camp
 }
 
 // ── STEP 3: Ad Set ──
-async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCbo, budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, targeting, dsaFields, optimizationGoal, promotedObject) {
+async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCbo, budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, targeting, dsaFields, optimizationGoal, promotedObject, destinationType) {
   const bodyPayload: any = {
     name: adSetName,
     campaign_id: campaignId,
@@ -284,6 +285,9 @@ async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCb
   if (promotedObject) {
     bodyPayload.promoted_object = promotedObject;
   }
+  if (destinationType) {
+    bodyPayload.destination_type = destinationType;
+  }
 
   const adSetRes = await fetch(
     `https://graph.facebook.com/v21.0/act_${adAccountId}/adsets`,
@@ -298,7 +302,13 @@ async function createAdSet(adAccountId, accessToken, adSetName, campaignId, isCb
 }
 
 // ── STEP 4: Ad Creative ──
-async function createAdCreative(adAccountId, accessToken, isVideo, pageId, mediaPayload, headline, primaryText, websiteUrl, ctaType, adName) {
+async function createAdCreative(adAccountId, accessToken, isVideo, pageId, mediaPayload, headline, primaryText, websiteUrl, ctaType, adName, destinationType, messagingApps, whatsappNumber) {
+  const isMessaging = destinationType === "MESSAGING";
+  const cta = isMessaging
+    ? metaMessagingCta(messagingApps || [], whatsappNumber)
+    : { type: ctaType, value: { link: websiteUrl } };
+  const link = websiteUrl || `https://www.facebook.com/${pageId}`;
+
   let objectStorySpec;
   if (isVideo) {
     objectStorySpec = {
@@ -309,10 +319,7 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
         title: headline,
         message: primaryText,
         link_description: headline,
-        call_to_action: {
-          type: ctaType,
-          value: { link: websiteUrl },
-        },
+        call_to_action: cta,
       },
     };
   } else {
@@ -320,13 +327,10 @@ async function createAdCreative(adAccountId, accessToken, isVideo, pageId, media
       page_id: pageId,
       link_data: {
         image_hash: mediaPayload.image_hash,
-        link: websiteUrl,
+        link,
         message: primaryText,
         name: headline,
-        call_to_action: {
-          type: ctaType,
-          value: { link: websiteUrl },
-        },
+        call_to_action: cta,
       },
     };
   }
@@ -492,6 +496,10 @@ export async function POST(request: Request) {
 
     // Dynamic Optimization Goal and Pixel requirements
     const userGoal = ad_set?.optimization_goal || "LINK_CLICKS";
+    const destinationType = schema.ad?.destination_type || "WEBSITE";
+    const messagingApps = schema.ad?.messaging_apps || [];
+    const whatsappNumber = schema.ad?.whatsapp_number || "";
+    const metaDestinationType = metaAdSetDestinationType(destinationType, messagingApps);
     const isPixelRequired = 
       objective === "OUTCOME_SALES" || 
       objective === "OUTCOME_LEADS" || 
@@ -524,6 +532,10 @@ export async function POST(request: Request) {
       }
     }
 
+    if (destinationType === "MESSAGING") {
+      optimizationGoal = messagingOptimizationGoal(optimizationGoal);
+    }
+
     // ── Execute Concurrent Tasks: Page ID Fetch ──
     const pageId = await fetchPageId(accessToken, configuredPageId);
 
@@ -536,7 +548,7 @@ export async function POST(request: Request) {
     const adSetId = existingAdSetId || await createAdSet(
       adAccountId, accessToken, adSetName, campaignId, isCbo, 
       budgetType, dailyBudget, lifetimeBudget, startTime, stopTime, 
-      targeting, dsaFields, optimizationGoal, promotedObject
+      targeting, dsaFields, optimizationGoal, promotedObject, metaDestinationType
     );
 
     const adIds: string[] = [];
@@ -556,7 +568,8 @@ export async function POST(request: Request) {
 
       const creativeId = await createAdCreative(
         adAccountId, accessToken, isVideo, pageId, mediaPayload, 
-        headline, primaryText, websiteUrl, ctaType, adName
+        headline, primaryText, websiteUrl, ctaType, adName,
+        destinationType, messagingApps, whatsappNumber
       );
 
       const adId = await createAd(

@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Spinner, EditorialPage, EditorialPageHeader, EditorialSectionHeader, EditorialDefinitionList, EditorialDefinitionRow, EditorialField, EditorialPillButton, EditorialTextLink, EditorialStatusPill } from "./components";
 import CustomSelect from "./CustomSelect";
+import CampaignObjectivePicker from "./CampaignObjectivePicker";
+import DestinationPicker, { MessagingAppsPanel } from "./DestinationPicker";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 const normalizeSupabaseUrl = (url: string | null | undefined) => {
@@ -52,6 +54,9 @@ const DEFAULT_CONFIG: any = {
     website_url: "",
     display_link: "",
     call_to_action_type: "LEARN_MORE",
+    destination_type: "WEBSITE",
+    messaging_apps: ["MESSENGER", "INSTAGRAM"],
+    whatsapp_number: "",
     facebook_page: "",
     instagram_account: "",
   },
@@ -80,13 +85,6 @@ const STORE_STEP     = "app_campaign_step";
 const STORE_SEL_AD   = "app_campaign_sel_ad";
 const STORE_LAST_AD  = "app_campaign_last_ad_text";
 
-const CAMPAIGN_OBJECTIVES = [
-  { value: "OUTCOME_AWARENESS", label: "Awareness", icon: "📢" },
-  { value: "OUTCOME_TRAFFIC", label: "Traffic", icon: "🌐" },
-  { value: "OUTCOME_ENGAGEMENT", label: "Engagement", icon: "💬" },
-  { value: "OUTCOME_LEADS", label: "Leads", icon: "📋" },
-  { value: "OUTCOME_SALES", label: "Sales", icon: "🛍️" },
-];
 const OPTIMIZATION_GOALS = [
   { value: "OFFSITE_CONVERSIONS", label: "Conversions" },
   { value: "LINK_CLICKS", label: "Link Clicks" },
@@ -97,15 +95,19 @@ const OPTIMIZATION_GOALS = [
   { value: "LEAD_GENERATION", label: "Lead Generation" },
   { value: "QUALITY_LEAD", label: "Quality Lead" },
   { value: "THRUPLAY", label: "ThruPlay (Video)" },
+  { value: "APP_INSTALLS", label: "App Installs" },
+  { value: "APP_EVENTS", label: "App Events" },
+  { value: "CONVERSATIONS", label: "Conversations" },
 ];
 
 // Valid optimization goals per campaign objective (Meta API rules)
 const OBJECTIVE_GOAL_MAP: Record<string, string[]> = {
   OUTCOME_AWARENESS:  ["REACH", "IMPRESSIONS", "THRUPLAY"],
   OUTCOME_TRAFFIC:    ["LINK_CLICKS", "LANDING_PAGE_VIEWS", "REACH", "IMPRESSIONS"],
-  OUTCOME_ENGAGEMENT: ["POST_ENGAGEMENT", "LINK_CLICKS", "REACH", "IMPRESSIONS"],
-  OUTCOME_LEADS:      ["LEAD_GENERATION", "QUALITY_LEAD", "LINK_CLICKS"],
-  OUTCOME_SALES:      ["OFFSITE_CONVERSIONS", "LINK_CLICKS"],
+  OUTCOME_ENGAGEMENT: ["POST_ENGAGEMENT", "LINK_CLICKS", "REACH", "IMPRESSIONS", "CONVERSATIONS"],
+  OUTCOME_LEADS:      ["LEAD_GENERATION", "QUALITY_LEAD", "LINK_CLICKS", "CONVERSATIONS"],
+  OUTCOME_APP_PROMOTION: ["APP_INSTALLS", "APP_EVENTS"],
+  OUTCOME_SALES:      ["OFFSITE_CONVERSIONS", "LINK_CLICKS", "CONVERSATIONS"],
 };
 const BUDGET_TYPES = [
   { value: "DAILY", label: "Daily Budget" },
@@ -125,6 +127,7 @@ const CTA_OPTIONS = [
   { value: "GET_OFFER", label: "Get Offer" },
   { value: "ORDER_NOW", label: "Order Now" },
   { value: "WATCH_MORE", label: "Watch More" },
+  { value: "SEND_MESSAGE", label: "Send Message" },
 ];
 
 interface CampaignSetupProps {
@@ -651,12 +654,21 @@ export default function CampaignSetup({
         if (!config.ad?.primary_text?.trim()) errs.push("Primary Text is required.");
       }
       if (!config.ad?.headline?.trim()) errs.push("Headline is required.");
-      const url = config.ad?.website_url?.trim();
-      if (!url) {
-        errs.push("Destination URL is required.");
+      const dest = config.ad?.destination_type || "WEBSITE";
+      if (dest === "MESSAGING") {
+        const apps = config.ad?.messaging_apps || [];
+        if (!apps.length) errs.push("Select at least one messaging app.");
+        if (apps.includes("WHATSAPP") && !config.ad?.whatsapp_number?.trim()) {
+          errs.push("WhatsApp number is required when WhatsApp is selected.");
+        }
       } else {
-        try { new URL(url); if (!/^https?:\/\/.+\..+/.test(url)) throw new Error(); }
-        catch { errs.push("Destination URL is invalid. Must start with https:// or http:// (e.g. https://example.com)."); }
+        const url = config.ad?.website_url?.trim();
+        if (!url) {
+          errs.push("Website URL is required.");
+        } else {
+          try { new URL(url); if (!/^https?:\/\/.+\..+/.test(url)) throw new Error(); }
+          catch { errs.push("Website URL is invalid. Must start with https:// or http:// (e.g. https://example.com)."); }
+        }
       }
     }
     return errs;
@@ -811,9 +823,9 @@ export default function CampaignSetup({
                   />
                 </EditorialDefinitionRow>
                 <EditorialDefinitionRow label="Campaign objective">
-                  <CustomSelect
+                  <CampaignObjectivePicker
                     value={config.campaign?.objective || ""}
-                    onChange={v => {
+                    onChange={(v) => {
                       setField("campaign", "objective", v);
                       const allowed = OBJECTIVE_GOAL_MAP[v] || [];
                       const currentGoal = config.ad_set?.optimization_goal;
@@ -821,7 +833,6 @@ export default function CampaignSetup({
                         setField("ad_set", "optimization_goal", allowed[0] || "LINK_CLICKS");
                       }
                     }}
-                    options={CAMPAIGN_OBJECTIVES.map(o => ({ value: o.value, label: `${o.icon} ${o.label}` }))}
                   />
                 </EditorialDefinitionRow>
                 <EditorialDefinitionRow label="Buying type" isLast>
@@ -910,7 +921,7 @@ export default function CampaignSetup({
               </EditorialDefinitionRow>
               <EditorialDefinitionRow label={`Amount (${config.ad_set?.budget_type === "DAILY" ? "Daily" : "Lifetime"}) USD`}>
                 <div style={{ position: "relative", maxWidth: 220 }}>
-                  <span style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", color: "#8C8474", fontWeight: 600 }}>$</span>
+                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#8C8474", fontWeight: 600, pointerEvents: "none" }}>$</span>
                   <EditorialField
                     value={
                       config.ad_set?.budget_type === "DAILY"
@@ -922,6 +933,7 @@ export default function CampaignSetup({
                       setField("ad_set", key, Math.round(Number(v) * 100));
                     }}
                     placeholder="0.00"
+                    style={{ paddingLeft: 28 }}
                   />
                 </div>
               </EditorialDefinitionRow>
@@ -1155,9 +1167,10 @@ export default function CampaignSetup({
             )}
 
             {(() => {
+              const dest = config.ad?.destination_type || "WEBSITE";
               const url = config.ad?.website_url?.trim();
               let urlValid = true;
-              if (url) {
+              if (dest === "WEBSITE" && url) {
                 try {
                   new URL(url);
                   if (!/^https?:\/\/.+\..+/.test(url)) throw new Error();
@@ -1166,29 +1179,59 @@ export default function CampaignSetup({
                 }
               }
               return (
-                <div
-                  className={`editorial-field-highlight${urlValid ? "" : " editorial-field-highlight--error"}`}
-                  style={{
-                  marginTop: 8,
-                  padding: "20px 24px",
-                  background: urlValid ? "#E7F0F6" : "#F9E3E0",
-                  borderRadius: 12,
-                  border: `1px solid ${urlValid ? "#C2D6E2" : "#fca5a5"}`,
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: urlValid ? "#1A4A66" : "#C1121F", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-                    Destination URL *
-                  </div>
-                  <EditorialField
-                    value={config.ad?.website_url || ""}
-                    onChange={(v) => setField("ad", "website_url", v)}
-                    placeholder="https://example.com"
-                  />
-                  {url && !urlValid && (
-                    <div style={{ fontSize: 12, color: "#C1121F", marginTop: 8, fontWeight: 600 }}>
-                      Invalid URL — must start with https:// or http://
+                <>
+                  <EditorialDefinitionList>
+                    <EditorialDefinitionRow label="Destination" isLast>
+                      <DestinationPicker
+                        value={dest}
+                        onChange={(v) => {
+                          setField("ad", "destination_type", v);
+                          if (v === "MESSAGING") {
+                            if (!config.ad?.messaging_apps?.length) {
+                              setField("ad", "messaging_apps", ["MESSENGER", "INSTAGRAM"]);
+                            }
+                            setField("ad", "call_to_action_type", "SEND_MESSAGE");
+                          } else {
+                            setField("ad", "call_to_action_type", "LEARN_MORE");
+                          }
+                        }}
+                      />
+                    </EditorialDefinitionRow>
+                  </EditorialDefinitionList>
+                  {dest === "WEBSITE" ? (
+                    <div
+                      className={`editorial-field-highlight${urlValid ? "" : " editorial-field-highlight--error"}`}
+                      style={{
+                        marginTop: 8,
+                        padding: "20px 24px",
+                        background: urlValid ? "#E7F0F6" : "#F9E3E0",
+                        borderRadius: 12,
+                        border: `1px solid ${urlValid ? "#C2D6E2" : "#fca5a5"}`,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, fontWeight: 700, color: urlValid ? "#1A4A66" : "#C1121F", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                        Website URL *
+                      </div>
+                      <EditorialField
+                        value={config.ad?.website_url || ""}
+                        onChange={(v) => setField("ad", "website_url", v)}
+                        placeholder="https://example.com"
+                      />
+                      {url && !urlValid && (
+                        <div style={{ fontSize: 12, color: "#C1121F", marginTop: 8, fontWeight: 600 }}>
+                          Invalid URL — must start with https:// or http://
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <MessagingAppsPanel
+                      messagingApps={config.ad?.messaging_apps || ["MESSENGER", "INSTAGRAM"]}
+                      onMessagingAppsChange={(apps) => setField("ad", "messaging_apps", apps)}
+                      whatsappNumber={config.ad?.whatsapp_number || ""}
+                      onWhatsappNumberChange={(v) => setField("ad", "whatsapp_number", v)}
+                    />
                   )}
-                </div>
+                </>
               );
             })()}
           </section>

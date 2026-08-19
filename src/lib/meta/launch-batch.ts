@@ -1,5 +1,6 @@
 import { DEFAULT_BRAND_NAME, DEFAULT_WEBSITE_URL } from '@/lib/legacy-brand';
 import type { MetaCredentials } from '@/lib/meta-credentials';
+import { metaAdSetDestinationType, metaMessagingCta, messagingOptimizationGoal } from '@/lib/meta/destination';
 
 type LaunchSchema = {
   campaign?: Record<string, unknown>;
@@ -133,7 +134,8 @@ async function createAdSet(
   adAccountId: string,
   accessToken: string,
   campaignId: string,
-  adSet: Record<string, unknown>
+  adSet: Record<string, unknown>,
+  ad: Record<string, unknown> = {}
 ) {
   if (adSet.existing_id) return adSet.existing_id as string;
 
@@ -141,6 +143,14 @@ async function createAdSet(
     countries: ['US'],
     location_types: ['home', 'recent'],
   };
+
+  const destinationType = (ad.destination_type as string) || 'WEBSITE';
+  const messagingApps = (ad.messaging_apps as string[]) || [];
+  const metaDest = metaAdSetDestinationType(destinationType, messagingApps);
+  const optimizationGoal =
+    destinationType === 'MESSAGING'
+      ? messagingOptimizationGoal(adSet.optimization_goal as string)
+      : (adSet.optimization_goal as string) || 'LINK_CLICKS';
 
   const res = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}/adsets`, {
     method: 'POST',
@@ -151,7 +161,7 @@ async function createAdSet(
       daily_budget: adSet.daily_budget || 100,
       start_time: adSet.start_time || new Date().toISOString(),
       billing_event: 'IMPRESSIONS',
-      optimization_goal: adSet.optimization_goal || 'LINK_CLICKS',
+      optimization_goal: optimizationGoal,
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       targeting: {
         geo_locations: geo,
@@ -159,6 +169,7 @@ async function createAdSet(
         age_max: adSet.age_max || 65,
         targeting_automation: { advantage_audience: 0 },
       },
+      ...(metaDest ? { destination_type: metaDest } : {}),
       status: 'PAUSED',
       access_token: accessToken,
     }),
@@ -180,6 +191,14 @@ async function createAdCreative(
   const websiteUrl = (ad.website_url as string) || DEFAULT_WEBSITE_URL;
   const ctaType = (ad.call_to_action_type as string) || 'LEARN_MORE';
   const adName = (ad.name as string) || 'Ad';
+  const destinationType = (ad.destination_type as string) || 'WEBSITE';
+  const messagingApps = (ad.messaging_apps as string[]) || [];
+  const whatsappNumber = (ad.whatsapp_number as string) || '';
+  const isMessaging = destinationType === 'MESSAGING';
+  const cta = isMessaging
+    ? metaMessagingCta(messagingApps, whatsappNumber)
+    : { type: ctaType, value: { link: websiteUrl } };
+  const link = websiteUrl || `https://www.facebook.com/${pageId}`;
 
   const objectStorySpec = isVideo
     ? {
@@ -190,17 +209,17 @@ async function createAdCreative(
           title: headline,
           message: primaryText,
           link_description: headline,
-          call_to_action: { type: ctaType, value: { link: websiteUrl } },
+          call_to_action: cta,
         },
       }
     : {
         page_id: pageId,
         link_data: {
           image_hash: mediaPayload.image_hash,
-          link: websiteUrl,
+          link,
           message: primaryText,
           name: headline,
-          call_to_action: { type: ctaType, value: { link: websiteUrl } },
+          call_to_action: cta,
         },
       };
 
@@ -256,7 +275,7 @@ export async function launchAdsBatch(
     accessToken,
     schema.campaign || {}
   );
-  const adSetId = await createAdSet(adAccountId, accessToken, campaignId, schema.ad_set || {});
+  const adSetId = await createAdSet(adAccountId, accessToken, campaignId, schema.ad_set || {}, schema.ad || {});
 
   const adIds: string[] = [];
   for (const item of ads) {
