@@ -236,7 +236,7 @@ const META_ADS_TABS = [
   { id: "create", label: "Create Ad", icon: WandSparkles },
   { id: "variants", label: "Generate Ad Variants", icon: Sparkles },
   { id: "campaigns", label: "Campaign Setup", icon: Settings2 },
-  { id: "live_campaigns", label: "Campaign monitor", icon: TrendingUp },
+  { id: "live_campaigns", label: "Campaign Monitor", icon: TrendingUp },
   { id: "ad_performance", label: "Automated Campaigns", icon: Activity },
   { id: "reports", label: "Reports", icon: PieChart },
 ];
