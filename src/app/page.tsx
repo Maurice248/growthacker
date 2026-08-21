@@ -831,6 +831,99 @@ function analysisPriorityVariant(priority: string | undefined): "danger" | "unap
   return "neutral";
 }
 
+const META_STATUS_LABELS: Record<string, string> = {
+  IN_PROCESS: "Processing",
+  PENDING_REVIEW: "Review pending",
+  PREAPPROVED: "Preapproved",
+  WITH_ISSUES: "With issues",
+  DISAPPROVED: "Disapproved",
+  CAMPAIGN_PAUSED: "Campaign paused",
+  ADSET_PAUSED: "Ad set paused",
+  PENDING_BILLING_INFO: "Pending billing",
+};
+
+const TRANSIENT_META_STATUSES = new Set(["IN_PROCESS", "PENDING_REVIEW", "PREAPPROVED"]);
+const LIVE_CAMPAIGN_POLL_FAST_MS = 10000;
+const LIVE_CAMPAIGN_POLL_SLOW_MS = 25000;
+
+function formatMetaStatus(status: string | undefined | null) {
+  if (!status) return "";
+  if (META_STATUS_LABELS[status]) return META_STATUS_LABELS[status];
+  return status.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function metaStatusVariant(status: string | undefined | null) {
+  if (status === "ACTIVE") return "active";
+  if (status === "PAUSED" || status === "CAMPAIGN_PAUSED" || status === "ADSET_PAUSED") return "unapproved";
+  if (status === "DISAPPROVED" || status === "WITH_ISSUES") return "danger";
+  return "neutral";
+}
+
+function campaignTreeHasTransientStatus(campaigns: any[] | undefined | null) {
+  for (const campaign of campaigns || []) {
+    if (TRANSIENT_META_STATUSES.has(campaign?.effective_status)) return true;
+    for (const adset of campaign?.adsets?.data || []) {
+      if (TRANSIENT_META_STATUSES.has(adset?.effective_status)) return true;
+      for (const ad of adset?.ads?.data || []) {
+        if (TRANSIENT_META_STATUSES.has(ad?.effective_status)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function LiveMetaStatus({
+  status,
+  onClick,
+}: {
+  status?: string | null;
+  onClick?: () => void;
+}) {
+  if (status === "IN_PROCESS") {
+    return (
+      <span
+        role="status"
+        aria-label="Processing"
+        title="Processing"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minWidth: 52,
+          height: 22,
+        }}
+      >
+        <Spinner size={14} color="#8C8474" />
+      </span>
+    );
+  }
+
+  const pill = (
+    <EditorialStatusPill variant={metaStatusVariant(status)}>
+      {formatMetaStatus(status)}
+    </EditorialStatusPill>
+  );
+
+  if (!onClick) return pill;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="View Meta review reasons"
+      style={{
+        background: "none",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        font: "inherit",
+      }}
+    >
+      {pill}
+    </button>
+  );
+}
+
 function CreateAdProgressPanel({
   statusLabel,
   progress,
@@ -1995,13 +2088,17 @@ export default function Dashboard() {
 
   // Live Campaigns State
   const [liveCampaigns, setLiveCampaigns] = useState([]);
+  const liveCampaignsRef = useRef(liveCampaigns);
+  liveCampaignsRef.current = liveCampaigns;
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
+  const [adReview, setAdReview] = useState(null);
 
   // Edit Campaign / Ad Set Modal
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editType, setEditType] = useState(null); // "Campaign" or "AdSet"
+  const [editTargetId, setEditTargetId] = useState(null);
   const [editData, setEditData] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -2720,23 +2817,66 @@ export default function Dashboard() {
 
 
 
-  const fetchLiveCampaigns = useCallback(async () => {
-    setLiveLoading(true);
-    setLiveError("");
+  const fetchLiveCampaigns = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) {
+      setLiveLoading(true);
+      setLiveError("");
+    }
     try {
       const res = await fetch("/api/meta/live-campaigns");
       const data = await res.json();
       if (res.ok) {
         setLiveCampaigns(data || []);
-      } else {
+        if (silent) setLiveError("");
+      } else if (!silent) {
         setLiveError(data.error || "Failed to fetch live campaigns");
       }
     } catch (e) {
-      setLiveError("Failed to connect to API");
+      if (!silent) setLiveError("Failed to connect to API");
     } finally {
-      setLiveLoading(false);
+      if (!silent) setLiveLoading(false);
     }
   }, []);
+
+  const handleOpenAdReview = async (ad) => {
+    const status = ad?.effective_status;
+    if (status !== "DISAPPROVED" && status !== "WITH_ISSUES") return;
+
+    setAdReview({
+      adId: ad.id,
+      adName: ad.name || "",
+      status,
+      loading: true,
+      error: "",
+      reasons: [],
+    });
+
+    try {
+      const res = await fetch(`/api/meta/ad-review?adId=${encodeURIComponent(ad.id)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setAdReview((prev) => prev && prev.adId === ad.id
+          ? { ...prev, loading: false, error: data.error || "Failed to fetch review reasons" }
+          : prev);
+        return;
+      }
+      setAdReview((prev) => prev && prev.adId === ad.id
+        ? {
+            ...prev,
+            loading: false,
+            error: "",
+            adName: data.name || prev.adName,
+            status: data.status || prev.status,
+            reasons: data.reasons || [],
+          }
+        : prev);
+    } catch (e) {
+      setAdReview((prev) => prev && prev.adId === ad.id
+        ? { ...prev, loading: false, error: "Failed to connect to API" }
+        : prev);
+    }
+  };
 
   const handleUpdateStatus = async (id, type, status, action) => {
     if (action === "delete" && !confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) return;
@@ -2765,6 +2905,8 @@ export default function Dashboard() {
   const handleEditCampaign = async (campaignId) => {
     setEditModalOpen(true);
     setEditType("Campaign");
+    setEditTargetId(campaignId);
+    setEditData(null);
     setEditLoading(true);
     setEditError("");
     try {
@@ -2785,6 +2927,8 @@ export default function Dashboard() {
   const handleEditAdSet = async (campaignId, adSetId) => {
     setEditModalOpen(true);
     setEditType("AdSet");
+    setEditTargetId(adSetId);
+    setEditData(null);
     setEditLoading(true);
     setEditError("");
     try {
@@ -3364,6 +3508,44 @@ export default function Dashboard() {
       fetchMetaInsights();
     }
   }, [tab, fetchLiveCampaigns, fetchMetaInsights]);
+
+  useEffect(() => {
+    if (tab !== "live_campaigns") return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = (delay: number) => {
+      timer = setTimeout(tick, delay);
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (!document.hidden) {
+        await fetchLiveCampaigns({ silent: true });
+      }
+      if (cancelled) return;
+      const delay = campaignTreeHasTransientStatus(liveCampaignsRef.current)
+        ? LIVE_CAMPAIGN_POLL_FAST_MS
+        : LIVE_CAMPAIGN_POLL_SLOW_MS;
+      schedule(delay);
+    };
+
+    const onVisibility = () => {
+      if (!document.hidden && !cancelled) {
+        fetchLiveCampaigns({ silent: true });
+      }
+    };
+
+    schedule(LIVE_CAMPAIGN_POLL_FAST_MS);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [tab, fetchLiveCampaigns]);
 
   // ── Polling workflow status from Supabase status_table (tenant-scoped) ──
   useEffect(() => {
@@ -7774,7 +7956,7 @@ export default function Dashboard() {
             eyebrow="Meta Ads"
             title="Campaign Monitor"
             subtitle="Monitor and control your live Meta Ads."
-            actions={<EditorialTextLink onClick={fetchLiveCampaigns}>{liveLoading ? "Refreshing…" : "Refresh"}</EditorialTextLink>}
+            actions={<EditorialTextLink onClick={() => fetchLiveCampaigns()}>{liveLoading ? "Refreshing…" : "Refresh"}</EditorialTextLink>}
           />
 
           {liveLoading && liveCampaigns.length === 0 && (
@@ -7804,16 +7986,6 @@ export default function Dashboard() {
               };
               return labels[objective] || objective.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
             };
-            const statusVariant = (status) => {
-              if (status === "ACTIVE") return "active";
-              if (status === "PAUSED") return "unapproved";
-              return "neutral";
-            };
-            const formatStatus = (status) => {
-              if (!status) return "";
-              return status.charAt(0) + status.slice(1).toLowerCase();
-            };
-
             return (
               <section key={campaign.id} style={{ marginTop: campaignIdx > 0 ? 56 : 0 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 24, paddingBottom: 14, borderBottom: "1px solid #003049", alignItems: "baseline" }}>
@@ -7824,7 +7996,13 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 16 }}>
-                    <EditorialTextLink onClick={() => handleEditCampaign(campaign.id)} style={{ fontSize: 13.5, fontWeight: 700, color: "#4A5A64" }}>Edit</EditorialTextLink>
+                    <EditorialTextLink
+                      onClick={() => handleEditCampaign(campaign.id)}
+                      disabled={editLoading}
+                      style={{ fontSize: 13.5, fontWeight: 700, color: "#4A5A64", display: "inline-flex", alignItems: "center", minWidth: 28, justifyContent: "center" }}
+                    >
+                      {editLoading && editTargetId === campaign.id ? <Spinner size={14} color="#4A5A64" /> : "Edit"}
+                    </EditorialTextLink>
                     <EditorialTextLink
                       onClick={() => handleUpdateStatus(campaign.id, "Campaign", "PAUSED", "pause")}
                       disabled={campaign.effective_status === "PAUSED" || updatingStatusId === campaign.id}
@@ -7836,9 +8014,7 @@ export default function Dashboard() {
                       style={{ fontSize: 13.5, fontWeight: 400, color: "#8C8474" }}
                     >Delete</EditorialTextLink>
                   </div>
-                  <EditorialStatusPill variant={statusVariant(campaign.effective_status)}>
-                    {formatStatus(campaign.effective_status)}
-                  </EditorialStatusPill>
+                  <LiveMetaStatus status={campaign.effective_status} />
                 </div>
 
                 <div style={{ marginLeft: 28, borderLeft: "1px solid #E8DCC2", paddingLeft: 28 }}>
@@ -7850,7 +8026,13 @@ export default function Dashboard() {
                           <span style={{ fontFamily: "inherit", fontWeight: 400, fontSize: 12.5, color: "#8C8474" }}>· ad set</span>
                         </div>
                         <div style={{ display: "flex", gap: 16 }}>
-                          <EditorialTextLink onClick={() => handleEditAdSet(campaign.id, adset.id)} style={{ fontSize: 13, fontWeight: 700, color: "#4A5A64" }}>Edit</EditorialTextLink>
+                          <EditorialTextLink
+                            onClick={() => handleEditAdSet(campaign.id, adset.id)}
+                            disabled={editLoading}
+                            style={{ fontSize: 13, fontWeight: 700, color: "#4A5A64", display: "inline-flex", alignItems: "center", minWidth: 28, justifyContent: "center" }}
+                          >
+                            {editLoading && editTargetId === adset.id ? <Spinner size={14} color="#4A5A64" /> : "Edit"}
+                          </EditorialTextLink>
                           <EditorialTextLink
                             onClick={() => handleUpdateStatus(adset.id, "AdSet", "PAUSED", "pause")}
                             disabled={adset.effective_status === "PAUSED" || updatingStatusId === adset.id}
@@ -7862,9 +8044,7 @@ export default function Dashboard() {
                             style={{ fontSize: 13, fontWeight: 400, color: "#8C8474" }}
                           >Delete</EditorialTextLink>
                         </div>
-                        <EditorialStatusPill variant={statusVariant(adset.effective_status)}>
-                          {formatStatus(adset.effective_status)}
-                        </EditorialStatusPill>
+                        <LiveMetaStatus status={adset.effective_status} />
                       </div>
 
                       {adset.ads?.data?.length > 0 ? adset.ads.data.map(ad => {
@@ -7920,9 +8100,14 @@ export default function Dashboard() {
                                 style={{ fontSize: 13, fontWeight: 400, color: "#8C8474" }}
                               >Delete</EditorialTextLink>
                             </div>
-                            <EditorialStatusPill variant={statusVariant(ad.effective_status)}>
-                              {formatStatus(ad.effective_status)}
-                            </EditorialStatusPill>
+                            <LiveMetaStatus
+                              status={ad.effective_status}
+                              onClick={
+                                ad.effective_status === "DISAPPROVED" || ad.effective_status === "WITH_ISSUES"
+                                  ? () => handleOpenAdReview(ad)
+                                  : undefined
+                              }
+                            />
                           </div>
                         );
                       }) : (
@@ -7939,16 +8124,38 @@ export default function Dashboard() {
 
           <div style={{ marginTop: 56, fontSize: 12, color: "#B0A88F" }}>version 0.3</div>
 
-          {editModalOpen && (
+          {editModalOpen && createPortal(
             <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-              <div style={{ background: "var(--surface)", width: 500, maxWidth: "90%", borderRadius: "var(--radius-lg)", padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "var(--shadow-lg)" }}>
+              <div style={{ background: "var(--surface)", width: 500, maxWidth: "90%", borderRadius: "var(--radius-lg)", padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "var(--shadow-lg)", position: "relative", overflow: "hidden" }}>
+                {editSaving && (
+                  <div
+                    role="status"
+                    aria-label="Saving changes"
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(120, 120, 120, 0.5)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      zIndex: 2,
+                    }}
+                  >
+                    <Spinner size={32} color="#003049" />
+                  </div>
+                )}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ fontSize: 18, fontWeight: 700 }}>Edit {editType}</div>
-                  <button onClick={() => setEditModalOpen(false)} style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)" }}>×</button>
+                  <button onClick={() => { if (!editSaving) setEditModalOpen(false); }} disabled={editSaving} style={{ background: "transparent", border: "none", fontSize: 20, cursor: editSaving ? "default" : "pointer", color: "var(--text-muted)", opacity: editSaving ? 0.4 : 1 }}>×</button>
                 </div>
 
                 {editLoading ? (
-                  <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><Spinner size={24} color="var(--primary)" /></div>
+                  <div style={{ padding: "56px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
+                    <Spinner size={32} color="var(--primary)" />
+                    <div style={{ fontSize: 13, color: "#8C8474" }}>
+                      Loading {editType === "AdSet" ? "ad set" : "campaign"} details…
+                    </div>
+                  </div>
                 ) : editError ? (
                   <div style={{ padding: 12, background: "var(--red-light)", color: "var(--red-strong)", borderRadius: 8, fontSize: 13 }}>{editError}</div>
                 ) : editData ? (
@@ -8050,18 +8257,95 @@ export default function Dashboard() {
                     <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
                       <button
                         onClick={() => setEditModalOpen(false)}
-                        style={{ flex: 1, padding: 12, borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", cursor: "pointer", fontWeight: 600, color: "var(--text)" }}
+                        disabled={editSaving}
+                        style={{ flex: 1, padding: 12, borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", cursor: editSaving ? "default" : "pointer", fontWeight: 600, color: "var(--text)", opacity: editSaving ? 0.6 : 1 }}
                       >Cancel</button>
                       <button
                         onClick={saveEdit}
                         disabled={editSaving}
-                        style={{ flex: 1, padding: 12, borderRadius: 8, background: "var(--primary)", border: "none", cursor: editSaving ? "default" : "pointer", fontWeight: 600, color: "#fff", display: "flex", justifyContent: "center", alignItems: "center", gap: 8, opacity: editSaving ? 0.7 : 1 }}
+                        style={{ flex: 1, padding: 12, borderRadius: 8, background: "var(--primary)", border: "none", cursor: editSaving ? "default" : "pointer", fontWeight: 600, color: "#fff", display: "flex", justifyContent: "center", alignItems: "center", gap: 8, opacity: editSaving ? 0.85 : 1 }}
                       >
-                        {editSaving ? <Spinner size={16} /> : "Save Changes"}
+                        {editSaving ? <><Spinner size={16} color="#fff" /> Saving…</> : "Save Changes"}
                       </button>
                     </div>
                   </div>
                 ) : null}
+              </div>
+            </div>,
+            document.body
+          )}
+
+          {adReview && (
+            <div
+              onClick={() => setAdReview(null)}
+              style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{ background: "var(--surface)", width: 560, maxWidth: "90%", maxHeight: "80vh", overflow: "auto", borderRadius: "var(--radius-lg)", padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "var(--shadow-lg)" }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: "#003049" }}>
+                      {adReview.status === "WITH_ISSUES" ? "Why this ad has issues" : "Why this ad was disapproved"}
+                    </div>
+                    <div style={{ fontSize: 13, color: "#8C8474", marginTop: 4 }}>
+                      {adReview.adName || "Untitled ad"}
+                      {adReview.adId ? ` · ID ${adReview.adId}` : ""}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAdReview(null)}
+                    style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-muted)", lineHeight: 1 }}
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {adReview.loading ? (
+                  <div style={{ padding: 40, display: "flex", justifyContent: "center" }}>
+                    <Spinner size={24} color="var(--primary)" />
+                  </div>
+                ) : adReview.error ? (
+                  <div style={{ padding: 12, background: "var(--red-light)", color: "var(--red-strong)", borderRadius: 8, fontSize: 13 }}>
+                    {adReview.error}
+                  </div>
+                ) : adReview.reasons?.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {adReview.reasons.map((reason, idx) => (
+                      <div
+                        key={`${reason.title}-${idx}`}
+                        style={{ padding: "14px 16px", border: "1px solid #E8DCC2", borderRadius: 10, background: "var(--card-bg)" }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#003049", textTransform: "capitalize" }}>
+                          {reason.title}
+                          {reason.placement ? (
+                            <span style={{ fontWeight: 500, color: "#8C8474" }}> · {reason.placement}</span>
+                          ) : null}
+                        </div>
+                        {reason.detail ? (
+                          <div style={{ fontSize: 13.5, color: "#4A5A64", marginTop: 6, lineHeight: 1.45 }}>
+                            {reason.detail}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 14, color: "#4A5A64", lineHeight: 1.5 }}>
+                    Meta did not return a detailed policy note for this ad. Open it in Ads Manager to see the full review decision.
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+                  <button
+                    onClick={() => setAdReview(null)}
+                    style={{ padding: "10px 18px", borderRadius: 8, background: "var(--primary)", border: "none", cursor: "pointer", fontWeight: 600, color: "#fff" }}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           )}

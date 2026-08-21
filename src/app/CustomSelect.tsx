@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
 
 interface Option { value: string; label: string }
 
@@ -14,43 +14,60 @@ interface CustomSelectProps {
 export default function CustomSelect({ value, onChange, options, style, variant = "default" }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0, openUp: false });
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState({
+    top: 0 as number | "auto",
+    bottom: "auto" as number | "auto",
+    left: 0,
+    width: 0,
+    maxHeight: 220,
+  });
 
   const selectedLabel = options.find(o => o.value === value)?.label || value;
   const isEditorial = variant === "editorial";
 
-  const openDropdown = () => {
+  const placeMenu = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
     const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
-    const dropHeight = Math.min(options.length * 44, 220);
-
-    // Clamp left so dropdown never overflows right edge
+    const gap = 4;
     const maxLeft = window.innerWidth - rect.width - 8;
     const left = Math.min(rect.left, maxLeft);
 
     setDropPos({
-      top: openUp ? rect.top - dropHeight - 4 : rect.bottom + 4,
+      top: openUp ? "auto" : rect.bottom + gap,
+      bottom: openUp ? window.innerHeight - rect.top + gap : "auto",
       left: Math.max(8, left),
       width: rect.width,
-      openUp,
+      maxHeight: Math.min(220, (openUp ? spaceAbove : spaceBelow) - gap - 8),
     });
+  }, []);
+
+  const openDropdown = () => {
+    placeMenu();
     setOpen(true);
   };
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    const onMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+    const onScrollOrResize = () => placeMenu();
+
+    document.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open, placeMenu]);
 
   return (
     <>
@@ -94,52 +111,46 @@ export default function CustomSelect({ value, onChange, options, style, variant 
       </button>
 
       {open && (
-        <>
-          {/* Invisible backdrop */}
-          <div
-            style={{ position: "fixed", inset: 0, zIndex: 9998 }}
-            onMouseDown={() => setOpen(false)}
-          />
-          {/* Dropdown list — fixed, clamped to viewport */}
-          <div
-            style={{
-              position: "fixed",
-              top: dropPos.top,
-              left: dropPos.left,
-              width: dropPos.width,
-              zIndex: 9999,
-              background: "#fff",
-              borderRadius: 12,
-              border: "1.5px solid #E8DCC2",
-              boxShadow: "0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
-              overflow: "hidden",
-              maxHeight: 220,
-              overflowY: "auto",
-            }}
-          >
-            {options.map(opt => (
-              <div
-                key={opt.value}
-                onMouseDown={() => { onChange(opt.value); setOpen(false); }}
-                style={{
-                  padding: "11px 14px",
-                  fontSize: 13,
-                  fontWeight: opt.value === value ? 700 : 500,
-                  color: opt.value === value ? "#1A4A66" : "#003049",
-                  background: opt.value === value ? "#E7F0F6" : "transparent",
-                  cursor: "pointer",
-                  borderBottom: "1px solid #FDF0D5",
-                  transition: "background 0.1s",
-                  userSelect: "none",
-                }}
-                onMouseEnter={e => { if (opt.value !== value) (e.target as HTMLElement).style.background = "#FDF6E3"; }}
-                onMouseLeave={e => { if (opt.value !== value) (e.target as HTMLElement).style.background = "transparent"; }}
-              >
-                {opt.label}
-              </div>
-            ))}
-          </div>
-        </>
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            top: dropPos.top,
+            bottom: dropPos.bottom,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: "#fff",
+            borderRadius: 12,
+            border: "1.5px solid #E8DCC2",
+            boxShadow: "0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
+            overflow: "hidden",
+            maxHeight: dropPos.maxHeight,
+            overflowY: "auto",
+          }}
+        >
+          {options.map(opt => (
+            <div
+              key={opt.value}
+              onMouseDown={() => { onChange(opt.value); setOpen(false); }}
+              style={{
+                padding: "11px 14px",
+                fontSize: 13,
+                fontWeight: opt.value === value ? 700 : 500,
+                color: opt.value === value ? "#1A4A66" : "#003049",
+                background: opt.value === value ? "#E7F0F6" : "transparent",
+                cursor: "pointer",
+                borderBottom: "1px solid #FDF0D5",
+                transition: "background 0.1s",
+                userSelect: "none",
+              }}
+              onMouseEnter={e => { if (opt.value !== value) (e.target as HTMLElement).style.background = "#FDF6E3"; }}
+              onMouseLeave={e => { if (opt.value !== value) (e.target as HTMLElement).style.background = "transparent"; }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
       )}
     </>
   );
